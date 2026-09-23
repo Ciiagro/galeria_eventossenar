@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowserClient";
 import { usePerfil } from "@/lib/usePerfil";
-import { HomeIcon, AlertIcon, LogoutIcon, UserIcon, FolderIcon } from "@/components/icons";
+import { HomeIcon, AlertIcon, LogoutIcon, UserIcon, FolderIcon, ImageIcon } from "@/components/icons";
 
 const linksBase = [{ href: "/", label: "Início", Icon: HomeIcon }];
 
@@ -60,6 +60,17 @@ export function Sidebar() {
               </Link>
             );
           })}
+          {/* Galeria pública abre em outra aba (é a página que o público vê, sem login) */}
+          <a
+            href="/galeria"
+            target="_blank"
+            rel="noreferrer"
+            className="flex items-center gap-2.5 rounded-md px-3 py-2 text-sm text-white/80 hover:bg-white/5 transition-colors"
+          >
+            <ImageIcon className="w-4 h-4" />
+            Ver galeria pública
+            <span className="ml-auto text-xs text-white/60" aria-hidden>↗</span>
+          </a>
         </nav>
       </div>
 

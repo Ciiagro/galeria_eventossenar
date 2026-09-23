@@ -860,6 +860,8 @@ def validar_documento():
             .data
         )
         _municipios_cache.clear()
+        _CACHE_FEED.clear()
+        _CACHE_GERAL.clear()
         if campos_galeria.get("na_galeria"):
             for doc in updated or []:
                 if doc.get("drive_file_id"):
@@ -1072,23 +1074,25 @@ def upload_documento():
 # ------------------------------------------------------------
 # GALERIA PÚBLICA (sem login) — só o que o admin aprovou e publicou
 # ------------------------------------------------------------
-def escolas_participantes_municipio(db, municipio_id):
-    """Escolas do município que REALMENTE participaram: têm documento aprovado.
+def escolas_participantes_municipio(db, municipio_id=None):
+    """Escolas que REALMENTE participaram: têm documento aprovado.
 
-    Devolve uma lista com, para cada escola, os programas de que participou
-    e quantas ações (documentos aprovados) teve em cada um.
+    municipio_id=None -> Ceará inteiro (mapa geral da galeria).
+    Devolve, para cada escola, o município, as coordenadas, os programas de
+    que participou e quantas ações (documentos aprovados) teve em cada um.
     """
-    docs = (
-        db.table("documentos")
-        .select("escola_id, projetos(nome)")
-        .eq("municipio_id", municipio_id)
-        .eq("status", "aprovado")
-        .not_.is_("escola_id", "null")
-        .limit(5000)
-        .execute()
-        .data
-        or []
-    )
+    def montar():
+        query = (
+            db.table("documentos")
+            .select("id, escola_id, projetos(nome)")
+            .eq("status", "aprovado")
+            .not_.is_("escola_id", "null")
+        )
+        if municipio_id:
+            query = query.eq("municipio_id", municipio_id)
+        return query.order("id")
+
+    docs = fetch_all(montar)
     por_escola = {}
     for d in docs:
         programa = (d.get("projetos") or {}).get("nome") or "Sem programa"
@@ -1097,20 +1101,24 @@ def escolas_participantes_municipio(db, municipio_id):
     if not por_escola:
         return []
 
-    escolas = (
-        db.table("escolas")
-        .select("id, nome, latitude, longitude")
-        .in_("id", list(por_escola.keys()))
-        .execute()
-        .data
-        or []
-    )
+    ids = list(por_escola.keys())
+    escolas = []
+    for i in range(0, len(ids), 150):  # em lotes, para não estourar o tamanho da URL
+        escolas += (
+            db.table("escolas")
+            .select("id, nome, municipio_id, latitude, longitude")
+            .in_("id", ids[i:i + 150])
+            .execute()
+            .data
+            or []
+        )
     resultado = []
     for e in escolas:
         programas = por_escola.get(e["id"], {})
         resultado.append({
             "id": e["id"],
             "nome": e["nome"],
+            "municipio_id": e.get("municipio_id"),
             "latitude": float(e["latitude"]) if e.get("latitude") is not None else None,
             "longitude": float(e["longitude"]) if e.get("longitude") is not None else None,
             "programas": [
@@ -1123,13 +1131,27 @@ def escolas_participantes_municipio(db, municipio_id):
     return resultado
 
 
+_CACHE_FEED = {}  # municipio_id -> (docs, expira_em)
+
+
 def _galeria_feed(db, municipio_id):
-    """Só o que o administrador aprovou E escolheu publicar na galeria."""
+    """Só o que o administrador aprovou E escolheu publicar na galeria,
+    do mais recente para o mais antigo (data da ação).
+
+    Guarda o resultado por 60s: a galeria é pública e muito acessada,
+    assim cada visita não vira uma consulta nova ao banco."""
+    chave = str(municipio_id or "")
+    agora = time.time()
+    em_cache = _CACHE_FEED.get(chave)
+    if em_cache and em_cache[1] > agora:
+        return em_cache[0]
+
     query = (
         db.table("documentos")
         .select(
-            "id, municipio_id, tipo_id, descricao, descricao_galeria, data_realizacao, drive_file_link, "
-            "link_externo, visualizacoes, curtidas, tipos_documento(nome), escolas(nome), projetos(nome)"
+            "id, municipio_id, tipo_id, escola_id, projeto_id, acao_evento, descricao, descricao_galeria, "
+            "data_realizacao, drive_file_id, drive_file_link, link_externo, visualizacoes, curtidas, "
+            "publicado_galeria_em, tipos_documento(nome), escolas(nome), projetos(nome)"
         )
         .eq("status", "aprovado")
         .eq("na_galeria", True)
@@ -1137,13 +1159,30 @@ def _galeria_feed(db, municipio_id):
     if municipio_id:
         query = query.eq("municipio_id", municipio_id)
     else:
-        query = query.limit(60)
+        query = query.limit(120)
 
-    docs = query.order("data_realizacao", desc=True).execute().data or []
+    docs = query.order("data_realizacao", desc=True).order("publicado_galeria_em", desc=True).execute().data or []
     for doc in docs:
         # a galeria mostra o texto revisado pelo admin
         doc["descricao"] = doc.pop("descricao_galeria", None) or doc.get("descricao")
+    if len(_CACHE_FEED) > 200:
+        _CACHE_FEED.clear()
+    _CACHE_FEED[chave] = (docs, agora + 60)
     return docs
+
+
+_CACHE_GERAL = {}  # chave -> (valor, expira_em)
+
+
+def _em_cache(chave, segundos, calcular):
+    """Guarda o resultado por alguns segundos (a galeria é pública e muito acessada)."""
+    agora = time.time()
+    em_cache = _CACHE_GERAL.get(chave)
+    if em_cache and em_cache[1] > agora:
+        return em_cache[0]
+    valor = calcular()
+    _CACHE_GERAL[chave] = (valor, agora + segundos)
+    return valor
 
 
 def _galeria_ranking(db):
@@ -1172,10 +1211,43 @@ def _galeria_ranking(db):
 @app.get("/api/galeria")
 def galeria_documentos():
     if request.args.get("municipios") == "1":
+        # Só os municípios que já têm alguma publicação na galeria
         try:
-            db = get_client()
-            municipios = db.table("municipios").select("id, nome").order("nome").execute().data
-            return jsonify(municipios)
+            return jsonify(_em_cache("municipios_galeria", 300, lambda: sorted(
+                [{"id": r["municipio_id"], "nome": r["nome"], "publicacoes": r["total"]} for r in _galeria_ranking(get_client())],
+                key=lambda m: m["nome"],
+            )))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    if request.args.get("resumo") == "1":
+        # Números gerais do topo da galeria
+        try:
+            def calcular():
+                db = get_client()
+                publicados = fetch_all(
+                    lambda: db.table("documentos")
+                    .select("id, municipio_id, visualizacoes")
+                    .eq("status", "aprovado")
+                    .eq("na_galeria", True)
+                    .order("id")
+                )
+                escolas = _em_cache("mapa_escolas", 300, lambda: escolas_participantes_municipio(db))
+                municipios = {d["municipio_id"] for d in publicados} | {e["municipio_id"] for e in escolas if e.get("municipio_id")}
+                return {
+                    "municipios": len(municipios),
+                    "escolas": len(escolas),
+                    "publicacoes": len(publicados),
+                    "visualizacoes": sum(d.get("visualizacoes") or 0 for d in publicados),
+                }
+            return jsonify(_em_cache("resumo_galeria", 300, calcular))
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    if request.args.get("mapa") == "1":
+        # Escolas participantes do Ceará inteiro, para o mapa geral
+        try:
+            return jsonify(_em_cache("mapa_escolas", 300, lambda: escolas_participantes_municipio(get_client())))
         except Exception as e:
             return jsonify({"error": str(e)}), 500
 
@@ -1221,7 +1293,10 @@ def galeria_acao():
 
     try:
         db = get_client()
-        atual = db.table("documentos").select(campo).eq("id", documento_id).single().execute().data
+        # só publicações que estão na galeria podem receber curtida/visualização
+        atual = (
+            db.table("documentos").select(campo).eq("id", documento_id).eq("na_galeria", True).single().execute().data
+        )
         novo_total = (atual.get(campo) or 0) + 1
         db.table("documentos").update({campo: novo_total}).eq("id", documento_id).execute()
         return jsonify({campo: novo_total})

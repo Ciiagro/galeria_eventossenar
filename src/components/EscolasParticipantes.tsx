@@ -12,7 +12,7 @@ function escaparHtml(texto: string) {
 
 // Escolas que realmente participaram (com ação aprovada) no município:
 // resumo por programa, mapa só com essas escolas e a lista delas.
-export default function EscolasParticipantes({ escolas }: { escolas: EscolaParticipanteGaleria[] }) {
+export default function EscolasParticipantes({ escolas, semMapa = false }: { escolas: EscolaParticipanteGaleria[]; semMapa?: boolean }) {
   const [programaSelecionado, setProgramaSelecionado] = useState("");
   const [mostrarTodas, setMostrarTodas] = useState(false);
 
@@ -94,12 +94,14 @@ export default function EscolasParticipantes({ escolas }: { escolas: EscolaParti
         ))}
       </div>
 
-      <MapaEscolas
-        escolas={escolasVisiveis}
-        corDoPrograma={corDoPrograma}
-        programaSelecionado={programaSelecionado}
-      />
-      {semLocalizacao > 0 && (
+      {!semMapa && (
+        <MapaEscolas
+          escolas={escolasVisiveis}
+          corDoPrograma={corDoPrograma}
+          programaSelecionado={programaSelecionado}
+        />
+      )}
+      {!semMapa && semLocalizacao > 0 && (
         <p className="px-5 -mt-2 text-xs text-brand-dark/75">
           {semLocalizacao} {semLocalizacao === 1 ? "escola não tem" : "escolas não têm"} localização cadastrada e não
           {semLocalizacao === 1 ? " aparece" : " aparecem"} no mapa.

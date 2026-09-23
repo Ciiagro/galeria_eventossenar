@@ -134,6 +134,7 @@ export type Escola = {
 export type EscolaParticipanteGaleria = {
   id: string;
   nome: string;
+  municipio_id?: number;
   latitude: number | null;
   longitude: number | null;
   programas: { nome: string; acoes: number }[];
@@ -178,6 +179,11 @@ export type DocumentoGaleria = {
   id: string;
   municipio_id?: number;
   tipo_id: string;
+  escola_id?: string | null;
+  projeto_id?: string | null;
+  acao_evento?: string | null;
+  drive_file_id?: string | null;
+  publicado_galeria_em?: string | null;
   descricao?: string;
   data_realizacao: string;
   drive_file_link?: string;

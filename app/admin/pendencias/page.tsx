@@ -1,11 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { API_BASE, apiGet, apiPost, Documento, Municipio, TipoDocumento } from "@/lib/api";
+import { apiGet, apiPost, Documento, Municipio, TipoDocumento } from "@/lib/api";
 import { AdminGuard } from "@/components/AdminGuard";
 import PreviewLink from "@/components/PreviewLink";
 import { normalizarLink } from "@/lib/linkIncorporavel";
 import { ANO_ATUAL, MES_ATUAL, MESES, anosParaSeletor, noPeriodo } from "@/lib/periodo";
+import { urlsMiniatura } from "@/lib/miniatura";
 import {
   AlertIcon,
   CalendarIcon,
@@ -719,34 +720,6 @@ function Miniatura({ doc, onClick }: { doc: Documento; onClick: () => void }) {
       </span>
     </button>
   );
-}
-
-function urlsMiniatura(doc: Documento): string[] {
-  const urls: string[] = [];
-  // 1) arquivo enviado pelo sistema: miniatura pelo nosso servidor (funciona mesmo se não for público)
-  const nosso = doc.drive_file_id ?? idDoDrive(doc.drive_file_link);
-  if (nosso) {
-    urls.push(`${API_BASE}/api/miniatura/${nosso}`);
-    urls.push(`https://lh3.googleusercontent.com/d/${nosso}=w480`);
-  }
-  // 2) link colado pela pessoa
-  const link = normalizarLink(doc.link_externo);
-  if (link) {
-    const driveExterno = idDoDrive(link);
-    if (driveExterno && driveExterno !== nosso) {
-      urls.push(`https://lh3.googleusercontent.com/d/${driveExterno}=w480`);
-      urls.push(`https://drive.google.com/thumbnail?id=${driveExterno}&sz=w480`);
-    }
-    const youtube = link.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/|\/live\/)([\w-]{6,})/);
-    if (youtube && /youtu/.test(link)) urls.push(`https://img.youtube.com/vi/${youtube[1]}/hqdefault.jpg`);
-    if (/\.(jpe?g|png|gif|webp|avif)(\?|$)/i.test(link)) urls.push(link);
-  }
-  return urls;
-}
-
-function idDoDrive(link?: string | null) {
-  if (!link || !/drive\.google|docs\.google/.test(link)) return null;
-  return link.match(/\/d\/([\w-]+)/)?.[1] ?? link.match(/[?&]id=([\w-]+)/)?.[1] ?? null;
 }
 
 // ================================================================
