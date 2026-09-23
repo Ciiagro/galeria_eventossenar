@@ -158,7 +158,9 @@ type DashboardProps = {
 function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }: DashboardProps) {
   const [municipioSelecionado, setMunicipioSelecionado] = useState("");
   const anos = useMemo(() => {
-    const lista = new Set((resumo.anos_disponiveis ?? []).map(String));
+    const anoMaximo = new Date().getFullYear() + 1;
+    // ignora anos impossíveis (ex.: 20206 digitado por engano)
+    const lista = new Set((resumo.anos_disponiveis ?? []).filter((ano) => ano >= 2000 && ano <= anoMaximo).map(String));
     if (filtros.ano) lista.add(filtros.ano);
     return Array.from(lista).sort((a, b) => Number(b) - Number(a));
   }, [filtros.ano, resumo.anos_disponiveis]);
@@ -218,38 +220,64 @@ function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }:
 
   return (
     <div className="p-5 sm:p-8 max-w-[1500px]">
-      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-4 mb-7">
+      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-5">
         <div>
           <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-light mb-2">FAEC SENAR Ceará</p>
           <h1 className="text-2xl sm:text-3xl font-semibold text-brand-dark">Painel geral</h1>
           <p className="text-sm text-brand-dark/80 mt-1">Acompanhe a participação dos municípios e o andamento da documentação.</p>
         </div>
-        <div className="flex flex-wrap items-center gap-3">
-          <label className="text-xs text-brand-dark/80" htmlFor="programa-dashboard">Programa</label>
-          <select id="programa-dashboard" value={filtros.programa} onChange={(e) => onFiltrosChange({ ...filtros, programa: e.target.value })} className="border border-black/10 rounded-lg bg-white px-3 py-2 text-sm font-medium text-brand-dark max-w-[220px] focus:outline-none focus:ring-2 focus:ring-brand-light/30">
-            <option value="">Todos os programas</option>
-            {programas.map((programa) => <option key={programa.id} value={programa.id}>{programa.nome}</option>)}
-            <option value="sem">Sem programa</option>
-          </select>
-          <label className="text-xs text-brand-dark/80" htmlFor="ano-dashboard" title="Pela data de realização das ações">Ano</label>
-          <select id="ano-dashboard" value={filtros.ano} onChange={(e) => onFiltrosChange({ ...filtros, ano: e.target.value, mes: e.target.value ? filtros.mes : "" })} className="border border-black/10 rounded-lg bg-white px-3 py-2 text-sm font-medium text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-light/30">
-            <option value="">Todos os anos</option>
-            {anos.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
-          </select>
-          <label className="text-xs text-brand-dark/80" htmlFor="mes-dashboard">Mês</label>
-          <select id="mes-dashboard" value={filtros.mes} disabled={!filtros.ano} title={filtros.ano ? "" : "Escolha um ano primeiro"} onChange={(e) => onFiltrosChange({ ...filtros, mes: e.target.value })} className="border border-black/10 rounded-lg bg-white px-3 py-2 text-sm font-medium text-brand-dark disabled:opacity-50 focus:outline-none focus:ring-2 focus:ring-brand-light/30">
-            <option value="">Todos os meses</option>
-            {MESES.map((mes, i) => <option key={mes} value={String(i + 1)}>{mes}</option>)}
-          </select>
-          <label className="text-xs text-brand-dark/80" htmlFor="municipio-dashboard">Município</label>
-          <select id="municipio-dashboard" value={municipioSelecionado} onChange={(e) => setMunicipioSelecionado(e.target.value)} className="border border-black/10 rounded-lg bg-white px-3 py-2 text-sm font-medium text-brand-dark max-w-[220px] focus:outline-none focus:ring-2 focus:ring-brand-light/30">
-            <option value="">Todos os municípios</option>
-            {municipiosComEnvio.map((municipio) => <option key={municipio.id} value={municipio.id}>{municipio.nome}</option>)}
-          </select>
-          {atualizando && <span className="text-xs text-brand-dark/70">Atualizando...</span>}
-          <Link href="/admin/pendencias" className="hidden sm:inline text-sm font-medium text-brand-light hover:underline">Ver pendências →</Link>
-        </div>
+        <Link
+          href="/admin/pendencias"
+          className="inline-flex items-center gap-2 self-start sm:self-auto rounded-lg border border-brand-light/30 bg-white px-4 py-2 text-sm font-semibold text-brand-light shadow-sm hover:bg-brand-light/5"
+        >
+          Ver pendências
+          {indicadores.documentos_pendentes > 0 && (
+            <span className="rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white">{indicadores.documentos_pendentes}</span>
+          )}
+          <span aria-hidden>→</span>
+        </Link>
       </header>
+
+      <section className="bg-white rounded-xl border border-black/5 shadow-sm px-4 py-4 sm:px-5 mb-6">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.8fr_1fr_1.3fr_auto] gap-3 items-end">
+          <CampoFiltro rotulo="Programa" id="programa-dashboard">
+            <select id="programa-dashboard" value={filtros.programa} onChange={(e) => onFiltrosChange({ ...filtros, programa: e.target.value })} className={CLASSE_SELECT}>
+              <option value="">Todos os programas</option>
+              {programas.map((programa) => <option key={programa.id} value={programa.id}>{programa.nome}</option>)}
+              <option value="sem">Sem programa</option>
+            </select>
+          </CampoFiltro>
+          <CampoFiltro rotulo="Ano" id="ano-dashboard" dica="Pela data de realização das ações">
+            <select id="ano-dashboard" value={filtros.ano} onChange={(e) => onFiltrosChange({ ...filtros, ano: e.target.value, mes: e.target.value ? filtros.mes : "" })} className={CLASSE_SELECT}>
+              <option value="">Todos os anos</option>
+              {anos.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
+            </select>
+          </CampoFiltro>
+          <CampoFiltro rotulo="Mês" id="mes-dashboard">
+            <select id="mes-dashboard" value={filtros.mes} disabled={!filtros.ano} title={filtros.ano ? "" : "Escolha um ano primeiro"} onChange={(e) => onFiltrosChange({ ...filtros, mes: e.target.value })} className={`${CLASSE_SELECT} disabled:bg-black/[0.03] disabled:text-brand-dark/50`}>
+              <option value="">{filtros.ano ? "Todos os meses" : "Escolha o ano"}</option>
+              {MESES.map((mes, i) => <option key={mes} value={String(i + 1)}>{mes}</option>)}
+            </select>
+          </CampoFiltro>
+          <CampoFiltro rotulo="Município" id="municipio-dashboard">
+            <select id="municipio-dashboard" value={municipioSelecionado} onChange={(e) => setMunicipioSelecionado(e.target.value)} className={CLASSE_SELECT}>
+              <option value="">Todos os municípios</option>
+              {municipiosComEnvio.map((municipio) => <option key={municipio.id} value={municipio.id}>{municipio.nome}</option>)}
+            </select>
+          </CampoFiltro>
+          <div className="flex items-center gap-3 h-[42px]">
+            {(filtros.programa || filtros.ano || municipioSelecionado) && (
+              <button
+                onClick={() => { onFiltrosChange({ programa: "", ano: "", mes: "" }); setMunicipioSelecionado(""); }}
+                className="text-sm font-medium text-brand-light hover:underline whitespace-nowrap"
+              >
+                Limpar filtros
+              </button>
+            )}
+            {atualizando && <span className="text-xs text-brand-dark/70 whitespace-nowrap">Atualizando...</span>}
+          </div>
+        </div>
+      </section>
 
       <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <MetricCard label="Municípios participantes" value={indicadores.municipios_participantes} detail={`${percentualParticipacao}% dos municípios`} tone="green" />
@@ -443,5 +471,19 @@ function TabelaEscolas({ escolas }: { escolas: EscolaParticipante[] }) {
         </div>
       )}
     </section>
+  );
+}
+
+const CLASSE_SELECT =
+  "w-full h-[42px] border border-black/10 rounded-lg bg-white px-3 text-sm font-medium text-brand-dark focus:outline-none focus:ring-2 focus:ring-brand-light/30";
+
+function CampoFiltro({ rotulo, id, dica, children }: { rotulo: string; id: string; dica?: string; children: React.ReactNode }) {
+  return (
+    <div className="min-w-0">
+      <label htmlFor={id} className="block text-xs font-semibold uppercase tracking-wide text-brand-dark/75 mb-1.5" title={dica}>
+        {rotulo}
+      </label>
+      {children}
+    </div>
   );
 }

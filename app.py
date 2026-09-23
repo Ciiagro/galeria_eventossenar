@@ -731,6 +731,9 @@ def criar_documento():
     if not (body.get("drive_file_id") or body.get("link_externo")):
         return jsonify({"error": "É necessário um arquivo enviado ou um link externo."}), 400
 
+    if not data_realizacao_valida(body.get("data_realizacao")):
+        return jsonify({"error": "Data de realização inválida. Confira o ano (ex.: 2026)."}), 400
+
     try:
         db = get_db(jwt)
         perfil = db.table("perfis").select("nome").eq("id", user.id).single().execute().data or {}
@@ -848,6 +851,15 @@ def validar_documento():
         return jsonify(updated)
     except Exception as e:
         return jsonify({"error": mensagem_erro_galeria(e)}), 500
+
+
+def data_realizacao_valida(valor):
+    """Aceita só datas AAAA-MM-DD com ano entre 2000 e o ano que vem."""
+    try:
+        data = datetime.strptime(str(valor)[:10], "%Y-%m-%d")
+    except (TypeError, ValueError):
+        return False
+    return 2000 <= data.year <= datetime.now().year + 1
 
 
 def campos_publicacao_galeria(novo_status, body):

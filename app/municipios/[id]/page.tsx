@@ -50,7 +50,9 @@ export default function MunicipioDetalhePage() {
 
   const anosDisponiveis = Array.from(
     new Set((documentos ?? []).map((d) => d.data_realizacao?.slice(0, 4)).filter(Boolean) as string[])
-  ).sort((a, b) => Number(b) - Number(a));
+  )
+    .filter((ano) => ano.length === 4 && Number(ano) >= 2000 && Number(ano) <= new Date().getFullYear() + 1)
+    .sort((a, b) => Number(b) - Number(a));
 
   const documentosFiltrados = (documentos ?? []).filter(
     (d) =>

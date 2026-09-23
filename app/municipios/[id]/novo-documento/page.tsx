@@ -337,6 +337,8 @@ export default function NovoDocumentoPage() {
                 <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Data de realização *</label>
                 <input
                   type="date"
+                  min="2000-01-01"
+                  max={`${new Date().getFullYear() + 1}-12-31`}
                   className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
                   value={dataRealizacao}
                   onChange={(e) => setDataRealizacao(e.target.value)}
