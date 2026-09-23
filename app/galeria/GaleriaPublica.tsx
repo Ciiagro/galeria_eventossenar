@@ -300,20 +300,16 @@ export default function GaleriaPublica() {
         {/* ================= Mapa + município + últimas ações ================= */}
         {municipiosParticipantes.size > 0 && (
           <section className="grid xl:grid-cols-[1.75fr_1fr] gap-5">
-            <div className={`${CARTAO} grid md:grid-cols-[0.8fr_1.5fr_1fr] gap-4 items-stretch`}>
+            <div className={`${CARTAO} grid md:grid-cols-[0.6fr_1.7fr_1fr] gap-4 items-stretch`}>
               <div>
-                <h2 className="text-lg font-bold flex items-center gap-2">🗺️ Municípios participantes</h2>
-                <p className="mt-2 text-sm text-brand-dark/75">
-                  Veja no mapa os municípios que participam das ações e explore as publicações por região.
-                </p>
-                <div className="mt-6 space-y-2 text-sm">
-                  <p className="flex items-center gap-2"><span className="w-3.5 h-3.5 rounded-full" style={{ background: COR_PARTICIPANTE }} /> Municípios participantes</p>
-                  <p className="flex items-center gap-2 text-brand-dark/70"><span className="w-3.5 h-3.5 rounded-full bg-[#DDE3DE]" /> Demais municípios</p>
-                  <p className="flex items-center gap-2 text-brand-dark/70"><span className="w-3.5 h-3.5 shrink-0 rounded-full bg-[#123A26]" /> Município em destaque</p>
-                  <p className="flex items-center gap-2 text-brand-dark/70"><span className="w-3.5 h-3.5 shrink-0 rounded-full bg-amber-400 border border-white shadow" /> Escolas do município (clique para ver as ações)</p>
+                <h2 className="text-base font-bold">🗺️ Municípios participantes</h2>
+                <div className="mt-3 space-y-1.5 text-xs text-brand-dark/75">
+                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: COR_PARTICIPANTE }} /> Participantes</p>
+                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full bg-[#123A26]" /> Em destaque</p>
+                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full bg-amber-400" /> Escolas</p>
                 </div>
                 {municipioId && (
-                  <button onClick={() => mudarMunicipio("")} className="mt-6 text-left text-sm font-semibold text-brand-light hover:underline">← Ver todos os municípios</button>
+                  <button onClick={() => mudarMunicipio("")} className="mt-4 text-left text-xs font-semibold text-brand-light hover:underline">← Todos os municípios</button>
                 )}
               </div>
               <MapaCearaGaleria
@@ -326,10 +322,9 @@ export default function GaleriaPublica() {
                 className="h-[360px]"
               />
               {infoPainel && (
-                <div className="rounded-xl border border-black/5 bg-[#f7faf6] p-4 flex flex-col">
+                <div className="rounded-xl bg-[#f4f8f3] p-4 flex flex-col">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-lg font-bold">📍 {infoPainel.nome} (CE)</p>
-                    <span className="rounded-full bg-brand-light/10 px-2 py-0.5 text-[11px] font-semibold text-brand-light">Município em destaque</span>
                   </div>
                   <dl className="mt-4 space-y-3 text-sm">
                     <Dado icone="🏫" rotulo="Escolas participantes" valor={infoPainel.escolas} />
@@ -338,9 +333,9 @@ export default function GaleriaPublica() {
                   </dl>
                   <button
                     onClick={() => { mudarMunicipio(String(idPainel)); irParaLista(); }}
-                    className="mt-auto rounded-lg border-2 border-brand-light/60 px-3 py-2 text-sm font-semibold text-brand-light hover:bg-brand-light hover:text-white transition"
+                    className="mt-auto pt-3 w-fit text-sm font-semibold text-brand-light hover:underline"
                   >
-                    Ver ações deste município
+                    Ver ações →
                   </button>
                 </div>
               )}

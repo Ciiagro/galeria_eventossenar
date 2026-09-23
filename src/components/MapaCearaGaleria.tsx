@@ -25,7 +25,8 @@ type Props = {
 
 export const COR_PARTICIPANTE = "#2E7D4F";
 const COR_DESTAQUE = "#123A26";
-const COR_NEUTRA = "#DDE3DE";
+const COR_NEUTRA = "#E4E9E5";
+const COR_DIVISA = "#9DAEA1"; // linhas de divisa entre os municípios
 
 export default function MapaCearaGaleria({
   municipiosParticipantes,
@@ -80,8 +81,9 @@ export default function MapaCearaGaleria({
                 key={m.id}
                 d={m.d}
                 fill={destaque ? COR_DESTAQUE : participou ? COR_PARTICIPANTE : COR_NEUTRA}
-                stroke="#fff"
-                strokeWidth={destaque ? 1.6 : 0.7}
+                stroke={COR_DIVISA}
+                strokeWidth={destaque ? 1.6 : 0.9}
+                strokeLinejoin="round"
                 className={participou ? "cursor-pointer hover:brightness-110" : ""}
                 onMouseMove={(e) => participou && setDica({ texto: m.nome, ...posicao(e) })}
                 onMouseLeave={() => setDica(null)}
