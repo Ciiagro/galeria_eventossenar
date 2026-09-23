@@ -665,6 +665,66 @@ def criar_escola():
         return jsonify({"error": str(e)}), 500
 
 
+def _coordenada(valor, limite, rotulo):
+    """Converte o valor recebido em float com 6 casas (ou None se vazio).
+
+    Aceita número ou texto com vírgula decimal ("-3,4321"). Levanta ValueError
+    com mensagem pronta para o usuário se não for um número válido.
+    """
+    if valor is None or (isinstance(valor, str) and not valor.strip()):
+        return None
+    try:
+        numero = float(str(valor).strip().replace(",", "."))
+    except ValueError:
+        raise ValueError(f"{rotulo} inválida: use apenas números (ex.: -3.432100).")
+    if numero != numero or abs(numero) > limite:  # NaN ou fora do intervalo possível
+        raise ValueError(f"{rotulo} inválida: deve estar entre -{limite} e {limite}.")
+    return round(numero, 6)
+
+
+@app.put("/api/escolas")
+def atualizar_escola():
+    """Atualiza endereço, latitude e longitude de UMA escola.
+
+    Quem pode: admin (qualquer escola) e responsável municipal (só do próprio
+    município). Isso é garantido pelo banco: policy de UPDATE + gatilho em
+    sql/migration_escolas_edicao.sql — aqui só aceitamos esses 3 campos.
+    """
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    _, jwt = auth
+
+    body = request.get_json(force=True, silent=True) or {}
+    escola_id = body.get("id")
+    if not escola_id:
+        return jsonify({"error": "Campo 'id' é obrigatório."}), 400
+
+    try:
+        endereco = (body.get("endereco") or "").strip()
+        if len(endereco) > 300:
+            return jsonify({"error": "Endereço muito longo (máximo de 300 caracteres)."}), 400
+        latitude = _coordenada(body.get("latitude"), 90, "Latitude")
+        longitude = _coordenada(body.get("longitude"), 180, "Longitude")
+    except ValueError as e:
+        return jsonify({"error": str(e)}), 400
+    if (latitude is None) != (longitude is None):
+        return jsonify({"error": "Informe latitude e longitude juntas (ou deixe as duas vazias)."}), 400
+
+    payload = {"endereco": endereco or None, "latitude": latitude, "longitude": longitude}
+
+    try:
+        db = get_db(jwt)
+        atualizadas = db.table("escolas").update(payload).eq("id", escola_id).execute().data
+        if not atualizadas:
+            # a RLS esconde escolas de outros municípios: para o usuário, "não existe"
+            return jsonify({"error": "Escola não encontrada ou sem permissão para editar."}), 404
+        _CACHE_GERAL.clear()  # o mapa público usa latitude/longitude: refaz na próxima visita
+        return jsonify(atualizadas[0])
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.delete("/api/escolas")
 def remover_escola():
     auth = require_user()

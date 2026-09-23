@@ -30,6 +30,17 @@ export async function apiPost(path: string, body: unknown) {
   return res.json();
 }
 
+export async function apiPut(path: string, body: unknown) {
+  const headers = await authHeader();
+  const res = await fetch(API_BASE + path, {
+    method: "PUT",
+    headers: { ...headers, "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  });
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Erro ${res.status}`);
+  return res.json();
+}
+
 export async function apiUpload(formData: FormData) {
   const headers = await authHeader();
   const res = await fetch(API_BASE + "/api/upload", { method: "POST", headers, body: formData });
