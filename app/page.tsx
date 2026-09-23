@@ -7,6 +7,7 @@ import { apiGet, EscolaParticipante, Municipio, Projeto, ResumoDashboard } from 
 import { usePerfil } from "@/lib/usePerfil";
 import { AlertIcon, CheckIcon, ClipboardListIcon, FileTextIcon, FolderIcon, ImageIcon, MapPinIcon, SearchIcon, UploadCloudIcon, VideoIcon } from "@/components/icons";
 import MapaMunicipios from "@/components/MapaMunicipios";
+import { ANO_ATUAL, MES_ATUAL, anosParaSeletor } from "@/lib/periodo";
 
 export default function HomePage() {
   const router = useRouter();
@@ -17,7 +18,8 @@ export default function HomePage() {
   const [resumo, setResumo] = useState<ResumoDashboard | null>(null);
   const [erroResumo, setErroResumo] = useState<string | null>(null);
   const [programas, setProgramas] = useState<Projeto[]>([]);
-  const [filtros, setFiltros] = useState<FiltrosPainel>({ programa: "", ano: "", mes: "" });
+  // Padrão: ano e mês atuais
+  const [filtros, setFiltros] = useState<FiltrosPainel>({ programa: "", ano: ANO_ATUAL, mes: MES_ATUAL });
   const [atualizandoResumo, setAtualizandoResumo] = useState(false);
 
   const ehAdmin = !carregandoPerfil && perfil?.role === "admin";
@@ -157,14 +159,8 @@ type DashboardProps = {
 
 function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }: DashboardProps) {
   const [municipioSelecionado, setMunicipioSelecionado] = useState("");
-  const anos = useMemo(() => {
-    const anoMaximo = new Date().getFullYear() + 1;
-    // ignora anos impossíveis (ex.: 20206 digitado por engano)
-    const lista = new Set((resumo.anos_disponiveis ?? []).filter((ano) => ano >= 2000 && ano <= anoMaximo).map(String));
-    if (filtros.ano) lista.add(filtros.ano);
-    return Array.from(lista).sort((a, b) => Number(b) - Number(a));
-  }, [filtros.ano, resumo.anos_disponiveis]);
-  const filtrosNaUrl = filtros.ano ? `?ano=${filtros.ano}${filtros.mes ? `&mes=${filtros.mes}` : ""}` : "";
+  const anos = useMemo(() => anosParaSeletor(resumo.anos_disponiveis ?? [], filtros.ano), [filtros.ano, resumo.anos_disponiveis]);
+  const filtrosNaUrl = filtros.ano ? `?ano=${filtros.ano}${filtros.mes ? `&mes=${filtros.mes}` : ""}` : "?ano=todos";
   const descricaoPeriodo = filtros.ano
     ? filtros.mes ? `${MESES[Number(filtros.mes) - 1]} de ${filtros.ano}` : `Ano ${filtros.ano}`
     : "Todo o período";
@@ -266,9 +262,9 @@ function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }:
             </select>
           </CampoFiltro>
           <div className="flex items-center gap-3 h-[42px]">
-            {(filtros.programa || filtros.ano || municipioSelecionado) && (
+            {(filtros.programa || filtros.ano !== ANO_ATUAL || filtros.mes !== MES_ATUAL || municipioSelecionado) && (
               <button
-                onClick={() => { onFiltrosChange({ programa: "", ano: "", mes: "" }); setMunicipioSelecionado(""); }}
+                onClick={() => { onFiltrosChange({ programa: "", ano: ANO_ATUAL, mes: MES_ATUAL }); setMunicipioSelecionado(""); }}
                 className="text-sm font-medium text-brand-light hover:underline whitespace-nowrap"
               >
                 Limpar filtros
@@ -384,11 +380,14 @@ function iconeDoTipo(nome: string) {
 function TabelaEscolas({ escolas }: { escolas: EscolaParticipante[] }) {
   const [busca, setBusca] = useState("");
   const [pagina, setPagina] = useState(1);
+  const [soSemLocalizacao, setSoSemLocalizacao] = useState(false);
   const POR_PAGINA = 20;
+  const semLocalizacao = escolas.filter((e) => e.latitude == null || e.longitude == null).length;
   const lista = useMemo(() => {
     const normalizar = (texto: string) => texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
     const termo = normalizar(busca.trim());
     return escolas
+      .filter((escola) => !soSemLocalizacao || escola.latitude == null || escola.longitude == null)
       .filter((escola) =>
         !termo ||
         normalizar(escola.nome).includes(termo) ||
@@ -396,7 +395,7 @@ function TabelaEscolas({ escolas }: { escolas: EscolaParticipante[] }) {
         escola.programas.some((programa) => normalizar(programa).includes(termo))
       )
       .sort((a, b) => b.documentos - a.documentos || a.nome.localeCompare(b.nome));
-  }, [busca, escolas]);
+  }, [busca, escolas, soSemLocalizacao]);
   const totalPaginas = Math.max(1, Math.ceil(lista.length / POR_PAGINA));
   const paginaAtual = Math.min(pagina, totalPaginas);
   const inicio = (paginaAtual - 1) * POR_PAGINA;
@@ -406,7 +405,18 @@ function TabelaEscolas({ escolas }: { escolas: EscolaParticipante[] }) {
       <div className="p-5 flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
         <div>
           <h2 className="font-semibold text-brand-dark">Escolas participantes</h2>
-          <p className="text-xs text-brand-dark/75 mt-1">{lista.length.toLocaleString("pt-BR")} escolas com documentos enviados</p>
+          <p className="text-xs text-brand-dark/75 mt-1">
+            {lista.length.toLocaleString("pt-BR")} escolas com documentos enviados
+            {semLocalizacao > 0 && (
+              <button
+                onClick={() => { setSoSemLocalizacao((v) => !v); setPagina(1); }}
+                className={`ml-2 rounded-full px-2 py-0.5 font-semibold ${soSemLocalizacao ? "bg-status-pendente text-white" : "bg-status-pendente/10 text-status-pendente hover:bg-status-pendente/20"}`}
+                title="Mostrar só as escolas sem latitude/longitude"
+              >
+                {semLocalizacao} sem georreferência{soSemLocalizacao ? " ✕" : ""}
+              </button>
+            )}
+          </p>
         </div>
         <div className="relative w-full sm:w-72">
           <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-dark/65" />
@@ -435,7 +445,10 @@ function TabelaEscolas({ escolas }: { escolas: EscolaParticipante[] }) {
                 className="hover:bg-brand-light/[0.03] cursor-pointer"
                 onClick={() => (window.location.href = `/municipios/${escola.municipio_id}`)}
               >
-                <td className="px-5 py-3 font-medium text-brand-dark">{escola.nome}</td>
+                <td className="px-5 py-3">
+                  <span className="font-medium text-brand-dark">{escola.nome}</span>
+                  <Coordenadas latitude={escola.latitude} longitude={escola.longitude} />
+                </td>
                 <td className="px-3 py-3 text-brand-dark/85">{escola.municipio_nome ?? "—"}</td>
                 <td className="px-3 py-3">
                   <div className="flex flex-wrap gap-1">
@@ -485,5 +498,27 @@ function CampoFiltro({ rotulo, id, dica, children }: { rotulo: string; id: strin
       </label>
       {children}
     </div>
+  );
+}
+
+function Coordenadas({ latitude, longitude }: { latitude: number | null; longitude: number | null }) {
+  if (latitude == null || longitude == null) {
+    return (
+      <span className="mt-0.5 flex items-center gap-1 text-xs font-medium text-status-pendente">
+        ⚠️ Sem georreferência (latitude/longitude não cadastradas)
+      </span>
+    );
+  }
+  return (
+    <a
+      href={`https://www.google.com/maps?q=${latitude},${longitude}`}
+      target="_blank"
+      rel="noreferrer"
+      onClick={(e) => e.stopPropagation()}
+      className="mt-0.5 inline-flex items-center gap-1 text-xs text-brand-dark/75 hover:text-brand-light hover:underline"
+      title="Ver no Google Maps"
+    >
+      📍 Lat {latitude.toFixed(6)} · Long {longitude.toFixed(6)}
+    </a>
   );
 }

@@ -6,6 +6,7 @@ import { useParams } from "next/navigation";
 import { apiDelete, apiGet, Documento, Municipio } from "@/lib/api";
 import { StatusBadge } from "@/components/StatusBadge";
 import { SearchIcon, XIcon } from "@/components/icons";
+import { ANO_ATUAL, MES_ATUAL, anosParaSeletor } from "@/lib/periodo";
 import PreviewLink from "@/components/PreviewLink";
 import { linkIncorporavel, normalizarLink } from "@/lib/linkIncorporavel";
 
@@ -16,17 +17,24 @@ export default function MunicipioDetalhePage() {
   const [erro, setErro] = useState<string | null>(null);
   const [filtroEscola, setFiltroEscola] = useState("");
   const [filtroProjeto, setFiltroProjeto] = useState("");
-  const [filtroAno, setFiltroAno] = useState("");
-  const [filtroMes, setFiltroMes] = useState("");
+  // Padrão: ano e mês atuais
+  const [filtroAno, setFiltroAno] = useState(ANO_ATUAL);
+  const [filtroMes, setFiltroMes] = useState(MES_ATUAL);
   const [filtroStatus, setFiltroStatus] = useState("");
   const [busca, setBusca] = useState("");
 
   // Chegando do painel com ?ano=2026&mes=9, já abre filtrado
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    setFiltroAno(params.get("ano") ?? "");
-    setFiltroMes(params.get("ano") ? params.get("mes") ?? "" : "");
+    // sem ?ano= na URL abre no ano padrão; ?ano=todos abre sem filtro de ano
+    const ano = params.get("ano");
+    if (ano !== null) {
+      const anoInicial = ano === "todos" ? "" : ano;
+      setFiltroAno(anoInicial);
+      setFiltroMes(anoInicial ? params.get("mes") ?? "" : "");
+    }
   }, []);
+
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -48,11 +56,7 @@ export default function MunicipioDetalhePage() {
     new Map((documentos ?? []).filter((d) => d.projetos?.nome).map((d) => [d.projeto_id, d.projetos!.nome])).entries()
   );
 
-  const anosDisponiveis = Array.from(
-    new Set((documentos ?? []).map((d) => d.data_realizacao?.slice(0, 4)).filter(Boolean) as string[])
-  )
-    .filter((ano) => ano.length === 4 && Number(ano) >= 2000 && Number(ano) <= new Date().getFullYear() + 1)
-    .sort((a, b) => Number(b) - Number(a));
+  const anosDisponiveis = anosParaSeletor((documentos ?? []).map((d) => d.data_realizacao), filtroAno);
 
   const documentosFiltrados = (documentos ?? []).filter(
     (d) =>
@@ -63,9 +67,9 @@ export default function MunicipioDetalhePage() {
       (!filtroStatus || d.status === filtroStatus) &&
       correspondeBusca(d, busca)
   );
-  const temFiltro = Boolean(filtroEscola || filtroProjeto || filtroAno || filtroMes || filtroStatus || busca.trim());
+  const temFiltro = Boolean(filtroEscola || filtroProjeto || filtroAno !== ANO_ATUAL || filtroMes !== MES_ATUAL || filtroStatus || busca.trim());
   function limparFiltros() {
-    setFiltroEscola(""); setFiltroProjeto(""); setFiltroAno(""); setFiltroMes(""); setFiltroStatus(""); setBusca("");
+    setFiltroEscola(""); setFiltroProjeto(""); setFiltroAno(ANO_ATUAL); setFiltroMes(MES_ATUAL); setFiltroStatus(""); setBusca("");
   }
 
   // Período = da primeira à última data de realização dos documentos exibidos

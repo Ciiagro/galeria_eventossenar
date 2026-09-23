@@ -7,6 +7,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { StatusBadge } from "@/components/StatusBadge";
 import PreviewLink from "@/components/PreviewLink";
 import { linkIncorporavel, normalizarLink } from "@/lib/linkIncorporavel";
+import { ANO_ATUAL, MES_ATUAL, MESES, anosParaSeletor, noPeriodo } from "@/lib/periodo";
 
 export default function PendenciasPageGuarded() {
   return (
@@ -22,7 +23,11 @@ function PendenciasPage() {
   const [tipos, setTipos] = useState<TipoDocumento[]>([]);
   const [erro, setErro] = useState<string | null>(null);
   const [processando, setProcessando] = useState<string | null>(null);
-  const [filtroStatus, setFiltroStatus] = useState<"" | "pendente" | "aprovado" | "rejeitado">("pendente");
+  // Status: abre em "Pendentes" se existir alguma pendência; senão, em "Todos".
+  const [filtroStatus, setFiltroStatus] = useState<"" | "pendente" | "aprovado" | "rejeitado" | null>(null);
+  const [filtroAno, setFiltroAno] = useState(ANO_ATUAL);
+  const [filtroMes, setFiltroMes] = useState(MES_ATUAL);
+  const [pendenciasTotais, setPendenciasTotais] = useState<Documento[]>([]);
   const [filtroMunicipio, setFiltroMunicipio] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [busca, setBusca] = useState("");
@@ -61,7 +66,23 @@ function PendenciasPage() {
     }
   }
 
+  function carregarPendencias() {
+    return apiGet("/api/documentos?status=pendente")
+      .then((lista: Documento[]) => {
+        setPendenciasTotais(lista);
+        return lista;
+      })
+      .catch(() => [] as Documento[]);
+  }
+
+  // Na primeira abertura decide o status padrão
+  useEffect(() => {
+    carregarPendencias().then((lista) => setFiltroStatus((atual) => (atual === null ? (lista.length ? "pendente" : "") : atual)));
+  }, []);
+
   function carregar() {
+    if (filtroStatus === null) return;
+    carregarPendencias();
     const params = new URLSearchParams();
     if (filtroStatus) params.set("status", filtroStatus);
     if (filtroMunicipio) params.set("municipio_id", filtroMunicipio);
@@ -94,8 +115,9 @@ function PendenciasPage() {
 
   const documentosVisiveis = useMemo(() => {
     const termo = busca.trim().toLowerCase();
-    if (!termo) return documentos ?? [];
-    return (documentos ?? []).filter((doc) =>
+    const doPeriodo = (documentos ?? []).filter((doc) => noPeriodo(doc.data_realizacao, filtroAno, filtroMes));
+    if (!termo) return doPeriodo;
+    return doPeriodo.filter((doc) =>
       [
         doc.descricao,
         doc.acao_evento,
@@ -107,7 +129,31 @@ function PendenciasPage() {
         .filter(Boolean)
         .some((valor) => valor!.toLowerCase().includes(termo))
     );
-  }, [busca, documentos, nomeMunicipio]);
+  }, [busca, documentos, nomeMunicipio, filtroAno, filtroMes]);
+
+  const anosDisponiveis = useMemo(
+    () => anosParaSeletor((documentos ?? []).concat(pendenciasTotais).map((d) => d.data_realizacao), filtroAno),
+    [documentos, pendenciasTotais, filtroAno]
+  );
+  // pendências que existem mas ficaram de fora por causa do ano/mês escolhido
+  const pendenciasForaDoPeriodo = pendenciasTotais.filter(
+    (d) =>
+      !noPeriodo(d.data_realizacao, filtroAno, filtroMes) &&
+      (!filtroMunicipio || String(d.municipio_id) === filtroMunicipio) &&
+      (!filtroTipo || d.tipo_id === filtroTipo)
+  ).length;
+  const temFiltro = Boolean(
+    filtroAno !== ANO_ATUAL || filtroMes !== MES_ATUAL || filtroMunicipio || filtroTipo || busca.trim() ||
+      filtroStatus !== (pendenciasTotais.length ? "pendente" : "")
+  );
+  function limparFiltros() {
+    setFiltroAno(ANO_ATUAL);
+    setFiltroMes(MES_ATUAL);
+    setFiltroMunicipio("");
+    setFiltroTipo("");
+    setBusca("");
+    setFiltroStatus(pendenciasTotais.length ? "pendente" : "");
+  }
 
   function driveEmbedUrl(link?: string) {
     const id = driveFileId(link);
@@ -162,12 +208,12 @@ function PendenciasPage() {
             />
           </label>
           <select
-            value={filtroStatus}
+            value={filtroStatus ?? ""}
             onChange={(e) => setFiltroStatus(e.target.value as typeof filtroStatus)}
             className="border border-black/10 rounded-lg px-3 py-2 text-sm bg-white"
           >
             <option value="">Todos os status</option>
-            <option value="pendente">Pendentes</option>
+            <option value="pendente">Pendentes{pendenciasTotais.length ? ` (${pendenciasTotais.length})` : ""}</option>
             <option value="aprovado">Aprovados</option>
             <option value="rejeitado">Rejeitados</option>
           </select>
@@ -197,6 +243,29 @@ function PendenciasPage() {
               </option>
             ))}
           </select>
+          <select
+            value={filtroAno}
+            onChange={(e) => { setFiltroAno(e.target.value); if (!e.target.value) setFiltroMes(""); }}
+            className="border border-black/10 rounded-lg px-3 py-2 text-sm bg-white"
+            title="Pela data de realização"
+          >
+            <option value="">Todos os anos</option>
+            {anosDisponiveis.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
+          </select>
+          <select
+            value={filtroMes}
+            onChange={(e) => setFiltroMes(e.target.value)}
+            disabled={!filtroAno}
+            className="border border-black/10 rounded-lg px-3 py-2 text-sm bg-white disabled:bg-black/[0.03] disabled:text-brand-dark/50"
+          >
+            <option value="">{filtroAno ? "Todos os meses" : "Escolha o ano"}</option>
+            {MESES.map((mes, i) => <option key={mes} value={String(i + 1)}>{mes}</option>)}
+          </select>
+          {temFiltro && (
+            <button onClick={limparFiltros} className="text-sm font-medium text-brand-light hover:underline self-center">
+              Limpar filtros
+            </button>
+          )}
           <span className="text-xs text-brand-dark/70 self-center">
             {documentosVisiveis.length} {documentosVisiveis.length === 1 ? "documento" : "documentos"}
           </span>
@@ -206,6 +275,18 @@ function PendenciasPage() {
       {erro && (
         <div className="rounded-md bg-status-pendente/10 text-status-pendente px-4 py-3 text-sm mb-6">
           {erro}
+        </div>
+      )}
+
+      {(filtroStatus === "pendente" || filtroStatus === "") && pendenciasForaDoPeriodo > 0 && (
+        <div className="rounded-lg bg-amber-50 border border-amber-200 text-amber-900 px-4 py-3 text-sm mb-4 flex flex-wrap items-center gap-2">
+          ⚠️ Há {pendenciasForaDoPeriodo} {pendenciasForaDoPeriodo === 1 ? "pendência" : "pendências"} fora do período escolhido.
+          <button
+            onClick={() => { setFiltroAno(""); setFiltroMes(""); setFiltroStatus("pendente"); }}
+            className="font-semibold underline"
+          >
+            Ver todas as pendências
+          </button>
         </div>
       )}
 
