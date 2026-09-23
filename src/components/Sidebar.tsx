@@ -38,7 +38,7 @@ export function Sidebar() {
             <p className="text-xs text-white/70 mb-0.5">Logado como</p>
             <p className="text-sm font-medium truncate">{perfil.nome || perfil.email}</p>
             <p className="text-xs text-white/75 truncate">{perfil.email}</p>
-            <span className="inline-block mt-1.5 text-xs uppercase tracking-wide bg-white/10 px-2 py-0.5 rounded-full">
+            <span className="inline-block mt-1.5 text-xs bg-white/10 px-2 py-0.5 rounded-full">
               {perfil.role === "admin" ? "Administrador" : "Responsável municipal"}
             </span>
           </div>
