@@ -1,0 +1,41 @@
+# dependências e build
+node_modules/
+.next/
+venv/
+.venv/
+__pycache__/
+*.pyc
+*.tsbuildinfo
+.vercel/
+
+# SEGREDOS — nunca enviar para o GitHub/Vercel
+.env
+.env.local
+.env.*.local
+pasta_secreta_drive/
+sistema-municipios-*.json
+client_secret_*.json
+*service-account*.json
+
+# arquivos de teste/rascunho locais
+*.zip
+testar_login_real*.py
+Supabase Snippet*.csv
+bloco.txt
+
+
+cat >> .gitignore <<'EOF'
+
+# Versões antigas das rotas (ficam só no computador, não vão para o GitHub)
+api/documentos.py
+api/escolas.py
+api/galeria.py
+api/municipios.py
+api/perfil.py
+api/projetos.py
+api/responsaveis.py
+api/tipos-documento.py
+api/upload.py
+api/upload-iniciar.py
+api/upload-pedaco.py
+api/validar.py

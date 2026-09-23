@@ -1,0 +1,17 @@
+# Não sobe para o Vercel (segredos e arquivos locais)
+.env
+.env.local
+pasta_secreta_drive/
+sistema-municipios-*.json
+client_secret_*.json
+venv/
+.venv/
+*.zip
+escolas_ce.csv
+testar_login_real*.py
+checar_*.py
+check_*.py
+criar_*.py
+remover_*.py
+Supabase Snippet*.csv
+bloco.txt

@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8" />
+<title>Documentação Municipal — teste</title>
+<style>
+  body { font-family: system-ui, sans-serif; background: #f7f6f2; color: #122e20; margin: 0; }
+  header { background: #1e4632; color: white; padding: 20px 24px; }
+  header h1 { margin: 0; font-size: 20px; }
+  header p { margin: 4px 0 0; color: rgba(255,255,255,0.7); font-size: 13px; }
+  main { max-width: 720px; margin: 24px auto; padding: 0 16px; }
+  section { background: white; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid rgba(0,0,0,0.06); }
+  section h2 { font-size: 15px; margin-top: 0; }
+  label { display: block; font-size: 13px; font-weight: 600; margin: 12px 0 4px; }
+  input, select, textarea { width: 100%; box-sizing: border-box; padding: 8px 10px; border: 1px solid rgba(0,0,0,0.15); border-radius: 6px; font-size: 13px; }
+  button { background: #2f6b4f; color: white; border: none; padding: 9px 16px; border-radius: 6px; font-size: 13px; cursor: pointer; margin-top: 14px; }
+  button.reject { background: #c0392b; margin-left: 8px; }
+  button:hover { opacity: 0.9; }
+  .doc { border: 1px solid rgba(0,0,0,0.08); border-radius: 6px; padding: 10px 12px; margin-bottom: 8px; font-size: 13px; }
+  .doc .meta { color: rgba(0,0,0,0.5); font-size: 12px; margin-top: 2px; }
+  .msg { font-size: 13px; padding: 8px 10px; border-radius: 6px; margin-top: 10px; }
+  .msg.ok { background: rgba(47,107,79,0.1); color: #2f6b4f; }
+  .msg.err { background: rgba(192,57,43,0.1); color: #c0392b; }
+  .empty { font-size: 13px; color: rgba(0,0,0,0.4); }
+</style>
+</head>
+<body>
+<header>
+  <h1>Documentação Municipal — página de teste</h1>
+  <p>Sem frontend/npm — só pra testar o backend direto (modo DEV_SKIP_AUTH)</p>
+</header>
+
+<main>
+  <section>
+    <h2>Novo documento</h2>
+    <label>Município</label>
+    <select id="municipio_id"></select>
+
+    <label>Tipo de arquivo</label>
+    <select id="tipo_id"></select>
+
+    <label>Ação / Evento</label>
+    <input id="acao_evento" placeholder="Ex: Capacitação de produtores" />
+
+    <label>Data de realização</label>
+    <input id="data_realizacao" type="date" />
+
+    <label>Descrição</label>
+    <textarea id="descricao" rows="3" placeholder="Descreva o documento..."></textarea>
+
+    <label>Link alternativo (Drive, YouTube, etc.)</label>
+    <input id="link_externo" placeholder="https://..." />
+
+    <button onclick="criarDocumento()">Salvar documento</button>
+    <div id="msg_novo"></div>
+  </section>
+
+  <section>
+    <h2>Pendências</h2>
+    <div id="pendencias"><p class="empty">Carregando...</p></div>
+  </section>
+</main>
+
+<script>
+async function api(path, options) {
+  const res = await fetch(path, options);
+  const data = await res.json();
+  if (!res.ok) throw new Error(data.error || `Erro ${res.status}`);
+  return data;
+}
+
+async function carregarMunicipios() {
+  const select = document.getElementById("municipio_id");
+  try {
+    const municipios = await api("/api/municipios");
+    select.innerHTML = municipios.map(m => `<option value="${m.id}">${m.nome}</option>`).join("");
+    if (municipios.length === 0) select.innerHTML = `<option value="">Nenhum município cadastrado (rode seed_dev.sql)</option>`;
+  } catch (e) {
+    select.innerHTML = `<option value="">Erro ao carregar: ${e.message}</option>`;
+  }
+}
+
+async function carregarTipos() {
+  const select = document.getElementById("tipo_id");
+  try {
+    const tipos = await api("/api/tipos-documento");
+    select.innerHTML = tipos.map(t => `<option value="${t.id}">${t.nome}</option>`).join("");
+  } catch (e) {
+    select.innerHTML = `<option value="">Erro ao carregar: ${e.message}</option>`;
+  }
+}
+
+async function carregarPendencias() {
+  const div = document.getElementById("pendencias");
+  try {
+    const docs = await api("/api/documentos?status=pendente");
+    if (docs.length === 0) {
+      div.innerHTML = `<p class="empty">Nenhuma pendência.</p>`;
+      return;
+    }
+    div.innerHTML = docs.map(d => `
+      <div class="doc">
+        <strong>${d.tipos_documento?.nome ?? "Tipo?"}</strong> — ${d.acao_evento ?? "(sem ação/evento)"}
+        <div class="meta">${d.data_realizacao} · ${d.descricao ?? ""}</div>
+        <button onclick="validar('${d.id}', 'aprovado')">Aprovar</button>
+        <button class="reject" onclick="validar('${d.id}', 'rejeitado')">Rejeitar</button>
+      </div>
+    `).join("");
+  } catch (e) {
+    div.innerHTML = `<p class="msg err">Erro ao carregar: ${e.message}</p>`;
+  }
+}
+
+async function criarDocumento() {
+  const msg = document.getElementById("msg_novo");
+  msg.innerHTML = "";
+
+  const body = {
+    municipio_id: document.getElementById("municipio_id").value,
+    tipo_id: document.getElementById("tipo_id").value,
+    acao_evento: document.getElementById("acao_evento").value,
+    data_realizacao: document.getElementById("data_realizacao").value,
+    descricao: document.getElementById("descricao").value,
+    link_externo: document.getElementById("link_externo").value,
+  };
+
+  try {
+    await api("/api/documentos", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    msg.innerHTML = `<div class="msg ok">Documento salvo como pendente!</div>`;
+    document.getElementById("acao_evento").value = "";
+    document.getElementById("descricao").value = "";
+    document.getElementById("link_externo").value = "";
+    carregarPendencias();
+  } catch (e) {
+    msg.innerHTML = `<div class="msg err">${e.message}</div>`;
+  }
+}
+
+async function validar(id, status) {
+  let motivo;
+  if (status === "rejeitado") {
+    motivo = prompt("Motivo da rejeição:");
+    if (!motivo) return;
+  }
+  try {
+    await api("/api/validar", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ documento_id: id, status, motivo_rejeicao: motivo }),
+    });
+    carregarPendencias();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+carregarMunicipios();
+carregarTipos();
+carregarPendencias();
+</script>
+</body>
+</html>
