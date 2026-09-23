@@ -4,7 +4,7 @@ import { supabaseBrowser } from "./supabaseBrowserClient";
 // frontend e funções Python ficam na mesma origem, então "/api/..." já funciona.
 // Rodando o backend como Flask local (python app.py, porta separada), aponte para
 // http://localhost:5000 no seu .env.local.
-const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
+export const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "";
 
 async function authHeader(): Promise<Record<string, string>> {
   const { data } = await supabaseBrowser.auth.getSession();
@@ -203,6 +203,11 @@ export type Documento = {
   responsavel_email?: string;
   status: "pendente" | "aprovado" | "rejeitado";
   motivo_rejeicao?: string | null;
+  validado_por?: string | null;
+  validado_por_nome?: string | null;
+  validado_em?: string | null;
+  created_at?: string;
+  drive_file_id?: string | null;
   drive_file_link?: string;
   link_externo?: string;
   na_galeria?: boolean;

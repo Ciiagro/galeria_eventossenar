@@ -201,3 +201,45 @@ def upload_file(
 def create_municipio_folder(service, root_folder_id: str, municipio_nome: str) -> str:
     """Cria a pasta raiz de um município novo dentro da pasta raiz geral."""
     return get_or_create_subfolder(service, root_folder_id, municipio_nome)
+
+
+def liberar_link_publico(file_id: str) -> bool:
+    """Deixa o arquivo visível para quem tem o link (necessário para a galeria
+    pública e para as miniaturas). Devolve False se o Workspace bloquear."""
+    try:
+        get_drive_service().permissions().create(
+            fileId=file_id,
+            body={"role": "reader", "type": "anyone"},
+            supportsAllDrives=True,
+        ).execute()
+        return True
+    except Exception as e:
+        print(f"[drive_client] Aviso: não consegui liberar o link do arquivo {file_id}: {e}")
+        return False
+
+
+def baixar_miniatura(file_id: str, largura: int = 480):
+    """Busca a miniatura do arquivo pela API do Drive (com a nossa credencial,
+    então funciona mesmo se o arquivo não estiver público).
+    Devolve (bytes, content_type) ou None se o Drive ainda não gerou miniatura."""
+    import re
+
+    info = (
+        get_drive_service()
+        .files()
+        .get(fileId=file_id, fields="thumbnailLink, mimeType", supportsAllDrives=True)
+        .execute()
+    )
+    link = info.get("thumbnailLink")
+    if not link:
+        return None
+    link = re.sub(r"=s\d+$", f"=w{largura}", link)
+    resposta = httpx.get(
+        link,
+        headers={"Authorization": f"Bearer {get_access_token()}"},
+        timeout=20,
+        follow_redirects=True,
+    )
+    if resposta.status_code != 200:
+        return None
+    return resposta.content, resposta.headers.get("content-type", "image/jpeg")

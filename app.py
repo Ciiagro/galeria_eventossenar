@@ -16,13 +16,13 @@ import json
 from datetime import datetime, timezone
 
 from dotenv import load_dotenv
-from flask import Flask, request, jsonify, render_template
+from flask import Flask, request, jsonify, render_template, Response
 from flask_cors import CORS
 
 load_dotenv()
 
 from lib.supabase_client import get_client, get_client_as_user, get_user_from_jwt
-from lib.drive_client import get_drive_service, upload_file, create_municipio_folder, get_or_create_subfolder, iniciar_upload_resumavel, enviar_pedaco_resumavel
+from lib.drive_client import get_drive_service, upload_file, create_municipio_folder, get_or_create_subfolder, iniciar_upload_resumavel, enviar_pedaco_resumavel, liberar_link_publico, baixar_miniatura
 from lib.video_compress import comprimir_video_se_necessario
 
 app = Flask(__name__)
@@ -696,19 +696,31 @@ def listar_documentos():
 
     try:
         db = get_db(jwt)
-        query = db.table("documentos").select("*, tipos_documento(nome), escolas(nome, endereco), projetos(nome)")
-
         municipio_id = request.args.get("municipio_id")
         status = request.args.get("status")
         tipo_id = request.args.get("tipo_id")
-        if municipio_id:
-            query = query.eq("municipio_id", municipio_id)
-        if status:
-            query = query.eq("status", status)
-        if tipo_id:
-            query = query.eq("tipo_id", tipo_id)
 
-        docs = query.order("created_at", desc=True).execute().data
+        def montar_query():
+            query = db.table("documentos").select("*, tipos_documento(nome), escolas(nome, endereco), projetos(nome)")
+            if municipio_id:
+                query = query.eq("municipio_id", municipio_id)
+            if status:
+                query = query.eq("status", status)
+            if tipo_id:
+                query = query.eq("tipo_id", tipo_id)
+            return query.order("created_at", desc=True).order("id")
+
+        docs = fetch_all(montar_query)
+
+        # Nome de quem aprovou/reprovou ("Aprovado por Geovana")
+        ids_validadores = list({d["validado_por"] for d in docs if d.get("validado_por")})
+        if ids_validadores:
+            perfis = (
+                get_client().table("perfis").select("id, nome").in_("id", ids_validadores).execute().data or []
+            )
+            nomes = {p["id"]: p["nome"] for p in perfis}
+            for d in docs:
+                d["validado_por_nome"] = nomes.get(d.get("validado_por"))
         return jsonify(docs)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -848,6 +860,10 @@ def validar_documento():
             .data
         )
         _municipios_cache.clear()
+        if campos_galeria.get("na_galeria"):
+            for doc in updated or []:
+                if doc.get("drive_file_id"):
+                    liberar_link_publico(doc["drive_file_id"])
         return jsonify(updated)
     except Exception as e:
         return jsonify({"error": mensagem_erro_galeria(e)}), 500
@@ -895,6 +911,48 @@ def mensagem_erro_galeria(erro):
 # ------------------------------------------------------------
 # UPLOAD (Google Drive)
 # ------------------------------------------------------------
+_CACHE_MINIATURAS = {}  # file_id -> (bytes, content_type, expira_em)
+
+
+@app.get("/api/miniatura/<file_id>")
+def miniatura(file_id):
+    """Miniatura de um arquivo do Drive para os cards (tag <img>).
+
+    Passa pelo nosso servidor porque o link direto do Google só funciona se o
+    arquivo estiver público e o navegador aceitar cookies do Google.
+    Só serve arquivos que pertencem a algum documento do sistema.
+    """
+    import re
+
+    if not re.fullmatch(r"[\w-]{10,200}", file_id or ""):
+        return jsonify({"error": "id inválido"}), 400
+
+    agora = time.time()
+    em_cache = _CACHE_MINIATURAS.get(file_id)
+    if em_cache and em_cache[2] > agora:
+        conteudo, tipo = em_cache[0], em_cache[1]
+    else:
+        try:
+            existe = (
+                get_client().table("documentos").select("id").eq("drive_file_id", file_id).limit(1).execute().data
+            )
+            if not existe:
+                return jsonify({"error": "Arquivo não encontrado."}), 404
+            resultado = baixar_miniatura(file_id)
+        except Exception as e:
+            print(f"[miniatura] {file_id}: {e}")
+            resultado = None
+        if not resultado:
+            # Drive ainda não gerou (ex.: vídeo processando) ou tipo sem miniatura
+            return Response(status=404, headers={"Cache-Control": "public, max-age=300"})
+        conteudo, tipo = resultado
+        if len(_CACHE_MINIATURAS) > 300:
+            _CACHE_MINIATURAS.clear()
+        _CACHE_MINIATURAS[file_id] = (conteudo, tipo, agora + 3600)
+
+    return Response(conteudo, mimetype=tipo, headers={"Cache-Control": "public, max-age=86400"})
+
+
 @app.post("/api/upload-iniciar")
 def upload_iniciar():
     auth = require_user()
@@ -961,7 +1019,11 @@ def upload_pedaco():
         return jsonify({"concluido": False}), 200
 
     if resposta.status_code in (200, 201):
-        return jsonify({"concluido": True, **resposta.json()}), 200
+        dados = resposta.json()
+        if dados.get("id"):
+            # igual ao upload pequeno: libera "qualquer pessoa com o link"
+            liberar_link_publico(dados["id"])
+        return jsonify({"concluido": True, **dados}), 200
 
     return jsonify({"error": f"Google Drive respondeu {resposta.status_code}: {resposta.text[:300]}"}), 502
 
