@@ -3,15 +3,17 @@ const STYLES: Record<string, string> = {
   aprovado: "bg-status-completo/10 text-status-completo",
   parcial: "bg-status-parcial/10 text-status-parcial",
   pendente: "bg-status-pendente/10 text-status-pendente",
-  rejeitado: "bg-status-pendente/10 text-status-pendente",
+  rejeitado: "bg-black/5 text-brand-dark/70",
+  arquivado: "bg-black/5 text-brand-dark/70",
 };
 
 const LABELS: Record<string, string> = {
   completo: "Completo",
   aprovado: "Aprovado",
   parcial: "Parcial",
-  pendente: "Pendente",
-  rejeitado: "Rejeitado",
+  pendente: "Para revisar",
+  rejeitado: "Arquivado",
+  arquivado: "Arquivado",
 };
 
 export function StatusBadge({ status }: { status: string }) {

@@ -7,10 +7,13 @@ import { apiDelete, apiGet, Documento, Municipio } from "@/lib/api";
 import { CalendarIcon, CheckIcon, FolderIcon, SearchIcon, UserIcon, XIcon } from "@/components/icons";
 import { EscolaIcon, Info, Miniatura, formatarData, formatarDataHora, normalizarTexto } from "@/components/DocumentoUI";
 import PreviewLink from "@/components/PreviewLink";
-import { ANO_ATUAL, MES_ATUAL, MESES, anosParaSeletor, noPeriodo } from "@/lib/periodo";
+import { MESES } from "@/lib/periodo";
+import { noCicloEMes, useFiltroCiclo } from "@/lib/ciclos";
+import { SeletorCiclo } from "@/components/SeletorCiclo";
 import { normalizarLink } from "@/lib/linkIncorporavel";
+import { BotaoExcluir } from "@/components/BotoesIcone";
 
-type Aba = "" | "pendente" | "aprovado" | "rejeitado";
+type Aba = "" | "pendente" | "aprovado" | "arquivado";
 type Ordem = "recentes" | "antigos" | "data_acao";
 
 const SELECT =
@@ -24,27 +27,26 @@ export default function MunicipioDetalhePage() {
   const [excluindoId, setExcluindoId] = useState<string | null>(null);
   const [visualizando, setVisualizando] = useState<Documento | null>(null);
 
-  // Filtros (padrão: ano e mês atuais)
+  // Filtros (padrão: ciclo ativo, todos os meses)
   const [aba, setAba] = useState<Aba>("");
   const [ordem, setOrdem] = useState<Ordem>("recentes");
-  const [filtroAno, setFiltroAno] = useState(ANO_ATUAL);
-  const [filtroMes, setFiltroMes] = useState(MES_ATUAL);
+  const { ciclos, cicloId: filtroCiclo, setCicloId: setFiltroCiclo, ehPadrao: cicloPadrao } = useFiltroCiclo();
+  const [filtroMes, setFiltroMes] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
-  const [filtroProjeto, setFiltroProjeto] = useState("");
+  const [filtroAcao, setFiltroAcao] = useState("");
   const [filtroEscola, setFiltroEscola] = useState("");
   const [busca, setBusca] = useState("");
 
-  // Chegando do painel com ?ano=2026&mes=9, já abre filtrado
+  // Chegando do painel com ?ciclo=<id>&mes=9, já abre filtrado
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
-    // sem ?ano= na URL abre no ano padrão; ?ano=todos abre sem filtro de ano
-    const ano = params.get("ano");
-    if (ano !== null) {
-      const anoInicial = ano === "todos" ? "" : ano;
-      setFiltroAno(anoInicial);
-      setFiltroMes(anoInicial ? params.get("mes") ?? "" : "");
+    // sem ?ciclo= na URL abre no ciclo ativo; ?ciclo=todos abre sem filtro de ciclo
+    const ciclo = params.get("ciclo");
+    if (ciclo !== null) {
+      setFiltroCiclo(ciclo === "todos" ? "" : ciclo);
+      setFiltroMes(params.get("mes") ?? "");
     }
-  }, []);
+  }, [setFiltroCiclo]);
 
   useEffect(() => {
     apiGet(`/api/documentos?municipio_id=${id}`)
@@ -71,17 +73,13 @@ export default function MunicipioDetalhePage() {
     () => Array.from(new Map((documentos ?? []).filter((d) => d.tipos_documento?.nome).map((d) => [d.tipo_id, d.tipos_documento!.nome])).entries()),
     [documentos]
   );
-  const projetosDisponiveis = useMemo(
-    () => Array.from(new Map((documentos ?? []).filter((d) => d.projetos?.nome).map((d) => [d.projeto_id, d.projetos!.nome])).entries()),
+  const acoesDisponiveis = useMemo(
+    () => Array.from(new Map((documentos ?? []).filter((d) => d.acoes_pedagogicas?.nome).map((d) => [d.acao_pedagogica_id, d.acoes_pedagogicas!.nome])).entries()),
     [documentos]
   );
   const escolasDisponiveis = useMemo(
     () => Array.from(new Map((documentos ?? []).filter((d) => d.escolas?.nome).map((d) => [d.escola_id, d.escolas!.nome])).entries()),
     [documentos]
-  );
-  const anosDisponiveis = useMemo(
-    () => anosParaSeletor((documentos ?? []).map((d) => d.data_realizacao), filtroAno),
-    [documentos, filtroAno]
   );
 
   // ---------- filtragem ----------
@@ -91,44 +89,46 @@ export default function MunicipioDetalhePage() {
       (documentos ?? []).filter(
         (d) =>
           (!filtroEscola || d.escola_id === filtroEscola) &&
-          (!filtroProjeto || d.projeto_id === filtroProjeto) &&
+          (!filtroAcao || d.acao_pedagogica_id === filtroAcao) &&
           (!filtroTipo || d.tipo_id === filtroTipo) &&
-          noPeriodo(d.data_realizacao, filtroAno, filtroMes) &&
+          noCicloEMes(d, filtroCiclo, ciclos, filtroMes) &&
           correspondeBusca(d, busca)
       ),
-    [documentos, filtroEscola, filtroProjeto, filtroTipo, filtroAno, filtroMes, busca]
+    [documentos, filtroEscola, filtroAcao, filtroTipo, filtroCiclo, ciclos, filtroMes, busca]
   );
 
   const contagem = useMemo(
     () => ({
       pendente: doFiltro.filter((d) => d.status === "pendente").length,
-      aprovado: doFiltro.filter((d) => d.status === "aprovado").length,
-      rejeitado: doFiltro.filter((d) => d.status === "rejeitado").length,
-      "": doFiltro.length,
+      aprovado: doFiltro.filter((d) => d.status === "aprovado" && !d.arquivado).length,
+      arquivado: doFiltro.filter((d) => d.arquivado).length,
+      "": doFiltro.filter((d) => !d.arquivado).length,
     }),
     [doFiltro]
   );
 
   const lista = useMemo(() => {
-    const itens = doFiltro.filter((d) => !aba || d.status === aba);
+    const itens = doFiltro.filter((d) =>
+      aba === "arquivado" ? Boolean(d.arquivado) : !d.arquivado && (!aba || d.status === aba)
+    );
     const chave = (d: Documento) => (ordem === "data_acao" ? d.data_realizacao ?? "" : d.created_at ?? d.data_realizacao ?? "");
     return [...itens].sort((a, b) => (ordem === "antigos" ? chave(a).localeCompare(chave(b)) : chave(b).localeCompare(chave(a))));
   }, [doFiltro, aba, ordem]);
 
   const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente").length;
   const pendentesForaDoPeriodo = (documentos ?? []).filter(
-    (d) => d.status === "pendente" && !noPeriodo(d.data_realizacao, filtroAno, filtroMes)
+    (d) => d.status === "pendente" && !noCicloEMes(d, filtroCiclo, ciclos, filtroMes)
   ).length;
 
   const temFiltro = Boolean(
-    filtroEscola || filtroProjeto || filtroTipo || filtroAno !== ANO_ATUAL || filtroMes !== MES_ATUAL || busca.trim()
+    filtroEscola || filtroAcao || filtroTipo || !cicloPadrao || filtroMes || busca.trim()
   );
   function limparFiltros() {
     setFiltroEscola("");
-    setFiltroProjeto("");
+    setFiltroAcao("");
     setFiltroTipo("");
-    setFiltroAno(ANO_ATUAL);
-    setFiltroMes(MES_ATUAL);
+    setFiltroCiclo(null);
+    setFiltroMes("");
     setBusca("");
   }
 
@@ -199,9 +199,9 @@ export default function MunicipioDetalhePage() {
                 {(
                   [
                     ["", "Todos"],
-                    ["pendente", "Pendentes"],
+                    ["pendente", "Novos"],
                     ["aprovado", "Aprovados"],
-                    ["rejeitado", "Reprovados"],
+                    ["arquivado", "Arquivados"],
                   ] as [Aba, string][]
                 ).map(([valor, rotulo]) => (
                   <button
@@ -234,31 +234,17 @@ export default function MunicipioDetalhePage() {
                 <input
                   value={busca}
                   onChange={(e) => setBusca(e.target.value)}
-                  placeholder="Buscar ação, escola ou programa..."
+                  placeholder="Buscar ação pedagógica ou escola..."
                   className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30"
                 />
               </div>
-              <select
-                value={filtroAno}
-                onChange={(e) => {
-                  setFiltroAno(e.target.value);
-                  if (!e.target.value) setFiltroMes("");
-                }}
-                className={`${SELECT} lg:col-span-2`}
-                title="Pela data de realização"
-              >
-                <option value="">Todos os anos</option>
-                {anosDisponiveis.map((ano) => (
-                  <option key={ano} value={ano}>{ano}</option>
-                ))}
-              </select>
+              <SeletorCiclo ciclos={ciclos} valor={filtroCiclo} onChange={setFiltroCiclo} className={`${SELECT} lg:col-span-2`} />
               <select
                 value={filtroMes}
                 onChange={(e) => setFiltroMes(e.target.value)}
-                disabled={!filtroAno}
-                className={`${SELECT} lg:col-span-2 disabled:bg-black/[0.03] disabled:text-brand-dark/50`}
+                className={`${SELECT} lg:col-span-2`}
               >
-                <option value="">{filtroAno ? "Todos os meses" : "Escolha o ano"}</option>
+                <option value="">Todos os meses</option>
                 {MESES.map((mes, i) => (
                   <option key={mes} value={String(i + 1)}>{mes}</option>
                 ))}
@@ -269,10 +255,10 @@ export default function MunicipioDetalhePage() {
                   <option key={tid} value={tid}>{nome}</option>
                 ))}
               </select>
-              <select value={filtroProjeto} onChange={(e) => setFiltroProjeto(e.target.value)} className={`${SELECT} lg:col-span-6`}>
-                <option value="">Todos os programas</option>
-                {projetosDisponiveis.map(([pid, nome]) => (
-                  <option key={pid} value={pid}>{nome}</option>
+              <select value={filtroAcao} onChange={(e) => setFiltroAcao(e.target.value)} className={`${SELECT} lg:col-span-6`}>
+                <option value="">Todas as ações pedagógicas</option>
+                {acoesDisponiveis.map(([pid, nome]) => (
+                  <option key={pid} value={pid ?? ""}>{nome}</option>
                 ))}
               </select>
               <select value={filtroEscola} onChange={(e) => setFiltroEscola(e.target.value)} className={`${SELECT} lg:col-span-6`}>
@@ -293,7 +279,7 @@ export default function MunicipioDetalhePage() {
                 ⚠️ Há {pendentesForaDoPeriodo} {pendentesForaDoPeriodo === 1 ? "pendência" : "pendências"} fora do período escolhido.
                 <button
                   onClick={() => {
-                    setFiltroAno("");
+                    setFiltroCiclo("");
                     setFiltroMes("");
                     setAba("pendente");
                   }}
@@ -410,7 +396,7 @@ function CartaoDocumento({
               </h2>
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-brand-dark/80">
                 {doc.escolas?.nome && <Info icone={EscolaIcon} texto={doc.escolas.nome} forte />}
-                <Info icone={FolderIcon} texto={doc.projetos?.nome ?? "Sem programa"} />
+                {doc.acoes_pedagogicas?.nome && <Info icone={FolderIcon} texto={`${doc.acoes_pedagogicas.nome}${doc.subtipo ? ` · ${doc.subtipo}` : ""}`} forte />}
                 <Info icone={CalendarIcon} texto={`Realizado em ${formatarData(doc.data_realizacao)}`} />
                 {doc.responsavel_nome && <Info icone={UserIcon} texto={`Enviado por ${doc.responsavel_nome}`} />}
               </div>
@@ -418,19 +404,10 @@ function CartaoDocumento({
 
             {doc.status === "pendente" && (
               <div className="flex items-center gap-2 shrink-0">
-                <span className="rounded-full bg-amber-50 border border-amber-200 px-2.5 py-1 text-xs font-semibold text-amber-900">
-                  ⏳ Aguardando aprovação
+                <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+                  ✓ Enviado
                 </span>
-                <button
-                  type="button"
-                  onClick={onExcluir}
-                  disabled={excluindo}
-                  className="inline-flex items-center gap-1.5 rounded-lg border border-status-pendente/30 px-3 py-1.5 text-sm font-semibold text-status-pendente hover:bg-status-pendente/5 disabled:opacity-50"
-                  title="Excluir documento pendente"
-                >
-                  <XIcon className="w-3.5 h-3.5" />
-                  {excluindo ? "Excluindo..." : "Excluir"}
-                </button>
+                <BotaoExcluir onClick={onExcluir} disabled={excluindo} rotulo="documento" />
               </div>
             )}
           </div>
@@ -456,26 +433,13 @@ function CartaoDocumento({
                 Aprovado{doc.validado_por_nome ? <> por <strong>{doc.validado_por_nome}</strong></> : ""}
                 {doc.validado_em && <> · {formatarDataHora(doc.validado_em)}</>}
               </span>
+              {doc.arquivado && (
+                <span className="rounded-full bg-black/5 px-2.5 py-0.5 text-xs font-semibold text-brand-dark/75">📁 Arquivado</span>
+              )}
               {doc.na_galeria && (
                 <span className="rounded-full px-2.5 py-0.5 text-xs font-semibold bg-sky-100 text-sky-800" title="Publicado na galeria pública">
                   🖼️ Na galeria
                 </span>
-              )}
-            </div>
-          )}
-          {doc.status === "rejeitado" && (
-            <div className="mt-3 text-[13px] text-brand-dark/85">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-status-pendente text-white flex items-center justify-center">
-                  <XIcon className="w-3 h-3" />
-                </span>
-                Reprovado{doc.validado_por_nome ? <> por <strong>{doc.validado_por_nome}</strong></> : ""}
-                {doc.validado_em && <> · {formatarDataHora(doc.validado_em)}</>}
-              </span>
-              {doc.motivo_rejeicao && (
-                <p className="mt-1.5 rounded-lg bg-status-pendente/5 border border-status-pendente/15 px-3 py-2 text-status-pendente">
-                  <strong>Motivo:</strong> {doc.motivo_rejeicao}
-                </p>
               )}
             </div>
           )}
@@ -490,11 +454,12 @@ function correspondeBusca(doc: Documento, busca: string) {
   if (!termo) return true;
   const campos = [
     doc.acao_evento,
+    doc.acoes_pedagogicas?.nome,
+    doc.subtipo,
     doc.descricao,
     doc.finalidade,
     doc.responsavel_nome,
     doc.escolas?.nome,
-    doc.projetos?.nome,
     doc.tipos_documento?.nome,
     formatarData(doc.data_realizacao),
   ];

@@ -247,7 +247,7 @@ export default function MapaMunicipios({ municipios, escolas }: Props) {
               <>
                 <p className="text-brand-dark/85 mt-0.5">{destaque.municipio}</p>
                 {destaque.programas.length > 0 && (
-                  <p className="text-brand-light mt-0.5">Programa: {destaque.programas.join(", ")}</p>
+                  <p className="text-brand-light mt-0.5">Ações pedagógicas: {destaque.programas.join(", ")}</p>
                 )}
                 <p className="text-brand-dark/75">{destaque.documentos} documentos inseridos</p>
               </>

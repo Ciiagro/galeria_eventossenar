@@ -7,6 +7,9 @@ import MapaCearaGaleria, { COR_PARTICIPANTE } from "@/components/MapaCearaGaleri
 import PreviewLink from "@/components/PreviewLink";
 import { normalizarLink } from "@/lib/linkIncorporavel";
 import { urlsMiniatura } from "@/lib/miniatura";
+import { useFiltroCiclo } from "@/lib/ciclos";
+import { FundoFestivo, LogoValores } from "@/components/Sol";
+import { IconeAcao } from "@/components/IconesAcoes";
 
 type Ordem = "recentes" | "antigas";
 type MunicipioGaleria = { id: number; nome: string; publicacoes: number };
@@ -26,10 +29,14 @@ export default function GaleriaPublica() {
   const [documentos, setDocumentos] = useState<DocumentoGaleria[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
+  // ciclo (cada ano é um ciclo): abre no ativo; "" = todos
+  const { ciclos, cicloId, setCicloId, ehPadrao: cicloPadrao, carregando: carregandoCiclos } = useFiltroCiclo(true);
+  const parametroCiclo = cicloId ? `ciclo_id=${cicloId}` : "";
+
   // filtros
   const [categoria, setCategoria] = useState("");
   const [periodo, setPeriodo] = useState(""); // "AAAA-MM"
-  const [programa, setPrograma] = useState("");
+  const [acaoPed, setAcaoPed] = useState("");
   const [escola, setEscola] = useState("");
   const [busca, setBusca] = useState("");
   const [ordem, setOrdem] = useState<Ordem>("recentes");
@@ -42,21 +49,25 @@ export default function GaleriaPublica() {
   const listaRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    apiGet("/api/galeria?municipios=1").then(setMunicipios).catch(() => null);
-    apiGet("/api/galeria?mapa=1").then(setEscolasMapa).catch(() => null);
-    apiGet("/api/galeria?resumo=1").then(setResumo).catch(() => null);
-  }, []);
+    if (carregandoCiclos) return;
+    const extra = parametroCiclo ? `&${parametroCiclo}` : "";
+    apiGet(`/api/galeria?municipios=1${extra}`).then(setMunicipios).catch(() => null);
+    apiGet(`/api/galeria?mapa=1${extra}`).then(setEscolasMapa).catch(() => null);
+    apiGet(`/api/galeria?resumo=1${extra}`).then(setResumo).catch(() => null);
+  }, [carregandoCiclos, parametroCiclo]);
 
   useEffect(() => {
+    if (carregandoCiclos) return;
     setDocumentos(null);
-    setPrograma("");
+    setAcaoPed("");
     setEscola(escolaPendente.current ?? "");
     escolaPendente.current = null;
-    apiGet(`/api/galeria${municipioId ? `?municipio_id=${municipioId}` : ""}`)
+    const consulta = [municipioId ? `municipio_id=${municipioId}` : "", parametroCiclo].filter(Boolean).join("&");
+    apiGet(`/api/galeria${consulta ? `?${consulta}` : ""}`)
       .then(setDocumentos)
       .catch((e) => setErro(e.message));
     if (municipioId) setDestaqueId(Number(municipioId));
-  }, [municipioId]);
+  }, [municipioId, carregandoCiclos, parametroCiclo]);
 
   function mudarMunicipio(novoId: string) {
     router.replace(novoId ? `/galeria?municipio_id=${novoId}` : "/galeria", { scroll: false });
@@ -85,14 +96,14 @@ export default function GaleriaPublica() {
     () => Array.from(new Set((documentos ?? []).map((d) => (d.data_realizacao ?? "").slice(0, 7)).filter((p) => /^\d{4}-\d{2}$/.test(p)))).sort().reverse(),
     [documentos]
   );
-  const programas = useMemo(
-    () => Array.from(new Set((documentos ?? []).map((d) => d.projetos?.nome ?? "Sem programa"))).sort(),
+  const acoesPedagogicas = useMemo(
+    () => Array.from(new Set((documentos ?? []).map((d) => d.acoes_pedagogicas?.nome).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)),
     [documentos]
   );
   const escolasOpcoes = useMemo(
     () =>
-      Array.from(new Set((documentos ?? []).filter((d) => !programa || (d.projetos?.nome ?? "Sem programa") === programa).map((d) => d.escolas?.nome).filter(Boolean) as string[])).sort(),
-    [documentos, programa]
+      Array.from(new Set((documentos ?? []).filter((d) => !acaoPed || d.acoes_pedagogicas?.nome === acaoPed).map((d) => d.escolas?.nome).filter(Boolean) as string[])).sort(),
+    [documentos, acaoPed]
   );
 
   const lista = useMemo(() => {
@@ -101,12 +112,12 @@ export default function GaleriaPublica() {
       (d) =>
         (!categoria || rotuloTipo(d) === categoria) &&
         (!periodo || (d.data_realizacao ?? "").startsWith(periodo)) &&
-        (!programa || (d.projetos?.nome ?? "Sem programa") === programa) &&
+        (!acaoPed || d.acoes_pedagogicas?.nome === acaoPed) &&
         (!escola || d.escolas?.nome === escola) &&
-        (!termo || [d.acao_evento, d.descricao, d.escolas?.nome, d.projetos?.nome, nomeMunicipio(d.municipio_id)].some((v) => normalizar(v).includes(termo)))
+        (!termo || [d.acao_evento, d.acoes_pedagogicas?.nome, d.descricao, d.escolas?.nome, nomeMunicipio(d.municipio_id)].some((v) => normalizar(v).includes(termo)))
     );
     return [...filtrada].sort((a, b) => (ordem === "recentes" ? chaveData(b).localeCompare(chaveData(a)) : chaveData(a).localeCompare(chaveData(b))));
-  }, [documentos, categoria, periodo, programa, escola, busca, ordem, nomeMunicipio]);
+  }, [documentos, categoria, periodo, acaoPed, escola, busca, ordem, nomeMunicipio]);
 
   const destaques = useMemo(() => [...lista].sort((a, b) => chaveData(b).localeCompare(chaveData(a))).slice(0, 3), [lista]);
 
@@ -149,16 +160,16 @@ export default function GaleriaPublica() {
     }
   }
   function verAcoesDaEscola(e: EscolaParticipanteGaleria) {
-    if (String(e.municipio_id) === municipioId) { setPrograma(""); setEscola(e.nome); }
+    if (String(e.municipio_id) === municipioId) { setAcaoPed(""); setEscola(e.nome); }
     else { escolaPendente.current = e.nome; mudarMunicipio(String(e.municipio_id)); }
     irParaLista();
   }
   function limparFiltros() {
-    setBusca(""); setCategoria(""); setPeriodo(""); setPrograma(""); setEscola(""); setDestaqueId(null);
+    setBusca(""); setCategoria(""); setPeriodo(""); setAcaoPed(""); setEscola(""); setDestaqueId(null); setCicloId(null);
     mudarMunicipio("");
   }
 
-  const temFiltro = Boolean(municipioId || categoria || periodo || programa || escola || busca);
+  const temFiltro = Boolean(municipioId || categoria || periodo || acaoPed || escola || busca || !cicloPadrao);
 
   return (
     <div className="min-h-screen bg-[#f3f7f2] text-brand-dark">
@@ -199,28 +210,36 @@ export default function GaleriaPublica() {
 
       <main className="max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-5">
         {/* ================= Título + números ================= */}
-        <section className="grid xl:grid-cols-[1fr_auto] gap-5 items-center">
-          <div className="flex items-center gap-3">
-            <span className="text-4xl" aria-hidden>🌱</span>
-            <div>
-              <h1 className="text-3xl sm:text-4xl font-bold">
+        <FundoFestivo className="rounded-2xl border border-black/5">
+          <section className="grid gap-5 p-5 sm:p-8">
+            <div className="pr-24 sm:pr-44 lg:pr-56">
+              <LogoValores className="w-44 sm:w-56" />
+              <h1 className="mt-3 text-2xl sm:text-3xl font-bold">
                 {municipioId && nomeMunicipio(Number(municipioId)) ? `Galeria de ${nomeMunicipio(Number(municipioId))}` : "Galeria de Publicações"}
               </h1>
-              <p className="text-brand-dark/75">As ações das escolas e municípios do Ceará.</p>
+              <p className="text-brand-dark/80">
+                As ações das escolas e municípios do Ceará{ciclos.find((c) => c.id === cicloId) ? ` · ${ciclos.find((c) => c.id === cicloId)!.nome}` : ""}.
+              </p>
             </div>
-          </div>
-          {resumo && (
-            <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-              <Numero icone="📍" rotulo="Municípios participantes" valor={resumo.municipios} />
-              <Numero icone="🏫" rotulo="Escolas" valor={resumo.escolas} />
-              <Numero icone="📄" rotulo="Publicações" valor={resumo.publicacoes} />
-              <Numero icone="👁️" rotulo="Visualizações" valor={resumo.visualizacoes} />
-            </div>
-          )}
-        </section>
+            {resumo && (
+              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                <Numero icone="📍" rotulo="Municípios participantes" valor={resumo.municipios} />
+                <Numero icone="🏫" rotulo="Escolas" valor={resumo.escolas} />
+                <Numero icone="📄" rotulo="Publicações" valor={resumo.publicacoes} />
+                <Numero icone="👁️" rotulo="Visualizações" valor={resumo.visualizacoes} />
+              </div>
+            )}
+          </section>
+        </FundoFestivo>
 
         {/* ================= Filtros ================= */}
         <div className="flex flex-wrap items-center gap-2">
+          {ciclos.length > 0 && (
+            <Filtro icone="☀️" valor={cicloId} onChange={setCicloId}>
+              <option value="">Todos os ciclos</option>
+              {ciclos.map((c) => <option key={c.id} value={c.id}>{c.nome}{c.ativo ? " (atual)" : ""}</option>)}
+            </Filtro>
+          )}
           <Filtro icone="📍" valor={municipioId} onChange={mudarMunicipio}>
             <option value="">Todos os municípios</option>
             {municipios.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
@@ -235,10 +254,6 @@ export default function GaleriaPublica() {
           </Filtro>
           {municipioId && (
             <>
-              <Filtro icone="📁" valor={programa} onChange={(v) => { setPrograma(v); setEscola(""); }}>
-                <option value="">Todos os programas</option>
-                {programas.map((p) => <option key={p} value={p}>{p}</option>)}
-              </Filtro>
               <Filtro icone="🏫" valor={escola} onChange={setEscola}>
                 <option value="">Todas as escolas</option>
                 {escolasOpcoes.map((e) => <option key={e} value={e}>{e}</option>)}
@@ -249,6 +264,31 @@ export default function GaleriaPublica() {
             <button onClick={limparFiltros} className="text-sm font-semibold text-brand-light hover:underline ml-1">Limpar filtros</button>
           )}
         </div>
+
+        {/* Ações pedagógicas: clique para ver só as publicações daquela ação */}
+        {acoesPedagogicas.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por ação pedagógica">
+            {acoesPedagogicas.map((acao) => {
+              const marcada = acaoPed === acao;
+              const total = (documentos ?? []).filter((d) => d.acoes_pedagogicas?.nome === acao).length;
+              return (
+                <button
+                  key={acao}
+                  type="button"
+                  aria-pressed={marcada}
+                  onClick={() => { setAcaoPed(marcada ? "" : acao); setEscola(""); }}
+                  className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-light/40 ${
+                    marcada ? "border-brand bg-brand text-white" : "border-black/10 bg-white text-brand-dark hover:bg-brand-light/5"
+                  }`}
+                >
+                  <IconeAcao nome={acao} className="h-3.5 w-3.5" tileClassName="h-6 w-6 rounded-full" />
+                  {acao}
+                  <span className={`text-xs font-medium ${marcada ? "text-white/80" : "text-brand-dark/60"}`}>{total}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
 
         {erro && <p className="text-sm text-status-pendente">{erro}</p>}
         {!documentos && !erro && <p className="text-sm text-brand-dark/70">Carregando publicações...</p>}
@@ -427,11 +467,13 @@ export default function GaleriaPublica() {
               <div className="flex items-start justify-between gap-4">
                 <div>
                   <span className="rounded-full bg-brand-light/10 px-2.5 py-0.5 text-xs font-semibold text-brand-light">{rotuloTipo(aberto)}</span>
+                  {aberto.acoes_pedagogicas?.nome && (
+                    <span className="ml-2 rounded-full bg-black/5 px-2.5 py-0.5 text-xs font-semibold text-brand-dark/85">{aberto.acoes_pedagogicas.nome}{aberto.subtipo ? ` · ${aberto.subtipo}` : ""}</span>
+                  )}
                   <h3 className="mt-2 text-xl font-bold">{tituloDe(aberto)}</h3>
                   <p className="text-sm text-brand-dark/80 mt-1">
                     <strong>{nomeMunicipio(aberto.municipio_id)} (CE)</strong>
                     {aberto.escolas?.nome && <> · {aberto.escolas.nome}</>}
-                    {aberto.projetos?.nome && <> · 📁 {aberto.projetos.nome}</>}
                     {" · "}📅 {formatarData(aberto.data_realizacao)}
                   </p>
                 </div>
@@ -518,6 +560,7 @@ function Local({ doc, municipio, className = "", pequeno }: { doc: DocumentoGale
     <div className={`${pequeno ? "text-[11px]" : "text-xs"} text-brand-dark/75 ${className}`}>
       <p className="line-clamp-1">📍 {municipio ? `${municipio} (CE)` : "Ceará"}</p>
       {doc.escolas?.nome && <p className="line-clamp-1">🏫 {doc.escolas.nome}</p>}
+      {doc.acoes_pedagogicas?.nome && <p className="line-clamp-1">🎒 {doc.acoes_pedagogicas.nome}</p>}
     </div>
   );
 }
@@ -575,7 +618,7 @@ function linkDo(doc: DocumentoGaleria) {
   return doc.drive_file_link || (doc.drive_file_id ? `https://drive.google.com/file/d/${doc.drive_file_id}/view` : doc.link_externo) || null;
 }
 function tituloDe(doc: DocumentoGaleria) {
-  return doc.acao_evento || doc.descricao?.split("\n")[0]?.slice(0, 80) || doc.tipos_documento?.nome || "Publicação";
+  return doc.acao_evento || doc.acoes_pedagogicas?.nome || doc.descricao?.split("\n")[0]?.slice(0, 80) || doc.tipos_documento?.nome || "Publicação";
 }
 function normalizar(texto?: string | null) {
   return (texto ?? "").normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();

@@ -3,11 +3,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
-import { apiGet, EscolaParticipante, Municipio, Projeto, ResumoDashboard } from "@/lib/api";
+import { AcaoPedagogica, AcaoResumo, apiGet, EscolaParticipante, Municipio, ResumoDashboard } from "@/lib/api";
 import { usePerfil } from "@/lib/usePerfil";
 import { AlertIcon, CheckIcon, ClipboardListIcon, FileTextIcon, FolderIcon, ImageIcon, MapPinIcon, SearchIcon, UploadCloudIcon, VideoIcon } from "@/components/icons";
 import MapaMunicipios from "@/components/MapaMunicipios";
-import { ANO_ATUAL, MES_ATUAL, anosParaSeletor } from "@/lib/periodo";
+import { IconeAcao } from "@/components/IconesAcoes";
+import { Ciclo, useCiclos } from "@/lib/ciclos";
 
 export default function HomePage() {
   const router = useRouter();
@@ -17,42 +18,57 @@ export default function HomePage() {
   const [municipioId, setMunicipioId] = useState("");
   const [resumo, setResumo] = useState<ResumoDashboard | null>(null);
   const [erroResumo, setErroResumo] = useState<string | null>(null);
-  const [programas, setProgramas] = useState<Projeto[]>([]);
-  // Padrão: ano e mês atuais
-  const [filtros, setFiltros] = useState<FiltrosPainel>({ programa: "", ano: ANO_ATUAL, mes: MES_ATUAL });
+  const [acoes, setAcoes] = useState<AcaoPedagogica[]>([]);
+  // Padrão: ciclo ativo, todos os meses. ciclo null = ativo · "" = todos os ciclos
+  const { ciclos, ativo: cicloAtivo, carregando: carregandoCiclos } = useCiclos();
+  const [filtros, setFiltros] = useState<FiltrosPainel>({ acao: "", ciclo: null, mes: "" });
+  const cicloEfetivo = filtros.ciclo ?? cicloAtivo?.id ?? "";
   const [atualizandoResumo, setAtualizandoResumo] = useState(false);
 
   const ehAdmin = !carregandoPerfil && perfil?.role === "admin";
 
   useEffect(() => {
     if (!ehAdmin) return;
-    apiGet("/api/projetos").then(setProgramas).catch(() => setProgramas([]));
+    apiGet("/api/acoes-pedagogicas").then(setAcoes).catch(() => setAcoes([]));
   }, [ehAdmin]);
 
   useEffect(() => {
-    if (!ehAdmin) return;
+    if (!ehAdmin || carregandoCiclos) return;
     let cancelado = false;
     setAtualizandoResumo(true);
     const params = new URLSearchParams();
-    if (filtros.programa) params.set("projeto_id", filtros.programa);
-    if (filtros.ano) params.set("ano", filtros.ano);
-    if (filtros.ano && filtros.mes) params.set("mes", filtros.mes);
+    if (filtros.acao) params.set("acao_id", filtros.acao);
+    if (cicloEfetivo) params.set("ciclo_id", cicloEfetivo);
+    if (filtros.mes) params.set("mes", filtros.mes);
     const query = params.toString();
+    const chaveCache = `resumo:${query}`;
+    // mostra na hora o último resumo visto (se houver) e atualiza em segundo plano
+    try {
+      const guardado = sessionStorage.getItem(chaveCache);
+      if (guardado) { setResumo(JSON.parse(guardado)); setErroResumo(null); }
+    } catch { /* sem cache, segue normal */ }
     apiGet(query ? `/api/resumo?${query}` : "/api/resumo")
-      .then((dados) => { if (!cancelado) { setResumo(dados); setErroResumo(null); } })
+      .then((dados) => {
+        if (cancelado) return;
+        setResumo(dados);
+        setErroResumo(null);
+        try { sessionStorage.setItem(chaveCache, JSON.stringify(dados)); } catch { /* cheio: ignora */ }
+      })
       .catch((e) => { if (!cancelado) setErroResumo(e.message); })
       .finally(() => { if (!cancelado) setAtualizandoResumo(false); });
     return () => { cancelado = true; };
-  }, [ehAdmin, filtros]);
+  }, [ehAdmin, filtros, cicloEfetivo, carregandoCiclos]);
 
   useEffect(() => {
+    // o painel do administrador não usa essa lista (vem no resumo): só carrega para os outros perfis
+    if (carregandoPerfil || perfil?.role === "admin") return;
     apiGet("/api/municipios")
       .then((lista: Municipio[]) => {
         setMunicipios(lista);
         setMunicipioId((atual) => atual || String(lista[0]?.id ?? ""));
       })
       .catch((e) => setErro(e.message));
-  }, []);
+  }, [carregandoPerfil, perfil?.role]);
 
   function irParaEnvio(e: React.FormEvent) {
     e.preventDefault();
@@ -69,7 +85,9 @@ export default function HomePage() {
     return (
       <Dashboard
         resumo={resumo}
-        programas={programas}
+        acoes={acoes}
+        ciclos={ciclos}
+        cicloEfetivo={cicloEfetivo}
         filtros={filtros}
         onFiltrosChange={setFiltros}
         atualizando={atualizandoResumo}
@@ -80,11 +98,30 @@ export default function HomePage() {
   return (
     <div className="p-8">
       <header className="mb-8">
-        <h1 className="text-2xl font-semibold text-brand-dark">Documentação Municipal</h1>
+        <h1 className="text-2xl font-semibold text-brand-dark">Projeto Valores Humanos</h1>
         <p className="text-brand-dark/80 text-sm mt-1">
-          Selecione o seu município para enviar os documentos das ações realizadas.
+          {perfil?.role === "apoiador_visitas"
+            ? "Escolha o município que você visitou para enviar o relatório, as imagens e os vídeos das suas visitas."
+            : perfil?.role === "apoiador_relatorios"
+              ? "Envie relatórios ou, na Análise de documentos, confira o que foi enviado antes da validação do administrador."
+              : "Selecione o seu município para enviar as imagens, vídeos e relatórios das ações pedagógicas realizadas."}
         </p>
       </header>
+
+      {perfil?.role === "apoiador_relatorios" && (
+        <Link
+          href="/analise"
+          className="mb-5 flex max-w-xl items-center gap-3 rounded-xl border border-[#2F9E62]/30 bg-[#E3F4EA] p-4 text-[#17613B] shadow-sm transition-all hover:-translate-y-0.5 hover:shadow-md"
+        >
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-[#2F9E62] text-white">
+            <CheckIcon className="h-5 w-5" />
+          </span>
+          <span>
+            <span className="block font-bold">Análise de documentos</span>
+            <span className="block text-xs">Veja os envios pendentes e recomende a aprovação ou peça ajustes.</span>
+          </span>
+        </Link>
+      )}
 
       <form
         onSubmit={irParaEnvio}
@@ -145,25 +182,28 @@ export default function HomePage() {
   );
 }
 
-type FiltrosPainel = { programa: string; ano: string; mes: string };
+type FiltrosPainel = { acao: string; ciclo: string | null; mes: string };
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
 type DashboardProps = {
   resumo: ResumoDashboard;
-  programas: Projeto[];
+  acoes: AcaoPedagogica[];
+  ciclos: Ciclo[];
+  cicloEfetivo: string;
   filtros: FiltrosPainel;
   onFiltrosChange: (filtros: FiltrosPainel) => void;
   atualizando: boolean;
 };
 
-function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }: DashboardProps) {
+function Dashboard({ resumo, acoes, ciclos, cicloEfetivo, filtros, onFiltrosChange, atualizando }: DashboardProps) {
   const [municipioSelecionado, setMunicipioSelecionado] = useState("");
-  const anos = useMemo(() => anosParaSeletor(resumo.anos_disponiveis ?? [], filtros.ano), [filtros.ano, resumo.anos_disponiveis]);
-  const filtrosNaUrl = filtros.ano ? `?ano=${filtros.ano}${filtros.mes ? `&mes=${filtros.mes}` : ""}` : "?ano=todos";
-  const descricaoPeriodo = filtros.ano
-    ? filtros.mes ? `${MESES[Number(filtros.mes) - 1]} de ${filtros.ano}` : `Ano ${filtros.ano}`
-    : "Todo o período";
+  const cicloAtual = ciclos.find((c) => c.id === cicloEfetivo);
+  const filtrosNaUrl = cicloEfetivo ? `?ciclo=${cicloEfetivo}${filtros.mes ? `&mes=${filtros.mes}` : ""}` : "?ciclo=todos";
+  const descricaoPeriodo = cicloEfetivo
+    ? `${cicloAtual?.nome ?? "Ciclo"}${filtros.mes ? ` · ${MESES[Number(filtros.mes) - 1]}` : ""}`
+    : "Todos os ciclos";
+  const filtrosPadrao = !filtros.acao && filtros.ciclo === null && !filtros.mes;
   const municipios = useMemo(
     () => resumo.municipios.filter((municipio) =>
       !municipioSelecionado || String(municipio.id) === municipioSelecionado
@@ -217,16 +257,21 @@ function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }:
   return (
     <div className="p-5 sm:p-8 max-w-[1500px]">
       <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-5">
-        <div>
-          <p className="text-xs font-semibold uppercase tracking-[0.16em] text-brand-light mb-2">FAEC SENAR Ceará</p>
-          <h1 className="text-2xl sm:text-3xl font-semibold text-brand-dark">Painel geral</h1>
-          <p className="text-sm text-brand-dark/80 mt-1">Acompanhe a participação dos municípios e o andamento da documentação.</p>
+        <div className="flex items-center gap-4">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img src="/sol-valores.png" alt="" width={900} height={545} className="h-auto w-16 shrink-0" />
+          <div>
+            <h1 className="text-2xl sm:text-3xl font-semibold text-brand-dark">Painel geral</h1>
+            <p className="text-sm text-brand-dark/80 mt-1">
+              Projeto Valores Humanos · {descricaoPeriodo}. Acompanhe a participação dos municípios e as ações pedagógicas realizadas.
+            </p>
+          </div>
         </div>
         <Link
           href="/admin/pendencias"
           className="inline-flex items-center gap-2 self-start sm:self-auto rounded-lg border border-brand-light/30 bg-white px-4 py-2 text-sm font-semibold text-brand-light shadow-sm hover:bg-brand-light/5"
         >
-          Ver pendências
+          Revisar documentos
           {indicadores.documentos_pendentes > 0 && (
             <span className="rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white">{indicadores.documentos_pendentes}</span>
           )}
@@ -235,23 +280,17 @@ function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }:
       </header>
 
       <section className="bg-white rounded-xl border border-black/5 shadow-sm px-4 py-4 sm:px-5 mb-6">
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.3fr_0.8fr_1fr_1.3fr_auto] gap-3 items-end">
-          <CampoFiltro rotulo="Programa" id="programa-dashboard">
-            <select id="programa-dashboard" value={filtros.programa} onChange={(e) => onFiltrosChange({ ...filtros, programa: e.target.value })} className={CLASSE_SELECT}>
-              <option value="">Todos os programas</option>
-              {programas.map((programa) => <option key={programa.id} value={programa.id}>{programa.nome}</option>)}
-              <option value="sem">Sem programa</option>
-            </select>
-          </CampoFiltro>
-          <CampoFiltro rotulo="Ano" id="ano-dashboard" dica="Pela data de realização das ações">
-            <select id="ano-dashboard" value={filtros.ano} onChange={(e) => onFiltrosChange({ ...filtros, ano: e.target.value, mes: e.target.value ? filtros.mes : "" })} className={CLASSE_SELECT}>
-              <option value="">Todos os anos</option>
-              {anos.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1.3fr_auto] gap-3 items-end">
+          <CampoFiltro rotulo="Ação pedagógica" id="acao-dashboard">
+            <select id="acao-dashboard" value={filtros.acao} onChange={(e) => onFiltrosChange({ ...filtros, acao: e.target.value })} className={CLASSE_SELECT}>
+              <option value="">Todas as ações</option>
+              {acoes.map((acao) => <option key={acao.id} value={acao.id}>{acao.nome}</option>)}
+              <option value="sem">Sem ação pedagógica</option>
             </select>
           </CampoFiltro>
           <CampoFiltro rotulo="Mês" id="mes-dashboard">
-            <select id="mes-dashboard" value={filtros.mes} disabled={!filtros.ano} title={filtros.ano ? "" : "Escolha um ano primeiro"} onChange={(e) => onFiltrosChange({ ...filtros, mes: e.target.value })} className={`${CLASSE_SELECT} disabled:bg-black/[0.03] disabled:text-brand-dark/50`}>
-              <option value="">{filtros.ano ? "Todos os meses" : "Escolha o ano"}</option>
+            <select id="mes-dashboard" value={filtros.mes} onChange={(e) => onFiltrosChange({ ...filtros, mes: e.target.value })} className={`${CLASSE_SELECT} disabled:bg-black/[0.03] disabled:text-brand-dark/50`}>
+              <option value="">Todos os meses</option>
               {MESES.map((mes, i) => <option key={mes} value={String(i + 1)}>{mes}</option>)}
             </select>
           </CampoFiltro>
@@ -262,9 +301,9 @@ function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }:
             </select>
           </CampoFiltro>
           <div className="flex items-center gap-3 h-[42px]">
-            {(filtros.programa || filtros.ano !== ANO_ATUAL || filtros.mes !== MES_ATUAL || municipioSelecionado) && (
+            {(!filtrosPadrao || municipioSelecionado) && (
               <button
-                onClick={() => { onFiltrosChange({ programa: "", ano: ANO_ATUAL, mes: MES_ATUAL }); setMunicipioSelecionado(""); }}
+                onClick={() => { onFiltrosChange({ acao: "", ciclo: null, mes: "" }); setMunicipioSelecionado(""); }}
                 className="text-sm font-medium text-brand-light hover:underline whitespace-nowrap"
               >
                 Limpar filtros
@@ -275,11 +314,18 @@ function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }:
         </div>
       </section>
 
+      <AcoesPedagogicasDoCiclo
+        acoes={resumo.por_acao ?? []}
+        semAcao={resumo.sem_acao ?? 0}
+        selecionada={filtros.acao}
+        onSelecionar={(acao) => onFiltrosChange({ ...filtros, acao })}
+      />
+
       <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <MetricCard label="Municípios participantes" value={indicadores.municipios_participantes} detail={`${percentualParticipacao}% dos municípios`} tone="green" />
-        <MetricCard label="Escolas participantes" value={indicadores.escolas_participantes} detail={`${percentualEscolas}% das escolas`} tone="blue" />
+        <MetricCard label="Escolas no programa" value={indicadores.escolas_total} detail={`${indicadores.escolas_participantes} já enviaram documentos`} tone="blue" />
         <MetricCard label="Documentos inseridos" value={indicadores.documentos_total} detail={`${percentualDocumentosAprovados}% aprovados`} tone="amber" />
-        <MetricCard label="Pendências" value={indicadores.documentos_pendentes} detail={`${indicadores.documentos_rejeitados} rejeitados`} tone="red" />
+        <MetricCard label="Para revisar" value={indicadores.documentos_pendentes} detail="enviados e ainda não revisados" tone="red" />
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-[1.45fr_1fr] gap-5 mb-5">
@@ -353,12 +399,70 @@ function Dashboard({ resumo, programas, filtros, onFiltrosChange, atualizando }:
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[620px]">
-            <thead className="bg-brand-light/[0.05] text-xs text-brand-dark/80 uppercase tracking-wide"><tr><th className="text-left font-medium px-5 py-3">Município</th><th className="text-left font-medium px-3 py-3">Documentos</th><th className="text-left font-medium px-3 py-3">Aprovados</th><th className="text-left font-medium px-3 py-3">Pendentes</th><th className="text-left font-medium px-3 py-3">Progresso</th></tr></thead>
+            <thead className="bg-brand-light/[0.05] text-xs text-brand-dark/80 uppercase tracking-wide"><tr><th className="text-left font-medium px-5 py-3">Município</th><th className="text-left font-medium px-3 py-3">Documentos</th><th className="text-left font-medium px-3 py-3">Aprovados</th><th className="text-left font-medium px-3 py-3">Para revisar</th><th className="text-left font-medium px-3 py-3">Progresso</th></tr></thead>
             <tbody className="divide-y divide-black/5">{municipios.filter((municipio) => (municipio.total_documentos ?? 0) > 0).map((municipio) => { const total = municipio.total_documentos ?? 0; const aprovados = municipio.aprovados ?? 0; const pendentes = municipio.pendentes ?? 0; const progresso = total ? Math.round((aprovados / total) * 100) : 0; return <tr key={municipio.id} className="hover:bg-brand-light/[0.03] cursor-pointer" onClick={() => window.location.href = `/municipios/${municipio.id}${filtrosNaUrl}`}><td className="px-5 py-3 font-medium text-brand-dark">{municipio.nome}<span className="block text-xs font-normal text-brand-dark/70">{municipio.escolas_participantes} de {municipio.escolas_total} escolas participantes</span></td><td className="px-3 py-3 text-brand-dark/85">{total}</td><td className="px-3 py-3 text-status-completo">{aprovados}</td><td className="px-3 py-3 text-status-pendente">{pendentes}</td><td className="px-3 py-3 min-w-[150px]"><div className="flex items-center gap-2"><div className="h-1.5 flex-1 rounded-full bg-brand-light/10 overflow-hidden"><div className="h-full rounded-full bg-brand-light" style={{ width: `${progresso}%` }} /></div><span className="text-xs text-brand-dark/75 w-8">{progresso}%</span></div></td></tr>; })}</tbody>
           </table>
         </div>
       </section>
     </div>
+  );
+}
+
+function AcoesPedagogicasDoCiclo({
+  acoes,
+  semAcao,
+  selecionada,
+  onSelecionar,
+}: {
+  acoes: AcaoResumo[];
+  semAcao: number;
+  selecionada: string;
+  onSelecionar: (id: string) => void;
+}) {
+  if (!acoes.length) return null;
+  const maior = Math.max(1, ...acoes.map((a) => a.total));
+  const total = acoes.reduce((soma, a) => soma + a.total, 0) + semAcao;
+  return (
+    <section className="bg-white rounded-xl border border-black/5 shadow-sm p-4 sm:p-5 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 mb-4">
+        <div>
+          <h2 className="font-semibold text-brand-dark">Ações pedagógicas</h2>
+          <p className="text-xs text-brand-dark/75 mt-1">Imagens, vídeos e relatórios enviados por ação. Clique em uma ação para filtrar o painel.</p>
+        </div>
+        <span className="text-sm text-brand-dark/80">{total.toLocaleString("pt-BR")} {total === 1 ? "documento" : "documentos"}</span>
+      </div>
+      <ul className="grid grid-cols-1 sm:grid-cols-2 xl:grid-cols-5 gap-3">
+        {acoes.map((acao) => {
+          const marcada = selecionada === acao.id;
+          return (
+            <li key={acao.id}>
+              <button
+                type="button"
+                aria-pressed={marcada}
+                onClick={() => onSelecionar(marcada ? "" : acao.id)}
+                className={`w-full text-left rounded-xl border p-3 transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-light/40 ${
+                  marcada ? "border-brand-light bg-brand-light/10 ring-1 ring-brand-light/40" : "border-black/10 hover:bg-black/[0.02]"
+                }`}
+              >
+                <div className="flex items-center gap-2.5">
+                  <IconeAcao nome={acao.nome} />
+                  <p className="text-sm font-semibold text-brand-dark leading-snug">{acao.nome}</p>
+                </div>
+                <p className="mt-2 text-2xl font-semibold leading-tight text-brand-dark">{acao.total.toLocaleString("pt-BR")}</p>
+                <div className="mt-1.5 h-1.5 rounded-full bg-brand-light/10 overflow-hidden">
+                  <div className="h-full rounded-full bg-brand-light" style={{ width: `${(acao.total / maior) * 100}%` }} />
+                </div>
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+      {semAcao > 0 && (
+        <p className="mt-3 text-xs text-brand-dark/75">
+          {semAcao} {semAcao === 1 ? "documento" : "documentos"} sem ação pedagógica (enviados antes desta etapa).
+        </p>
+      )}
+    </section>
   );
 }
 
@@ -373,7 +477,7 @@ function iconeDoTipo(nome: string) {
   if (n.includes("foto") || n.includes("imagem")) return ImageIcon;
   if (n.includes("video")) return VideoIcon;
   if (n.includes("presenca") || n.includes("ficha") || n.includes("lista")) return ClipboardListIcon;
-  if (n.includes("relatorio") || n.includes("ata") || n.includes("document")) return FileTextIcon;
+  if (n.includes("pdf") || n.includes("relatorio") || n.includes("ata") || n.includes("document")) return FileTextIcon;
   return FolderIcon;
 }
 
@@ -423,7 +527,7 @@ function TabelaEscolas({ escolas }: { escolas: EscolaParticipante[] }) {
           <input
             value={busca}
             onChange={(e) => { setBusca(e.target.value); setPagina(1); }}
-            placeholder="Buscar escola, município ou programa..."
+            placeholder="Buscar escola, município ou ação pedagógica..."
             className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30"
           />
         </div>
@@ -434,7 +538,7 @@ function TabelaEscolas({ escolas }: { escolas: EscolaParticipante[] }) {
             <tr>
               <th className="text-left font-medium px-5 py-3">Escola</th>
               <th className="text-left font-medium px-3 py-3">Município</th>
-              <th className="text-left font-medium px-3 py-3">Programa</th>
+              <th className="text-left font-medium px-3 py-3">Ações pedagógicas</th>
               <th className="text-right font-medium px-5 py-3">Documentos</th>
             </tr>
           </thead>
@@ -452,12 +556,12 @@ function TabelaEscolas({ escolas }: { escolas: EscolaParticipante[] }) {
                 <td className="px-3 py-3 text-brand-dark/85">{escola.municipio_nome ?? "—"}</td>
                 <td className="px-3 py-3">
                   <div className="flex flex-wrap gap-1">
-                    {escola.programas.map((programa) => (
+                    {escola.programas.map((acao) => (
                       <span
-                        key={programa}
-                        className={`text-xs px-2 py-0.5 rounded-full ${programa === "Sem programa" ? "bg-black/5 text-brand-dark/75" : "bg-brand-light/10 text-brand-light"}`}
+                        key={acao}
+                        className={`text-xs px-2 py-0.5 rounded-full ${acao.startsWith("Sem ") ? "bg-black/5 text-brand-dark/75" : "bg-brand-light/10 text-brand-light"}`}
                       >
-                        {programa}
+                        {acao}
                       </span>
                     ))}
                   </div>

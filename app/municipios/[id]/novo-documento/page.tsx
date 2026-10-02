@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
-import { apiGet, apiPost, apiUploadDireto, Escola, Municipio, Projeto, TipoDocumento } from "@/lib/api";
+import { AcaoPedagogica, apiGet, apiPost, apiUploadDireto, Escola, Municipio, TipoDocumento } from "@/lib/api";
 import { comprimirVideoSeNecessario } from "@/lib/comprimirVideoNoNavegador";
 import {
   UploadCloudIcon,
@@ -20,9 +20,12 @@ import {
   PaperclipIcon,
   LinkIcon,
 } from "@/components/icons";
+import { PreviaDoLink } from "@/components/PreviaDoLink";
 
 const MAX_FILE_MB = 500;
 const FORMATOS_ACEITOS = ".jpg,.jpeg,.png,.heic,.pdf,.mp4,.mov";
+const FORMATOS_PDF = ".pdf";
+const FORMATOS_MIDIA = ".jpg,.jpeg,.png,.heic,.mp4,.mov";
 
 // Info fixa de apoio: o que cada tipo de arquivo representa e sua finalidade.
 // Casamento é feito pelo nome do tipo vindo do banco (tabela tipos_documento).
@@ -30,25 +33,19 @@ const INFO_TIPOS: Record<
   string,
   { Icone: (p: { className?: string }) => JSX.Element; cor: string; finalidade: string; badge: string }
 > = {
-  "Imagens": {
+  "Imagem": {
     Icone: ImageIcon,
     cor: "bg-blue-50 text-blue-600",
     badge: "bg-blue-50 text-blue-700",
     finalidade: "Comprovação visual das ações realizadas.",
   },
-  "Relatório das Ações": {
+  "PDF": {
     Icone: FileTextIcon,
     cor: "bg-emerald-50 text-emerald-600",
     badge: "bg-emerald-50 text-emerald-700",
-    finalidade: "Comprovar a execução das ações.",
+    finalidade: "Só para a ação Relatório: relatório, ficha de presença ou convite.",
   },
-  "Lista de Presença": {
-    Icone: ClipboardListIcon,
-    cor: "bg-amber-50 text-amber-600",
-    badge: "bg-amber-50 text-amber-700",
-    finalidade: "Comprovar a participação dos beneficiários.",
-  },
-  "Vídeos": {
+  "Vídeo": {
     Icone: VideoIcon,
     cor: "bg-purple-50 text-purple-600",
     badge: "bg-purple-50 text-purple-700",
@@ -62,11 +59,13 @@ const INFO_TIPOS: Record<
   },
 };
 
+const ehPdf = (arquivo: File) => /\.pdf$/i.test(arquivo.name) || arquivo.type === "application/pdf";
+
 const DICAS = [
-  "No campo \"Ação/Evento\", selecione uma ação para facilitar a organização.",
+  "Escolha a ação pedagógica realizada. Só a ação Relatório (relatório, ficha de presença e convite) é enviada em PDF; as demais usam vídeo ou imagem.",
   "Use descrições claras e objetivas.",
   "Prefira salvar os arquivos em boa qualidade.",
-  "Em caso de vídeos grandes, utilize o link do Google Drive, YouTube ou outra plataforma.",
+  "Vídeo longo ou muito pesado? Em vez de enviar o arquivo, cole o link (YouTube, Google Drive ou Instagram) no campo de link, mais abaixo.",
 ];
 
 function formatBytes(bytes: number) {
@@ -83,11 +82,12 @@ export default function NovoDocumentoPage() {
   const [municipios, setMunicipios] = useState<Municipio[]>([]);
   const [municipioId, setMunicipioId] = useState(municipioIdRota ?? "");
   const [tipos, setTipos] = useState<TipoDocumento[]>([]);
-  const [projetos, setProjetos] = useState<Projeto[]>([]);
+  const [acoes, setAcoes] = useState<AcaoPedagogica[]>([]);
   const [escolas, setEscolas] = useState<Escola[]>([]);
 
   const [tipoId, setTipoId] = useState("");
-  const [projetoId, setProjetoId] = useState("");
+  const [acaoId, setAcaoId] = useState("");
+  const [subtipo, setSubtipo] = useState("");
   const [acaoEvento, setAcaoEvento] = useState("");
   const [escolaId, setEscolaId] = useState("");
   const [dataRealizacao, setDataRealizacao] = useState("");
@@ -111,14 +111,11 @@ export default function NovoDocumentoPage() {
         console.error("[tipos-documento] ERRO:", e);
         setErro(e instanceof Error ? `Não foi possível carregar os tipos de documento: ${e.message}` : "Não foi possível carregar os tipos de documento.");
       });
-    apiGet("/api/projetos")
-      .then((p) => {
-        console.log("[projetos] OK, veio:", p);
-        setProjetos(p);
-      })
+    apiGet("/api/acoes-pedagogicas")
+      .then(setAcoes)
       .catch((e) => {
-        console.error("[projetos] ERRO:", e);
-        setErro(e instanceof Error ? `Não foi possível carregar os projetos: ${e.message}` : "Não foi possível carregar os projetos.");
+        console.error("[acoes-pedagogicas] ERRO:", e);
+        setErro(e instanceof Error ? `Não foi possível carregar as ações pedagógicas: ${e.message}` : "Não foi possível carregar as ações pedagógicas.");
       });
     apiGet("/api/municipios")
       .then((lista: Municipio[]) => {
@@ -132,7 +129,7 @@ export default function NovoDocumentoPage() {
 
   useEffect(() => {
     if (!municipioId) return;
-    apiGet(`/api/escolas?municipio_id=${municipioId}`).then(setEscolas).catch(() => null);
+    apiGet(`/api/escolas?municipio_id=${municipioId}&participantes=1`).then(setEscolas).catch(() => null);
     setEscolaId("");
   }, [municipioId]);
 
@@ -141,14 +138,44 @@ export default function NovoDocumentoPage() {
     [municipios, municipioId]
   );
   const tipoSelecionado = useMemo(() => tipos.find((t) => t.id === tipoId)?.nome, [tipos, tipoId]);
+  const acaoSelecionada = useMemo(() => acoes.find((a) => a.id === acaoId) ?? null, [acoes, acaoId]);
+  const tipoPdf = useMemo(() => tipos.find((t) => t.nome === "PDF") ?? null, [tipos]);
+  const exigePdf = Boolean(acaoSelecionada?.exige_pdf);
+  const apenasMidia = Boolean(acaoSelecionada && !acaoSelecionada.exige_pdf); // ação comum: vídeo ou imagem, sem PDF
+
+  // Ação "Relatório": o arquivo é sempre PDF
+  useEffect(() => {
+    if (exigePdf && tipoPdf) setTipoId(tipoPdf.id);
+  }, [exigePdf, tipoPdf]);
+
+  function escolherAcao(id: string) {
+    setAcaoId(id);
+    setSubtipo("");
+    const nova = acoes.find((a) => a.id === id);
+    if (!nova) return;
+    if (nova.exige_pdf) {
+      setArquivos((atual) => atual.filter(ehPdf));
+    } else {
+      setArquivos((atual) => atual.filter((f) => !ehPdf(f)));
+      if (tipoId && tipoId === tipoPdf?.id) setTipoId("");
+    }
+  }
 
   function adicionarArquivos(lista: FileList | File[]) {
     const todos = Array.from(lista);
-    const novos = todos.filter((f) => f.size <= MAX_FILE_MB * 1024 * 1024);
-    const grandes = todos.length - novos.length;
+    const doTipo = exigePdf ? todos.filter(ehPdf) : apenasMidia ? todos.filter((f) => !ehPdf(f)) : todos;
+    const foraDoTipo = todos.length - doTipo.length;
+    const novos = doTipo.filter((f) => f.size <= MAX_FILE_MB * 1024 * 1024);
+    const grandes = doTipo.length - novos.length;
     setArquivos((atual) => [...atual, ...novos]);
     if (fileInputRef.current) fileInputRef.current.value = "";
-    setErro(grandes > 0 ? `${grandes} arquivo(s) ignorado(s) por passar de ${MAX_FILE_MB}MB.` : null);
+    const avisos = [
+      foraDoTipo > 0
+        ? `${foraDoTipo} arquivo(s) ignorado(s): ${exigePdf ? "a ação Relatório aceita só PDF" : "esta ação aceita só vídeo ou imagem (PDF é para a ação Relatório)"}.`
+        : "",
+      grandes > 0 ? `${grandes} arquivo(s) ignorado(s) por passar de ${MAX_FILE_MB}MB.` : "",
+    ].filter(Boolean);
+    setErro(avisos.length ? avisos.join(" ") : null);
   }
 
   function removerArquivo(index: number) {
@@ -161,6 +188,22 @@ export default function NovoDocumentoPage() {
 
     if (!municipioId || !tipoId || !dataRealizacao || !descricao) {
       setErro("Preencha os campos obrigatórios.");
+      return;
+    }
+    if (acoes.length > 0 && !acaoId) {
+      setErro("Escolha a ação pedagógica realizada.");
+      return;
+    }
+    if (acaoSelecionada?.subtipos?.length && !subtipo) {
+      setErro(`Escolha o tipo de ${acaoSelecionada.nome.toLowerCase()}: ${acaoSelecionada.subtipos.join(", ")}.`);
+      return;
+    }
+    if (exigePdf && (arquivos.some((f) => !ehPdf(f)) || (arquivos.length === 0 && linkExterno))) {
+      setErro("Para a ação Relatório, envie o arquivo em PDF.");
+      return;
+    }
+    if (apenasMidia && (arquivos.some(ehPdf) || tipoId === tipoPdf?.id)) {
+      setErro("PDF é só para a ação Relatório. Nesta ação, envie vídeo ou imagem.");
       return;
     }
     if (arquivos.length === 0 && !linkExterno) {
@@ -179,7 +222,8 @@ export default function NovoDocumentoPage() {
         tipo_id: tipoId,
         acao_evento: acaoEvento,
         escola_id: escolaId || undefined,
-        projeto_id: projetoId || undefined,
+        acao_pedagogica_id: acaoId || undefined,
+        subtipo: subtipo || undefined,
         descricao,
         data_realizacao: dataRealizacao,
       };
@@ -289,31 +333,49 @@ export default function NovoDocumentoPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Programa</label>
+                <label htmlFor="acao-pedagogica" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Ação pedagógica * <span className="font-normal text-brand-dark/65">(a que ação esta imagem, vídeo ou PDF pertence)</span></label>
                 <select
+                  id="acao-pedagogica"
                   className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
-                  value={projetoId}
-                  onChange={(e) => setProjetoId(e.target.value)}
+                  value={acaoId}
+                  onChange={(e) => escolherAcao(e.target.value)}
                 >
-                  <option value="">Nenhum / não se aplica</option>
-                  {projetos.map((p) => (
-                    <option key={p.id} value={p.id}>
-                      {p.nome}
-                    </option>
+                  <option value="">Selecione</option>
+                  {acoes.map((a) => (
+                    <option key={a.id} value={a.id}>{a.nome}</option>
                   ))}
                 </select>
               </div>
 
+              {acaoSelecionada?.subtipos?.length ? (
+                <div>
+                  <label htmlFor="subtipo-acao" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Tipo de {acaoSelecionada.nome.toLowerCase()} *</label>
+                  <select
+                    id="subtipo-acao"
+                    className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
+                    value={subtipo}
+                    onChange={(e) => setSubtipo(e.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    {acaoSelecionada.subtipos.map((t) => (
+                      <option key={t} value={t}>{t}</option>
+                    ))}
+                  </select>
+                </div>
+              ) : null}
+
               <div>
                 <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Tipo de arquivo *</label>
                 <select
-                  className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
+                  className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light disabled:bg-black/[0.03]"
                   value={tipoId}
                   onChange={(e) => setTipoId(e.target.value)}
+                  disabled={exigePdf}
+                  title={exigePdf ? "Relatório, ficha de presença e convite são sempre PDF" : undefined}
                   required
                 >
                   <option value="">Selecione</option>
-                  {tipos.map((t) => (
+                  {tipos.filter((t) => !(apenasMidia && t.nome === "PDF")).map((t) => (
                     <option key={t.id} value={t.id}>
                       {t.nome}
                     </option>
@@ -324,12 +386,12 @@ export default function NovoDocumentoPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Ação / Evento</label>
+                <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Título da atividade (opcional)</label>
                 <input
                   className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
                   value={acaoEvento}
                   onChange={(e) => setAcaoEvento(e.target.value)}
-                  placeholder="Selecione ou digite a ação/evento"
+                  placeholder="Ex: Roda de conversa sobre respeito"
                 />
               </div>
 
@@ -349,7 +411,7 @@ export default function NovoDocumentoPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Escola (opcional)</label>
+                <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Escola do programa (opcional)</label>
                 <select
                   className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
                   value={escolaId}
@@ -362,6 +424,11 @@ export default function NovoDocumentoPage() {
                     </option>
                   ))}
                 </select>
+                {escolas.length === 0 && (
+                  <p className="mt-1.5 text-xs text-brand-dark/70">
+                    Nenhuma escola deste município foi incluída no programa neste ciclo. Peça ao administrador para incluí-las.
+                  </p>
+                )}
               </div>
             </div>
 
@@ -413,12 +480,12 @@ export default function NovoDocumentoPage() {
                     ref={fileInputRef}
                     type="file"
                     multiple
-                    accept={FORMATOS_ACEITOS}
+                    accept={exigePdf ? FORMATOS_PDF : apenasMidia ? FORMATOS_MIDIA : FORMATOS_ACEITOS}
                     onChange={(e) => e.target.files && adicionarArquivos(e.target.files)}
                     className="hidden"
                   />
                   <p className="text-xs text-brand-dark/65 mt-1">
-                    Formatos aceitos: JPG, PNG, HEIC, MP4, PDF (máx. {MAX_FILE_MB}MB por arquivo — vídeos acima de 10MB são compactados automaticamente)
+                    {exigePdf ? "Formato aceito: PDF" : apenasMidia ? "Formatos aceitos: JPG, PNG, HEIC, MP4" : "Formatos aceitos: JPG, PNG, HEIC, MP4, PDF"} (máx. {MAX_FILE_MB}MB por arquivo — vídeos acima de 10MB são compactados automaticamente)
                   </p>
                 </div>
 
@@ -459,16 +526,26 @@ export default function NovoDocumentoPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Link alternativo (opcional)</label>
+              <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Vídeo grande? Cole o link aqui (opcional)</label>
               <div className="relative">
                 <LinkIcon className="w-4 h-4 text-brand-dark/60 absolute left-3 top-1/2 -translate-y-1/2" />
                 <input
                   className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
                   value={linkExterno}
                   onChange={(e) => setLinkExterno(e.target.value)}
-                  placeholder="Ex.: Link do Google Drive, Google Fotos, YouTube, etc."
+                  placeholder="Cole o link do YouTube, Google Drive ou Instagram"
                 />
               </div>
+              <PreviaDoLink link={linkExterno} />
+              <details className="mt-2 text-xs text-brand-dark/80">
+                <summary className="cursor-pointer font-semibold text-brand-light">Como deixar o link funcionando?</summary>
+                <ul className="mt-1.5 list-disc space-y-1 pl-5">
+                  <li><strong>YouTube:</strong> deixe o vídeo como &quot;Público&quot; ou &quot;Não listado&quot;.</li>
+                  <li><strong>Google Drive:</strong> clique em Compartilhar e, em &quot;Acesso geral&quot;, escolha &quot;Qualquer pessoa com o link&quot;.</li>
+                  <li><strong>Instagram:</strong> use o link do post ou do reel (botão &quot;Copiar link&quot;), e o perfil precisa ser público.</li>
+                  <li>Fotos e vídeos curtos podem ser enviados direto pelo botão de arquivo.</li>
+                </ul>
+              </details>
             </div>
 
             <div className="rounded-lg bg-brand-light/10 text-brand-dark/85 text-xs px-4 py-3">

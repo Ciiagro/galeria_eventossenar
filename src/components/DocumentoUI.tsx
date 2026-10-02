@@ -68,7 +68,7 @@ export function Miniatura({ doc, onClick }: { doc: Documento; onClick?: () => vo
 }
 
 // ---------------------------------------------------------------
-// Linha de informação com ícone (escola, programa, data...)
+// Linha de informação com ícone (escola, ação pedagógica, data...)
 // ---------------------------------------------------------------
 export function Info({
   icone: Icone,

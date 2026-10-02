@@ -95,3 +95,33 @@ export function linkIncorporavel(link?: string | null): LinkIncorporavel | null 
 
   return null;
 }
+
+/** Nome amigável do site do link (para avisar a pessoa que o link foi reconhecido). */
+export function nomePlataforma(link?: string | null): string | null {
+  const bruto = normalizarLink(link);
+  if (!bruto) return null;
+  try {
+    const host = new URL(bruto).hostname.replace(/^www\.|^m\./, "").toLowerCase();
+    if (host === "drive.google.com" || host === "docs.google.com") return "Google Drive";
+    if (host.includes("youtube") || host === "youtu.be") return "YouTube";
+    if (host.includes("vimeo")) return "Vimeo";
+    if (host === "instagram.com") return "Instagram";
+    if (host === "facebook.com" || host === "fb.watch" || host === "web.facebook.com") return "Facebook";
+    if (host === "tiktok.com") return "TikTok";
+    if (host === "photos.app.goo.gl" || host === "photos.google.com") return "Google Fotos";
+    return host;
+  } catch {
+    return null;
+  }
+}
+
+/** O texto parece um endereço de site? (evita avisar sobre algo que ainda está sendo digitado) */
+export function pareceEndereco(link?: string | null): boolean {
+  const bruto = normalizarLink(link);
+  if (!bruto) return false;
+  try {
+    return new URL(bruto).hostname.includes(".");
+  } catch {
+    return false;
+  }
+}

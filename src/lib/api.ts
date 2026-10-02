@@ -19,6 +19,39 @@ export async function apiGet(path: string) {
   return res.json();
 }
 
+// GET com cache curto em memória. Várias partes da tela pedem o mesmo dado ao abrir
+// (ex.: a barra lateral e a página pedem /api/perfil e /api/ciclos): aqui as chamadas
+// iguais viram uma só, e a resposta é reaproveitada por `ttlMs`.
+const _cacheGet = new Map<string, { em: number; valor?: unknown; promessa?: Promise<unknown> }>();
+
+export function apiGetCache(path: string, ttlMs = 60_000): Promise<any> {
+  const agora = Date.now();
+  const item = _cacheGet.get(path);
+  if (item?.promessa) return item.promessa;
+  if (item && "valor" in item && agora - item.em < ttlMs) return Promise.resolve(item.valor);
+  const promessa = apiGet(path).then(
+    (valor) => { _cacheGet.set(path, { em: Date.now(), valor }); return valor; },
+    (erro) => { _cacheGet.delete(path); throw erro; }
+  );
+  _cacheGet.set(path, { em: agora, promessa });
+  return promessa;
+}
+
+/** Esquece o que foi guardado (use ao trocar de conta). */
+export function limparCacheApi() {
+  _cacheGet.clear();
+}
+
+// Trocou de pessoa (sair/entrar com outra conta)? Então nada do cache vale mais.
+if (typeof window !== "undefined") {
+  let ultimoUsuario: string | null | undefined;
+  supabaseBrowser.auth.onAuthStateChange((_evento, sessao) => {
+    const id = sessao?.user?.id ?? null;
+    if (ultimoUsuario !== undefined && id !== ultimoUsuario) limparCacheApi();
+    ultimoUsuario = id;
+  });
+}
+
 export async function apiPost(path: string, body: unknown) {
   const headers = await authHeader();
   const res = await fetch(API_BASE + path, {
@@ -126,11 +159,49 @@ export type Municipio = {
   progresso_pct?: number;
 };
 
-export type Perfil = { role: "admin" | "municipio" | null; municipio_id?: number | null; nome?: string | null; email?: string | null };
+// Perfis de acesso:
+//  admin               -> Administrador
+//  municipio           -> Coordenador Geral por Município (1 município)
+//  apoiador_visitas    -> Apoiador de Visitas (municípios definidos pelo admin)
+//  apoiador_relatorios -> Apoiador de Relatórios (municípios definidos pelo admin; analisa os documentos)
+export type Papel = "admin" | "municipio" | "apoiador_visitas" | "apoiador_relatorios";
+
+export const ROTULO_PAPEL: Record<Papel, string> = {
+  admin: "Administrador",
+  municipio: "Coordenador Geral por Município",
+  apoiador_visitas: "Apoiador de Visitas",
+  apoiador_relatorios: "Apoiador de Relatórios",
+};
+
+export type Perfil = {
+  role: Papel | null;
+  municipio_id?: number | null;
+  municipio_ids?: number[] | null; // municípios em que atua (null = todos)
+  nome?: string | null;
+  email?: string | null;
+};
+
+// Quem escolhe o município na tela (em vez de ter um só fixo)
+export const escolheMunicipio = (role?: Papel | null) =>
+  role === "admin" || role === "apoiador_visitas" || role === "apoiador_relatorios";
+
+export type MembroEquipe = {
+  id: string;
+  nome: string;
+  email: string | null;
+  role: "apoiador_visitas" | "apoiador_relatorios";
+  municipio_ids: number[];
+};
 
 export type TipoDocumento = { id: string; nome: string };
 
-export type Projeto = { id: string; nome: string; descricao?: string };
+// "Projeto" no banco = "Valor" na tela (Paz, Amor, Verdade, Ação correta, Não violência)
+export type Projeto = { id: string; nome: string; descricao?: string; cor?: string | null; ordem?: number | null };
+
+// Ação pedagógica (Acolhimento, Meditação, Hora do Conto, Relatório...)
+export type AcaoPedagogica = { id: string; nome: string; ordem?: number | null; exige_pdf?: boolean; subtipos?: string[] | null };
+
+export type AcaoResumo = { id: string; nome: string; ordem?: number | null; total: number; aprovados?: number };
 
 export type Escola = {
   id: string;
@@ -148,7 +219,7 @@ export type EscolaParticipanteGaleria = {
   municipio_id?: number;
   latitude: number | null;
   longitude: number | null;
-  programas: { nome: string; acoes: number }[];
+  programas: { nome: string; acoes: number; cor?: string | null }[];
   acoes: number;
 };
 
@@ -172,6 +243,8 @@ export type ResumoDashboard = {
   tipos_por_periodo?: Record<string, Record<string, number>>;
   tipos_por_municipio: Record<string, Record<string, number>>;
   anos_disponiveis?: number[];
+  por_acao?: AcaoResumo[];
+  sem_acao?: number;
   escolas_participantes_lista: EscolaParticipante[];
 };
 
@@ -201,9 +274,11 @@ export type DocumentoGaleria = {
   link_externo?: string;
   visualizacoes: number;
   curtidas: number;
+  subtipo?: string | null;
   tipos_documento?: { nome: string };
   escolas?: { nome: string };
-  projetos?: { nome: string };
+  projetos?: { nome: string; cor?: string | null };
+  acoes_pedagogicas?: { nome: string } | null;
 };
 
 export type Documento = {
@@ -214,15 +289,25 @@ export type Documento = {
   acao_evento?: string;
   escola_id?: string;
   projeto_id?: string;
+  ciclo_id?: string | null;
+  acao_pedagogica_id?: string | null;
+  subtipo?: string | null;
   descricao?: string;
   data_realizacao: string;
   responsavel_nome?: string;
   responsavel_email?: string;
   status: "pendente" | "aprovado" | "rejeitado";
   motivo_rejeicao?: string | null;
+  arquivado?: boolean;
+  arquivado_em?: string | null;
   validado_por?: string | null;
   validado_por_nome?: string | null;
   validado_em?: string | null;
+  origem?: "municipio" | "visita" | "apoio_relatorios" | "admin" | null;
+  analise_status?: "recomendado" | "ajustes" | null;
+  analise_obs?: string | null;
+  analise_por_nome?: string | null;
+  analise_em?: string | null;
   created_at?: string;
   drive_file_id?: string | null;
   drive_file_link?: string;
@@ -232,5 +317,6 @@ export type Documento = {
   publicado_galeria_em?: string | null;
   tipos_documento?: { nome: string };
   escolas?: { nome: string; endereco?: string };
-  projetos?: { nome: string };
+  projetos?: { nome: string; cor?: string | null };
+  acoes_pedagogicas?: { nome: string } | null;
 };

@@ -2,14 +2,13 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, Municipio } from "@/lib/api";
-import { UserIcon, MailIcon, LockIcon, PencilIcon, TrashIcon, XIcon, BuildingIcon } from "@/components/icons";
+import { UserIcon, MailIcon, LockIcon, MapPinIcon, SearchIcon, XIcon, BuildingIcon } from "@/components/icons";
 import { AdminGuard } from "@/components/AdminGuard";
+import { normalizarTexto } from "@/components/DocumentoUI";
+import { BotaoEditar, BotaoExcluir } from "@/components/BotoesIcone";
 
-function iniciais(nome: string) {
-  const partes = nome.trim().split(/\s+/).filter(Boolean);
-  if (partes.length === 0) return "?";
-  return (partes[0][0] + (partes[1]?.[0] ?? "")).toUpperCase();
-}
+const CAMPO =
+  "w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30";
 
 export default function ResponsaveisPageGuarded() {
   return (
@@ -30,6 +29,9 @@ function ResponsaveisPage() {
   const [mostrarFormulario, setMostrarFormulario] = useState(false);
   const [mensagem, setMensagem] = useState<string | null>(null);
   const [erro, setErro] = useState<string | null>(null);
+  const [busca, setBusca] = useState("");
+  // municípios contemplados = com escolas no programa do ciclo ativo ("todos" se não for possível consultar)
+  const [contemplados, setContemplados] = useState<Set<number> | "todos" | null>(null);
 
   useEffect(() => {
     apiGet("/api/municipios")
@@ -39,6 +41,14 @@ function ResponsaveisPage() {
       })
       .catch((e) => setErro(e.message))
       .finally(() => setCarregando(false));
+    apiGet("/api/escolas-participantes?resumo=1")
+      .then((r) => {
+        const ids = Object.entries((r.por_municipio ?? {}) as Record<string, number>)
+          .filter(([, qtd]) => Number(qtd) > 0)
+          .map(([id]) => Number(id));
+        setContemplados(new Set(ids));
+      })
+      .catch(() => setContemplados("todos"));
   }, []);
 
   const municipioSelecionado = useMemo(
@@ -46,6 +56,24 @@ function ResponsaveisPage() {
     [municipios, municipioId]
   );
   const responsaveis = municipios.filter((municipio) => municipio.responsavel_nome || municipio.responsavel_email);
+  // só os municípios contemplados; o que já tem responsável continua na lista para poder ser editado
+  const opcoesMunicipio = useMemo(
+    () =>
+      contemplados instanceof Set
+        ? municipios.filter((m) => contemplados.has(m.id) || m.responsavel_nome || m.responsavel_email)
+        : municipios,
+    [municipios, contemplados]
+  );
+  const filtrados = useMemo(() => {
+    const termo = normalizarTexto(busca.trim());
+    if (!termo) return responsaveis;
+    return responsaveis.filter(
+      (m) =>
+        normalizarTexto(m.responsavel_nome ?? "").includes(termo) ||
+        normalizarTexto(m.responsavel_email ?? "").includes(termo) ||
+        normalizarTexto(m.nome).includes(termo)
+    );
+  }, [responsaveis, busca]);
 
   function novoResponsavel() {
     setMunicipioId("");
@@ -110,96 +138,74 @@ function ResponsaveisPage() {
   }
 
   return (
-    <div className="p-6 sm:p-8 max-w-5xl">
-      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4 mb-8">
-        <div className="flex items-center gap-4">
-          <div className="w-11 h-11 shrink-0 rounded-xl bg-brand-light/10 text-brand-light flex items-center justify-center">
-            <UserIcon className="w-5 h-5" />
-          </div>
+    <div className="max-w-5xl p-4 sm:p-8">
+      <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm sm:p-5">
+        <div className="flex flex-col gap-2 sm:flex-row sm:items-start sm:justify-between">
           <div>
-            <h1 className="text-2xl font-semibold text-brand-dark">Cadastrar responsável</h1>
-            <p className="text-sm text-brand-dark/70 mt-0.5">Escolha um município e crie o acesso do responsável.</p>
+            <h1 className="text-2xl font-bold text-brand-dark">
+              Coordenadores
+              <span className="ml-2 align-middle rounded-full bg-brand-dark/5 px-2.5 py-0.5 text-xs font-semibold text-brand-dark/70">
+                {responsaveis.length} cadastrado{responsaveis.length === 1 ? "" : "s"}
+              </span>
+            </h1>
+            <p className="mt-0.5 max-w-2xl text-sm text-brand-dark/80">
+              Escolha um município e crie o acesso do Coordenador Geral por Município.
+            </p>
           </div>
-        </div>
-        <button
-          type="button"
-          onClick={novoResponsavel}
-          className="inline-flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg bg-brand-light text-white text-sm font-medium shadow-sm hover:bg-brand-accent transition-colors shrink-0"
-        >
-          <span className="text-base leading-none">+</span> Inserir responsável
-        </button>
-      </div>
-
-      {erro && (
-        <div className="flex items-start gap-2.5 rounded-lg bg-status-pendente/10 text-status-pendente px-4 py-3 text-sm mb-5 border border-status-pendente/20">
-          {erro}
-        </div>
-      )}
-      {mensagem && (
-        <div className="flex items-start gap-2.5 rounded-lg bg-status-completo/10 text-status-completo px-4 py-3 text-sm mb-5 border border-status-completo/20">
-          {mensagem}
-        </div>
-      )}
-
-      {mostrarFormulario && (
-        <form
-          onSubmit={salvar}
-          autoComplete="off"
-          className="bg-white border border-black/5 rounded-2xl shadow-sm max-w-2xl mb-10 overflow-hidden"
-        >
-          <div className="flex items-center justify-between px-6 py-4 border-b border-black/5 bg-brand-dark/[0.03]">
-            <h2 className="text-sm font-semibold text-brand-dark">
-              {municipioSelecionado?.responsavel_id ? "Editar responsável" : "Novo responsável"}
-            </h2>
+          {!mostrarFormulario && (
             <button
               type="button"
-              onClick={() => setMostrarFormulario(false)}
-              aria-label="Fechar formulário"
-              className="w-7 h-7 rounded-md flex items-center justify-center text-brand-dark/50 hover:text-brand-dark hover:bg-black/5 transition-colors"
+              onClick={novoResponsavel}
+              className="shrink-0 rounded-xl bg-[#2678C4] px-4 py-2 text-sm font-bold text-white shadow-md shadow-[#2678C4]/25 transition hover:-translate-y-0.5 hover:bg-[#1F67AA]"
             >
-              <XIcon className="w-4 h-4" />
+              + Inserir responsável
             </button>
-          </div>
+          )}
+        </div>
 
-          <div className="p-6 space-y-5">
-            <div>
-              <label htmlFor="municipio" className="block text-sm font-medium text-brand-dark mb-1.5">Município *</label>
-              <div className="relative">
-                <BuildingIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-dark/40 pointer-events-none" />
+        {erro && <div className="mt-3 rounded-lg bg-status-pendente/10 px-4 py-2.5 text-sm text-status-pendente" role="alert">{erro}</div>}
+        {mensagem && <div className="mt-3 rounded-lg bg-status-completo/10 px-4 py-2.5 text-sm font-medium text-status-completo">{mensagem}</div>}
+
+        {mostrarFormulario && (
+          <form onSubmit={salvar} autoComplete="off" className="mt-4 space-y-3 rounded-2xl border border-black/10 bg-[#FFFBF2] p-4">
+            <div className="flex items-center justify-between">
+              <h2 className="text-lg font-bold text-brand-dark">
+                {municipioSelecionado?.responsavel_id ? "Editar responsável" : "Novo responsável"}
+              </h2>
+              <button type="button" onClick={() => setMostrarFormulario(false)} className="rounded p-1 hover:bg-black/5" aria-label="Fechar">
+                <XIcon className="h-5 w-5" />
+              </button>
+            </div>
+
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block text-sm font-medium text-brand-dark">
+                <span className="mb-1 flex items-center gap-1.5"><BuildingIcon className="h-4 w-4" /> Município *</span>
                 <select
                   id="municipio"
                   required
                   disabled={carregando}
                   value={municipioId}
                   onChange={(e) => selecionarMunicipio(e.target.value)}
-                  className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light appearance-none disabled:opacity-50"
+                  className={`${CAMPO} disabled:opacity-50`}
                 >
-                  <option value="">Selecione um município</option>
-                  {municipios.map((municipio) => <option key={municipio.id} value={municipio.id}>{municipio.nome}</option>)}
+                  <option value="">{contemplados === null ? "Carregando..." : "Selecione um município"}</option>
+                  {opcoesMunicipio.map((municipio) => <option key={municipio.id} value={municipio.id}>{municipio.nome}</option>)}
                 </select>
-              </div>
-            </div>
+                <span className="mt-1 block text-xs font-normal text-brand-dark/70">
+                  {contemplados !== null && opcoesMunicipio.length === 0
+                    ? "Nenhum município tem escolas no programa ainda. Marque as escolas em Escolas do programa."
+                    : "Só aparecem os municípios que já têm escolas no programa do ciclo ativo."}
+                </span>
+              </label>
 
-            {municipioSelecionado && (
-              <div className="border-t border-black/5 pt-5 space-y-5">
-                <div>
-                  <label htmlFor="nome" className="block text-sm font-medium text-brand-dark mb-1.5">Nome completo *</label>
-                  <div className="relative">
-                    <UserIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-dark/40 pointer-events-none" />
-                    <input
-                      id="nome"
-                      required
-                      value={nome}
-                      onChange={(e) => setNome(e.target.value)}
-                      placeholder="Nome do responsável"
-                      className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
-                    />
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="email" className="block text-sm font-medium text-brand-dark mb-1.5">E-mail de acesso *</label>
-                  <div className="relative">
-                    <MailIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-dark/40 pointer-events-none" />
+              {municipioSelecionado && (
+                <>
+                  <label className="block text-sm font-medium text-brand-dark">
+                    <span className="mb-1 flex items-center gap-1.5"><UserIcon className="h-4 w-4" /> Nome completo *</span>
+                    <input id="nome" required value={nome} onChange={(e) => setNome(e.target.value)} placeholder="Nome do responsável" maxLength={120} className={CAMPO} />
+                  </label>
+                  <label className="block text-sm font-medium text-brand-dark">
+                    <span className="mb-1 flex items-center gap-1.5"><MailIcon className="h-4 w-4" /> E-mail (login) *</span>
                     <input
                       id="email"
                       name="responsavelEmail"
@@ -209,16 +215,14 @@ function ResponsaveisPage() {
                       value={email}
                       onChange={(e) => setEmail(e.target.value)}
                       placeholder="responsavel@exemplo.com"
-                      className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
+                      className={CAMPO}
                     />
-                  </div>
-                </div>
-                <div>
-                  <label htmlFor="senha" className="block text-sm font-medium text-brand-dark mb-1.5">
-                    Senha {municipioSelecionado.responsavel_id ? <span className="font-normal text-brand-dark/55">(opcional para alterar)</span> : "*"}
                   </label>
-                  <div className="relative">
-                    <LockIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-dark/40 pointer-events-none" />
+                  <label className="block text-sm font-medium text-brand-dark">
+                    <span className="mb-1 flex items-center gap-1.5">
+                      <LockIcon className="h-4 w-4" /> Senha{" "}
+                      {municipioSelecionado.responsavel_id ? <span className="font-normal text-brand-dark/70">(deixe vazio para manter a atual)</span> : "*"}
+                    </span>
                     <input
                       id="senha"
                       name="responsavelSenha"
@@ -229,87 +233,92 @@ function ResponsaveisPage() {
                       value={senha}
                       onChange={(e) => setSenha(e.target.value)}
                       placeholder="Mínimo de 6 caracteres"
-                      className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
+                      className={CAMPO}
                     />
-                  </div>
-                  <p className="text-xs text-brand-dark/60 mt-1.5">O responsável usará o e-mail e a senha na tela de login.</p>
-                </div>
-                <div className="flex flex-col-reverse sm:flex-row gap-3 pt-1">
-                  <button type="button" onClick={() => setMostrarFormulario(false)} className="sm:w-32 px-5 py-3 rounded-lg border border-black/10 text-brand-dark/70 text-sm font-medium hover:bg-black/5 transition-colors">
-                    Cancelar
-                  </button>
-                  <button type="submit" disabled={salvando} className="flex-1 px-5 py-3 rounded-lg bg-brand-light text-white text-sm font-medium shadow-sm hover:bg-brand-accent transition-colors disabled:opacity-50">
-                    {salvando ? "Salvando acesso..." : "Salvar responsável"}
-                  </button>
-                </div>
+                  </label>
+                </>
+              )}
+            </div>
+
+            {municipioSelecionado && (
+              <div className="flex gap-2">
+                <button
+                  type="submit"
+                  disabled={salvando}
+                  className="rounded-xl bg-[#2F9E62] px-5 py-2 text-sm font-bold text-white shadow-sm hover:brightness-110 disabled:opacity-50"
+                >
+                  {salvando ? "Salvando acesso..." : "Salvar"}
+                </button>
+                <button type="button" onClick={() => setMostrarFormulario(false)} className="rounded-xl px-4 py-2 text-sm font-semibold text-brand-dark/80 hover:bg-black/5">
+                  Cancelar
+                </button>
               </div>
             )}
-          </div>
-        </form>
-      )}
+          </form>
+        )}
 
-      <section className="max-w-2xl">
-        <div className="flex items-center justify-between mb-3">
-          <div>
-            <h2 className="text-lg font-semibold text-brand-dark">Relação de responsáveis</h2>
-            <p className="text-sm text-brand-dark/70">Acessos já vinculados aos municípios.</p>
+        {responsaveis.length > 0 && (
+          <div className="relative mt-4">
+            <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-dark/60" />
+            <input
+              type="search"
+              value={busca}
+              onChange={(e) => setBusca(e.target.value)}
+              placeholder="Pesquisar por nome, e-mail ou município..."
+              aria-label="Pesquisar responsáveis"
+              className={`${CAMPO} pl-9`}
+            />
+            {busca.trim() && (
+              <span className="pointer-events-none absolute right-10 top-1/2 -translate-y-1/2 text-xs text-brand-dark/60">
+                {filtrados.length} de {responsaveis.length}
+              </span>
+            )}
           </div>
-          <span className="text-xs font-medium text-brand-dark/60 bg-brand-dark/5 px-2.5 py-1 rounded-full">
-            {responsaveis.length} cadastrado{responsaveis.length === 1 ? "" : "s"}
-          </span>
-        </div>
+        )}
 
-        <div className="bg-white border border-black/5 rounded-2xl shadow-sm divide-y divide-black/5">
-          {responsaveis.length === 0 && (
-            <div className="p-8 text-center">
-              <div className="w-10 h-10 rounded-full bg-brand-dark/5 text-brand-dark/40 flex items-center justify-center mx-auto mb-3">
-                <UserIcon className="w-5 h-5" />
-              </div>
-              <p className="text-sm text-brand-dark/60">Nenhum responsável cadastrado ainda.</p>
+        <div className="mt-3 space-y-2">
+          {carregando && <p className="text-sm text-brand-dark/75">Carregando...</p>}
+          {!carregando && responsaveis.length === 0 && !mostrarFormulario && (
+            <div className="rounded-xl border border-dashed border-black/10 p-6 text-center text-sm text-brand-dark/75">
+              Nenhum responsável cadastrado ainda. Clique em &quot;+ Inserir responsável&quot;.
             </div>
           )}
-          {responsaveis.map((municipio) => (
-            <div key={municipio.id} className="flex items-center gap-4 p-4 hover:bg-brand-light/5 transition-colors">
-              <div className="w-10 h-10 shrink-0 rounded-full bg-brand-light/10 text-brand-light flex items-center justify-center text-xs font-semibold">
-                {iniciais(municipio.responsavel_nome ?? municipio.nome)}
-              </div>
-
-              <div className="min-w-0 flex-1">
-                <p className="text-sm font-medium text-brand-dark truncate">{municipio.responsavel_nome}</p>
-                <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 mt-0.5">
-                  <span className="inline-flex items-center gap-1 text-xs text-brand-dark/60">
-                    <BuildingIcon className="w-3.5 h-3.5" /> {municipio.nome}
-                  </span>
-                  <span className="inline-flex items-center gap-1 text-xs text-brand-dark/60 truncate">
-                    <MailIcon className="w-3.5 h-3.5 shrink-0" /> {municipio.responsavel_email}
+          {responsaveis.length > 0 && filtrados.length === 0 && (
+            <div className="rounded-xl border border-dashed border-black/10 p-6 text-center text-sm text-brand-dark/75">
+              Nenhum responsável encontrado para &quot;{busca.trim()}&quot;.
+            </div>
+          )}
+          {filtrados.map((municipio) => (
+            <article key={municipio.id} className="rounded-xl border border-black/5 bg-white px-4 py-2.5 transition-shadow hover:shadow-sm">
+              <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                <div className="min-w-0 sm:w-60 sm:shrink-0">
+                  <h2 className="truncate text-base font-bold leading-tight text-brand-dark" title={municipio.responsavel_nome ?? undefined}>
+                    {municipio.responsavel_nome}
+                  </h2>
+                  <p className="truncate text-xs text-brand-dark/75" title={municipio.responsavel_email ?? undefined}>
+                    {municipio.responsavel_email}
+                  </p>
+                </div>
+                <span className="w-fit shrink-0 rounded-full bg-[#FFF3CC] px-2.5 py-0.5 text-xs font-bold text-[#6E4B00] sm:w-44 sm:text-center">
+                  Coordenador Geral
+                </span>
+                <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
+                  <span className="inline-flex items-center gap-1 rounded-full bg-[#E2EFFB] px-2.5 py-0.5 text-xs font-semibold text-[#0F4C85]">
+                    <MapPinIcon className="h-3 w-3" /> {municipio.nome}
                   </span>
                 </div>
+                <div className="flex shrink-0 gap-2 sm:ml-auto">
+                  <BotaoEditar
+                    onClick={() => { selecionarMunicipio(String(municipio.id)); setMostrarFormulario(true); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+                    rotulo={`responsável de ${municipio.nome}`}
+                  />
+                  <BotaoExcluir onClick={() => excluir(municipio.id)} rotulo={`responsável de ${municipio.nome}`} />
+                </div>
               </div>
-
-              <div className="flex gap-1.5 shrink-0">
-                <button
-                  type="button"
-                  onClick={() => { selecionarMunicipio(String(municipio.id)); setMostrarFormulario(true); }}
-                  aria-label={`Editar responsável de ${municipio.nome}`}
-                  title="Editar"
-                  className="w-8 h-8 rounded-lg border border-black/10 text-brand-dark/60 flex items-center justify-center hover:border-brand-light/40 hover:text-brand-light hover:bg-brand-light/5 transition-colors"
-                >
-                  <PencilIcon className="w-4 h-4" />
-                </button>
-                <button
-                  type="button"
-                  onClick={() => excluir(municipio.id)}
-                  aria-label={`Excluir responsável de ${municipio.nome}`}
-                  title="Excluir"
-                  className="w-8 h-8 rounded-lg border border-black/10 text-brand-dark/60 flex items-center justify-center hover:border-status-pendente/40 hover:text-status-pendente hover:bg-status-pendente/5 transition-colors"
-                >
-                  <TrashIcon className="w-4 h-4" />
-                </button>
-              </div>
-            </div>
+            </article>
           ))}
         </div>
-      </section>
+      </div>
     </div>
   );
 }

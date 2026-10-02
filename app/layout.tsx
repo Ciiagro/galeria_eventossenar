@@ -4,6 +4,7 @@ import "./globals.css";
 import { usePathname } from "next/navigation";
 import { Sidebar } from "@/components/Sidebar";
 import { AuthGuard } from "@/components/AuthGuard";
+import { FundoSistema } from "@/components/FundoSistema";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
@@ -12,7 +13,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     <html lang="pt-BR">
       <head>
-        <title>Documentação Municipal — FAEC SENAR Ceará</title>
+        <title>Projeto Valores Humanos — FAEC SENAR Ceará</title>
         <link rel="preconnect" href="https://fonts.googleapis.com" />
         <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
         <link
@@ -21,7 +22,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
         />
         <meta
           name="description"
-          content="Acompanhe e gerencie os documentos das ações realizadas nos municípios."
+          content="Acompanhe os trabalhos do Projeto Valores Humanos nos municípios: paz, amor, verdade, ação correta e não violência."
         />
       </head>
       <body className="font-sans text-brand-dark">
@@ -31,7 +32,7 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
           ) : (
             <div className="flex">
               <Sidebar />
-              <main className="flex-1 min-h-screen">{children}</main>
+              <FundoSistema>{children}</FundoSistema>
             </div>
           )}
         </AuthGuard>

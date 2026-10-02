@@ -3,9 +3,11 @@
 import { useState } from "react";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowserClient";
+import { FaixaValores } from "@/components/Sol";
+import { FundoLogin } from "@/components/FundoLogin";
 
 const CAMPO =
-  "w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light";
+  "w-full border border-black/10 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light";
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,26 +32,24 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col lg:flex-row bg-cream">
-      {/* Faixa verde com a logo (a logo é branca, então precisa do fundo verde) */}
-      <div className="bg-brand text-white flex flex-col justify-center items-center lg:items-start px-8 py-10 lg:w-[42%] lg:px-16 lg:py-0">
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img
-          src="/logo-sistema.png"
-          alt="Sistema FAEC SENAR Ceará — Sindicato Rural"
-          width={800}
-          height={294}
-          className="w-56 sm:w-64 lg:w-80 h-auto"
-        />
-        <p className="hidden lg:block mt-8 max-w-xs text-lg leading-snug text-white/80">
-          Juntos pelo desenvolvimento do nosso campo.
-        </p>
-      </div>
+    <FundoLogin className="min-h-screen">
+      <div className="min-h-screen flex flex-col items-center justify-start gap-3 px-5 py-4 sm:pt-5">
+        <div className="text-center">
+          {/* Logo + sol lado a lado */}
+          <div className="flex items-center justify-center gap-3 sm:gap-6">
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/logo-valores.png" alt="Projeto Valores" width={720} height={308} className="h-auto w-40 sm:w-64" />
+            {/* eslint-disable-next-line @next/next/no-img-element */}
+            <img src="/sol-valores.png" alt="" width={900} height={545} className="h-auto w-28 sm:w-44" />
+          </div>
+          <p className="mt-1 text-sm sm:text-base font-medium text-brand-dark/85">
+            Brincando e cultivando os valores humanos
+          </p>
+        </div>
 
-      <div className="flex-1 flex items-center justify-center p-6 sm:p-10">
-        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-black/5 shadow-sm p-7 sm:p-8 w-full max-w-md">
-          <h1 className="text-xl sm:text-2xl font-bold text-brand-dark">Documentação Municipal</h1>
-          <p className="text-sm text-brand-dark/80 mt-1 mb-6">Acesse com seu e-mail e senha.</p>
+        <form onSubmit={handleSubmit} className="bg-white rounded-2xl border border-black/5 shadow-lg p-5 sm:p-6 w-full max-w-md">
+          <h1 className="inline-block border-b-2 border-brand-light pb-0.5 text-lg sm:text-xl font-bold text-brand-dark">Entrar</h1>
+          <p className="text-sm text-brand-dark/80 mt-1 mb-4">Acesse com seu e-mail e senha.</p>
 
           {erro && (
             <div className="rounded-lg bg-status-pendente/10 text-status-pendente px-3 py-2 text-sm mb-4" role="alert">
@@ -65,7 +65,7 @@ export default function LoginPage() {
             autoComplete="email"
             value={email}
             onChange={(e) => setEmail(e.target.value)}
-            className={`${CAMPO} mb-4`}
+            className={`${CAMPO} mb-3`}
           />
 
           <label htmlFor="senha" className="block text-sm font-medium text-brand-dark mb-1.5">Senha</label>
@@ -76,18 +76,31 @@ export default function LoginPage() {
             autoComplete="current-password"
             value={senha}
             onChange={(e) => setSenha(e.target.value)}
-            className={`${CAMPO} mb-6`}
+            className={`${CAMPO} mb-3`}
           />
 
           <button
             type="submit"
             disabled={carregando}
-            className="w-full bg-brand-light text-white text-sm font-semibold py-2.5 rounded-lg shadow-sm hover:bg-brand-accent transition-colors disabled:opacity-50"
+            className="w-full bg-brand-light text-white text-sm font-semibold py-2 rounded-lg shadow-sm hover:bg-brand-accent transition-colors disabled:opacity-50"
           >
             {carregando ? "Entrando..." : "Entrar"}
           </button>
+          <FaixaValores className="mt-4" />
         </form>
+
+        {/* A logo da FAEC é branca, então fica sobre um bloco verde */}
+        <div className="bg-brand rounded-xl px-4 py-2">
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
+            src="/logo-sistema.png"
+            alt="Sistema FAEC SENAR Ceará — Sindicato Rural"
+            width={800}
+            height={294}
+            className="w-28 h-auto"
+          />
+        </div>
       </div>
-    </div>
+    </FundoLogin>
   );
 }

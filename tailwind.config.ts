@@ -17,6 +17,24 @@ const config: Config = {
           pendente: "#C0392B",
         },
         cream: "#F7F6F2",
+        // Os cinco valores humanos (cores da apresentação do projeto)
+        valor: {
+          paz: "#8E5BB5",
+          amor: "#E03A3E",
+          verdade: "#2F9E62",
+          acao: "#F2B705",
+          naoviolencia: "#2678C4",
+        },
+        // Cores da logo "Projeto Valores"
+        logo: {
+          azul: "#5BB8EC",
+          laranja: "#F26122",
+          roxo: "#A98BC9",
+          verde: "#A6CE3A",
+          amarelo: "#FFC72C",
+          rosa: "#F49AC1",
+        },
+        sol: { DEFAULT: "#FBCB3C", creme: "#FFF6EA" },
       },
       // textos pequenos um pouco maiores, para leitura mais confortável
       fontSize: {

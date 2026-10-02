@@ -4,14 +4,14 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { EscolaParticipanteGaleria } from "@/lib/api";
 import { carregarLeaflet } from "@/components/EscolasMapa";
 
-const CORES = ["#1E4632", "#0369A1", "#B45309", "#7C3AED", "#BE123C", "#0F766E", "#4D7C0F", "#C2410C"];
+const CORES = ["#1E4632", "#0369A1", "#B45309", "#7C3AED", "#BE123C", "#0F766E", "#4D7C0F", "#C2410C", "#2678C4", "#8E5BB5"];
 
 function escaparHtml(texto: string) {
   return texto.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
 // Escolas que realmente participaram (com ação aprovada) no município:
-// resumo por programa, mapa só com essas escolas e a lista delas.
+// resumo por ação pedagógica, mapa só com essas escolas e a lista delas.
 export default function EscolasParticipantes({ escolas, semMapa = false }: { escolas: EscolaParticipanteGaleria[]; semMapa?: boolean }) {
   const [programaSelecionado, setProgramaSelecionado] = useState("");
   const [mostrarTodas, setMostrarTodas] = useState(false);
@@ -29,9 +29,10 @@ export default function EscolasParticipantes({ escolas, semMapa = false }: { esc
       .sort((a, b) => b.escolas - a.escolas || a.nome.localeCompare(b.nome));
   }, [escolas]);
 
+  // Uma cor por ação pedagógica no mapa
   const corDoPrograma = useMemo(() => {
     const cores = new Map<string, string>();
-    programas.forEach((p, i) => cores.set(p.nome, p.nome === "Sem programa" ? "#6B7280" : CORES[i % CORES.length]));
+    programas.forEach((p, i) => cores.set(p.nome, p.nome.startsWith("Sem ") ? "#6B7280" : CORES[i % CORES.length]));
     return (nome: string) => cores.get(nome) ?? "#6B7280";
   }, [programas]);
 
@@ -59,11 +60,11 @@ export default function EscolasParticipantes({ escolas, semMapa = false }: { esc
         <h2 className="text-base font-semibold text-brand-dark">Escolas participantes</h2>
         <p className="text-sm text-brand-dark/80">
           {escolas.length} {escolas.length === 1 ? "escola participou" : "escolas participaram"} de{" "}
-          {programas.length} {programas.length === 1 ? "programa" : "programas"}
+          {programas.length} {programas.length === 1 ? "ação pedagógica" : "ações pedagógicas"}
         </p>
       </div>
 
-      {/* Resumo por programa (clique para filtrar) */}
+      {/* Resumo por ação pedagógica (clique para filtrar) */}
       <div className="px-5 pt-4 flex flex-wrap gap-2">
         <button
           onClick={() => setProgramaSelecionado("")}
@@ -71,7 +72,7 @@ export default function EscolasParticipantes({ escolas, semMapa = false }: { esc
             !programaSelecionado ? "border-brand-light bg-brand-light/10" : "border-black/10 hover:bg-black/[0.02]"
           }`}
         >
-          <span className="block font-semibold text-brand-dark">Todos os programas</span>
+          <span className="block font-semibold text-brand-dark">Todas as ações</span>
           <span className="text-xs text-brand-dark/80">{escolas.length} escolas</span>
         </button>
         {programas.map((p) => (

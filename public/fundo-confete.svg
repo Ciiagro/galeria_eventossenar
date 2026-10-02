@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="280" height="280" viewBox="0 0 280 280">
+  <defs>
+    <path id="e" d="M12 2 L14.9 8.6 L22 9.3 L16.6 14 L18.2 21 L12 17.3 L5.8 21 L7.4 14 L2 9.3 L9.1 8.6 Z"/>
+    <path id="c" d="M12 21 C5 15 2 11.5 2 8 A5 5 0 0 1 12 6 A5 5 0 0 1 22 8 C22 11.5 19 15 12 21 Z"/>
+  </defs>
+  <g opacity="0.6">
+    <use href="#e" fill="#FFC72C" transform="translate(34 40) scale(0.9) rotate(-12 12 12)"/>
+    <use href="#c" fill="#F49AC1" transform="translate(205 62) scale(0.85) rotate(10 12 12)"/>
+    <use href="#e" fill="#F49AC1" transform="translate(236 196) scale(0.6) rotate(15 12 12)"/>
+    <use href="#e" fill="#5BB8EC" transform="translate(118 228) scale(0.75) rotate(-8 12 12)"/>
+    <use href="#c" fill="#A98BC9" transform="translate(22 176) scale(0.6) rotate(-10 12 12)"/>
+  </g>
+  <g opacity="0.55">
+    <circle cx="124" cy="34" r="4.5" fill="#5BB8EC"/>
+    <circle cx="78" cy="132" r="5" fill="#A98BC9"/>
+    <circle cx="30" cy="248" r="4" fill="#A6CE3A"/>
+    <circle cx="256" cy="120" r="4" fill="#FFC72C"/>
+    <circle cx="190" cy="250" r="3.5" fill="#F26122"/>
+  </g>
+  <g transform="translate(150 134) scale(0.42)" opacity="0.9">
+    <path d="M25 52 Q5 52 8 36 Q10 22 28 24 Q32 8 52 10 Q68 4 78 20 Q98 16 104 32 Q116 36 110 48 Q106 54 96 52 Z" fill="#FFFFFF" stroke="#CFE8F7" stroke-width="4" stroke-linejoin="round"/>
+  </g>
+</svg>

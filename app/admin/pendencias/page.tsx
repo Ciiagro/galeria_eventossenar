@@ -1,14 +1,15 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { AnaliseBadge } from "@/components/AnaliseBadge";
 import { apiGet, apiPost, Documento, Municipio, TipoDocumento } from "@/lib/api";
 import { AdminGuard } from "@/components/AdminGuard";
 import PreviewLink from "@/components/PreviewLink";
 import { normalizarLink } from "@/lib/linkIncorporavel";
-import { ANO_ATUAL, MES_ATUAL, MESES, anosParaSeletor, noPeriodo } from "@/lib/periodo";
+import { MESES } from "@/lib/periodo";
+import { noCicloEMes, useFiltroCiclo } from "@/lib/ciclos";
 import { urlsMiniatura } from "@/lib/miniatura";
 import {
-  AlertIcon,
   CalendarIcon,
   CheckIcon,
   FileTextIcon,
@@ -30,16 +31,8 @@ export default function PendenciasPageGuarded() {
   );
 }
 
-type Aba = "pendente" | "aprovado" | "rejeitado" | "";
+type Aba = "pendente" | "aprovado" | "arquivado" | "";
 type Ordem = "recentes" | "antigos" | "data_acao";
-
-const MOTIVOS = [
-  { id: "ilegivel", rotulo: "Arquivo ilegível ou não abre", icone: ImageIcon },
-  { id: "incompleto", rotulo: "Documento incompleto", icone: FileTextIcon },
-  { id: "escola_programa", rotulo: "Escola ou programa errado", icone: MapPinIcon },
-  { id: "data", rotulo: "Data de realização incorreta", icone: CalendarIcon },
-  { id: "outro", rotulo: "Outro motivo", icone: AlertIcon },
-] as const;
 
 function PainelAprovacao() {
   const [documentos, setDocumentos] = useState<Documento[] | null>(null);
@@ -51,17 +44,15 @@ function PainelAprovacao() {
   // Filtros
   const [aba, setAba] = useState<Aba | null>(null); // null = ainda decidindo (Pendentes se houver, senão Todos)
   const [ordem, setOrdem] = useState<Ordem>("recentes");
-  const [filtroAno, setFiltroAno] = useState(ANO_ATUAL);
-  const [filtroMes, setFiltroMes] = useState(MES_ATUAL);
+  // Padrão: ciclo ativo, todos os meses ("" = todos os ciclos)
+  const { ciclos, cicloId: filtroCiclo, setCicloId: setFiltroCiclo, ehPadrao: cicloPadrao } = useFiltroCiclo();
+  const [filtroMes, setFiltroMes] = useState("");
   const [filtroMunicipio, setFiltroMunicipio] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
   const [busca, setBusca] = useState("");
 
   // Interação
   const [selecionado, setSelecionado] = useState(0);
-  const [reprovando, setReprovando] = useState<string | null>(null);
-  const [motivoEscolhido, setMotivoEscolhido] = useState<string>("");
-  const [motivoTexto, setMotivoTexto] = useState("");
   const [visualizando, setVisualizando] = useState<Documento | null>(null);
   const [documentoParaAprovar, setDocumentoParaAprovar] = useState<Documento | null>(null);
   const [publicarNaGaleria, setPublicarNaGaleria] = useState<boolean | null>(null);
@@ -91,9 +82,10 @@ function PainelAprovacao() {
       setAba((atual) => (atual === null ? (lista.some((d) => d.status === "pendente") ? "pendente" : "") : atual))
     );
     const intervalo = window.setInterval(() => {
-      // não recarrega enquanto a pessoa está reprovando/aprovando (evita "pular" a tela)
-      if (!document.querySelector("[data-painel-ocupado]")) carregar();
-    }, 10000);
+      // não recarrega enquanto a pessoa está aprovando (evita "pular" a tela)
+      // nem com a aba em segundo plano (economiza o servidor)
+      if (!document.hidden && !document.querySelector("[data-painel-ocupado]")) carregar();
+    }, 30000);
     return () => window.clearInterval(intervalo);
   }, [carregar]);
 
@@ -112,25 +104,27 @@ function PainelAprovacao() {
     const termo = normalizar(busca.trim());
     return (documentos ?? []).filter(
       (doc) =>
-        noPeriodo(doc.data_realizacao, filtroAno, filtroMes) &&
+        noCicloEMes(doc, filtroCiclo, ciclos, filtroMes) &&
         (!termo ||
-          [doc.descricao, doc.acao_evento, doc.tipos_documento?.nome, doc.escolas?.nome, doc.projetos?.nome, doc.responsavel_nome, nomeMunicipio(doc.municipio_id)]
+          [doc.descricao, doc.acao_evento, doc.acoes_pedagogicas?.nome, doc.subtipo, doc.tipos_documento?.nome, doc.escolas?.nome, doc.responsavel_nome, nomeMunicipio(doc.municipio_id)]
             .some((v) => normalizar(v).includes(termo)))
     );
-  }, [documentos, filtroAno, filtroMes, busca, nomeMunicipio]);
+  }, [documentos, filtroCiclo, ciclos, filtroMes, busca, nomeMunicipio]);
 
   const contagem = useMemo(
     () => ({
       pendente: doFiltro.filter((d) => d.status === "pendente").length,
-      aprovado: doFiltro.filter((d) => d.status === "aprovado").length,
-      rejeitado: doFiltro.filter((d) => d.status === "rejeitado").length,
-      "": doFiltro.length,
+      aprovado: doFiltro.filter((d) => d.status === "aprovado" && !d.arquivado).length,
+      arquivado: doFiltro.filter((d) => d.arquivado).length,
+      "": doFiltro.filter((d) => !d.arquivado).length,
     }),
     [doFiltro]
   );
 
   const lista = useMemo(() => {
-    const itens = doFiltro.filter((d) => !aba || d.status === aba);
+    const itens = doFiltro.filter((d) =>
+      aba === "arquivado" ? Boolean(d.arquivado) : !d.arquivado && (!aba || d.status === aba)
+    );
     const chave = (d: Documento) =>
       ordem === "data_acao" ? d.data_realizacao ?? "" : d.created_at ?? d.data_realizacao ?? "";
     return [...itens].sort((a, b) => (ordem === "antigos" ? chave(a).localeCompare(chave(b)) : chave(b).localeCompare(chave(a))));
@@ -138,13 +132,9 @@ function PainelAprovacao() {
 
   const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente").length;
   const pendentesForaDoPeriodo = (documentos ?? []).filter(
-    (d) => d.status === "pendente" && !noPeriodo(d.data_realizacao, filtroAno, filtroMes)
+    (d) => d.status === "pendente" && !noCicloEMes(d, filtroCiclo, ciclos, filtroMes)
   ).length;
-  const anosDisponiveis = useMemo(
-    () => anosParaSeletor((documentos ?? []).map((d) => d.data_realizacao), filtroAno),
-    [documentos, filtroAno]
-  );
-  const temFiltro = Boolean(filtroAno !== ANO_ATUAL || filtroMes !== MES_ATUAL || filtroMunicipio || filtroTipo || busca.trim());
+  const temFiltro = Boolean(!cicloPadrao || filtroMes || filtroMunicipio || filtroTipo || busca.trim());
 
   useEffect(() => {
     setSelecionado((i) => Math.min(i, Math.max(0, lista.length - 1)));
@@ -154,7 +144,6 @@ function PainelAprovacao() {
   function abrirAprovacao(doc: Documento) {
     const tipo = (doc.tipos_documento?.nome ?? "").toLowerCase();
     const ehMidia = /imagem|foto|v[ií]deo/.test(tipo);
-    setReprovando(null);
     setDocumentoParaAprovar(doc);
     setPublicarNaGaleria(doc.status === "aprovado" ? Boolean(doc.na_galeria) : ehMidia ? true : null);
     setDescricaoGaleria(doc.descricao_galeria || doc.descricao || "");
@@ -180,25 +169,13 @@ function PainelAprovacao() {
     }
   }
 
-  function abrirReprovacao(doc: Documento) {
-    setReprovando((atual) => (atual === doc.id ? null : doc.id));
-    setMotivoEscolhido("");
-    setMotivoTexto("");
-  }
-
-  async function confirmarReprovacao(doc: Documento) {
-    const motivo = MOTIVOS.find((m) => m.id === motivoEscolhido);
-    if (!motivo) return;
-    const complemento = motivoTexto.trim();
-    if (motivo.id === "outro" && !complemento) return;
-    const texto = motivo.id === "outro" ? complemento : complemento ? `${motivo.rotulo}: ${complemento}` : motivo.rotulo;
+  async function arquivar(doc: Documento, valor: boolean) {
     setProcessando(doc.id);
     try {
-      await apiPost("/api/validar", { documento_id: doc.id, status: "rejeitado", motivo_rejeicao: texto });
-      setReprovando(null);
+      await apiPost("/api/arquivar", { documento_id: doc.id, arquivado: valor });
       await carregar();
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Erro ao reprovar documento.");
+      setErro(e instanceof Error ? e.message : "Erro ao arquivar documento.");
     } finally {
       setProcessando(null);
     }
@@ -213,20 +190,13 @@ function PainelAprovacao() {
       const doc = lista[selecionado];
       if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
-        setReprovando(null);
         setSelecionado((i) => Math.min(i + 1, lista.length - 1));
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
-        setReprovando(null);
         setSelecionado((i) => Math.max(i - 1, 0));
       } else if ((e.key === "a" || e.key === "A") && doc?.status === "pendente") {
         e.preventDefault();
         abrirAprovacao(doc);
-      } else if ((e.key === "r" || e.key === "R") && doc?.status === "pendente") {
-        e.preventDefault();
-        abrirReprovacao(doc);
-      } else if (e.key === "Escape") {
-        setReprovando(null);
       }
     }
     window.addEventListener("keydown", aoTeclar);
@@ -237,7 +207,7 @@ function PainelAprovacao() {
     cardsRef.current[selecionado]?.scrollIntoView({ block: "nearest", behavior: "smooth" });
   }, [selecionado]);
 
-  const ocupado = Boolean(reprovando || documentoParaAprovar || visualizando);
+  const ocupado = Boolean(documentoParaAprovar || visualizando);
 
   return (
     <div className="p-4 sm:p-8 max-w-6xl" {...(ocupado ? { "data-painel-ocupado": "" } : {})}>
@@ -247,12 +217,12 @@ function PainelAprovacao() {
           <div>
             <h1 className="text-2xl sm:text-3xl font-bold text-brand-dark">Painel de Aprovação</h1>
             <p className="text-sm text-brand-dark/80 mt-1">
-              Analise os documentos enviados pelos municípios e aprove ou reprove. Ao aprovar, decida se vai para a galeria.
+              Veja os documentos enviados pelos municípios e aprove. Ao aprovar, decida se vai para a galeria. Arquive o que não precisa ficar na lista.
             </p>
           </div>
           <div className="shrink-0 rounded-xl bg-brand-light/[0.06] border border-brand-light/10 px-5 py-3 text-center">
             <p className={`text-3xl font-bold leading-none ${pendentesTotal ? "text-status-pendente" : "text-brand-dark"}`}>{pendentesTotal}</p>
-            <p className="text-xs text-brand-dark/75 mt-1">{pendentesTotal === 1 ? "pendente" : "pendentes"}</p>
+            <p className="text-xs text-brand-dark/75 mt-1">{pendentesTotal === 1 ? "para revisar" : "para revisar"}</p>
           </div>
         </div>
 
@@ -260,14 +230,14 @@ function PainelAprovacao() {
         <div className="mt-6 flex flex-col-reverse sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-black/10">
           <nav className="flex gap-1 overflow-x-auto -mb-px">
             {([
-              ["pendente", "Pendentes"],
+              ["pendente", "Para revisar"],
               ["aprovado", "Aprovados"],
-              ["rejeitado", "Reprovados"],
+              ["arquivado", "Arquivados"],
               ["", "Todos"],
             ] as [Aba, string][]).map(([valor, rotulo]) => (
               <button
                 key={rotulo}
-                onClick={() => { setAba(valor); setSelecionado(0); setReprovando(null); }}
+                onClick={() => { setAba(valor); setSelecionado(0); }}
                 className={`whitespace-nowrap px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
                   aba === valor ? "border-brand-light text-brand-light" : "border-transparent text-brand-dark/75 hover:text-brand-dark"
                 }`}
@@ -289,22 +259,18 @@ function PainelAprovacao() {
         </div>
 
         {/* Filtros */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1fr_1.3fr_1.3fr] gap-2">
+        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.3fr] gap-2">
           <div className="relative">
             <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-dark/60" />
             <input
               value={busca}
               onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar escola, ação, programa, município..."
+              placeholder="Buscar escola, ação pedagógica, município..."
               className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30"
             />
           </div>
-          <select value={filtroAno} onChange={(e) => { setFiltroAno(e.target.value); if (!e.target.value) setFiltroMes(""); }} className={SELECT} title="Pela data de realização">
-            <option value="">Todos os anos</option>
-            {anosDisponiveis.map((ano) => <option key={ano} value={ano}>{ano}</option>)}
-          </select>
-          <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} disabled={!filtroAno} className={`${SELECT} disabled:bg-black/[0.03] disabled:text-brand-dark/50`}>
-            <option value="">{filtroAno ? "Todos os meses" : "Escolha o ano"}</option>
+          <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} className={SELECT}>
+            <option value="">Todos os meses</option>
             {MESES.map((mes, i) => <option key={mes} value={String(i + 1)}>{mes}</option>)}
           </select>
           <select value={filtroMunicipio} onChange={(e) => setFiltroMunicipio(e.target.value)} className={SELECT}>
@@ -318,7 +284,7 @@ function PainelAprovacao() {
         </div>
         {temFiltro && (
           <button
-            onClick={() => { setFiltroAno(ANO_ATUAL); setFiltroMes(MES_ATUAL); setFiltroMunicipio(""); setFiltroTipo(""); setBusca(""); }}
+            onClick={() => { setFiltroCiclo(null); setFiltroMes(""); setFiltroMunicipio(""); setFiltroTipo(""); setBusca(""); }}
             className="mt-2 text-sm font-medium text-brand-light hover:underline"
           >
             Limpar filtros
@@ -327,8 +293,8 @@ function PainelAprovacao() {
 
         {pendentesForaDoPeriodo > 0 && (aba === "pendente" || aba === "") && (
           <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 px-4 py-2.5 text-sm flex flex-wrap items-center gap-2">
-            ⚠️ Há {pendentesForaDoPeriodo} {pendentesForaDoPeriodo === 1 ? "pendência" : "pendências"} fora do período escolhido.
-            <button onClick={() => { setFiltroAno(""); setFiltroMes(""); setAba("pendente"); }} className="font-semibold underline">
+            ⚠️ Há {pendentesForaDoPeriodo} {pendentesForaDoPeriodo === 1 ? "pendência" : "pendências"} fora do ciclo ou mês escolhido.
+            <button onClick={() => { setFiltroCiclo(""); setFiltroMes(""); setAba("pendente"); }} className="font-semibold underline">
               Ver todas as pendências
             </button>
           </div>
@@ -341,7 +307,7 @@ function PainelAprovacao() {
           {(!documentos || aba === null) && !erro && <p className="text-sm text-brand-dark/75">Carregando...</p>}
           {documentos && aba !== null && lista.length === 0 && (
             <div className="rounded-xl border border-dashed border-black/10 p-8 text-center text-sm text-brand-dark/75">
-              {aba === "pendente" ? "🎉 Nenhuma pendência neste período." : "Nenhum documento encontrado com esses filtros."}
+              {aba === "pendente" ? "🎉 Nada para revisar neste período." : "Nenhum documento encontrado com esses filtros."}
             </div>
           )}
 
@@ -353,16 +319,10 @@ function PainelAprovacao() {
               selecionado={i === selecionado}
               municipio={nomeMunicipio(doc.municipio_id)}
               processando={processando === doc.id}
-              reprovandoAberto={reprovando === doc.id}
-              motivoEscolhido={motivoEscolhido}
-              motivoTexto={motivoTexto}
               onSelecionar={() => setSelecionado(i)}
               onAprovar={() => abrirAprovacao(doc)}
-              onReprovar={() => abrirReprovacao(doc)}
-              onFecharReprovar={() => setReprovando(null)}
-              onMotivo={setMotivoEscolhido}
-              onMotivoTexto={setMotivoTexto}
-              onConfirmarReprovar={() => confirmarReprovacao(doc)}
+              onArquivar={() => arquivar(doc, true)}
+              onDesarquivar={() => arquivar(doc, false)}
               onVisualizar={() => setVisualizando(doc)}
             />
           ))}
@@ -371,7 +331,7 @@ function PainelAprovacao() {
         {/* Atalhos */}
         {lista.length > 0 && (
           <div className="mt-5 rounded-lg bg-sky-50 border border-sky-100 px-4 py-2.5 text-center text-sm text-sky-900">
-            ⌨️ <strong>A</strong> = Aprovar · <strong>R</strong> = Reprovar · <strong>← →</strong> navegar · <strong>Esc</strong> fechar
+            ⌨️ <strong>A</strong> = Aprovar · <strong>← →</strong> navegar
           </div>
         )}
       </div>
@@ -515,16 +475,10 @@ type CartaoProps = {
   selecionado: boolean;
   municipio: string;
   processando: boolean;
-  reprovandoAberto: boolean;
-  motivoEscolhido: string;
-  motivoTexto: string;
   onSelecionar: () => void;
   onAprovar: () => void;
-  onReprovar: () => void;
-  onFecharReprovar: () => void;
-  onMotivo: (id: string) => void;
-  onMotivoTexto: (texto: string) => void;
-  onConfirmarReprovar: () => void;
+  onArquivar: () => void;
+  onDesarquivar: () => void;
   onVisualizar: () => void;
 };
 
@@ -533,8 +487,6 @@ function CartaoDocumento(p: CartaoProps) {
   const [expandido, setExpandido] = useState(false);
   const descricao = doc.descricao ?? "";
   const longa = descricao.length > 180;
-  const motivoOutro = p.motivoEscolhido === "outro";
-  const podeConfirmar = Boolean(p.motivoEscolhido) && (!motivoOutro || p.motivoTexto.trim());
 
   return (
     <article
@@ -557,7 +509,7 @@ function CartaoDocumento(p: CartaoProps) {
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-brand-dark/80">
                 <Info icone={MapPinIcon} texto={p.municipio} forte />
                 {doc.escolas?.nome && <Info icone={HomeEscola} texto={doc.escolas.nome} />}
-                <Info icone={FolderIcon} texto={doc.projetos?.nome ?? "Sem programa"} />
+                {doc.acoes_pedagogicas?.nome && <Info icone={FolderIcon} texto={`${doc.acoes_pedagogicas.nome}${doc.subtipo ? ` · ${doc.subtipo}` : ""}`} forte />}
                 <Info icone={CalendarIcon} texto={`Realizado em ${formatarData(doc.data_realizacao)}`} />
                 {doc.responsavel_nome && <Info icone={UserIcon} texto={`Enviado por ${doc.responsavel_nome}`} />}
               </div>
@@ -572,16 +524,11 @@ function CartaoDocumento(p: CartaoProps) {
                 >
                   <CheckIcon className="w-4 h-4" /> Aprovar
                 </button>
-                <button
-                  onClick={(e) => { e.stopPropagation(); p.onSelecionar(); p.onReprovar(); }}
-                  disabled={p.processando}
-                  className={`inline-flex items-center gap-1.5 rounded-lg bg-status-pendente px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 disabled:opacity-50 ${p.reprovandoAberto ? "ring-4 ring-status-pendente/25" : ""}`}
-                >
-                  <XIcon className="w-4 h-4" /> Reprovar
-                </button>
               </div>
             )}
           </div>
+
+          {doc.status === "pendente" && <AnaliseBadge doc={doc} />}
 
           {descricao && (
             <p className={`mt-2 text-sm text-brand-dark/85 whitespace-pre-line ${!expandido && longa ? "line-clamp-2" : ""}`}>
@@ -605,9 +552,32 @@ function CartaoDocumento(p: CartaoProps) {
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${doc.na_galeria ? "bg-sky-100 text-sky-800" : "bg-black/5 text-brand-dark/75"}`}>
                 {doc.na_galeria ? "🖼️ Na galeria" : "Fora da galeria"}
               </span>
-              <button onClick={(e) => { e.stopPropagation(); p.onAprovar(); }} className="text-xs font-semibold text-sky-800 hover:underline">
-                {doc.na_galeria ? "Editar publicação na galeria" : "Publicar na galeria"}
-              </button>
+              {!doc.arquivado && (
+                <button onClick={(e) => { e.stopPropagation(); p.onAprovar(); }} className="text-xs font-semibold text-sky-800 hover:underline">
+                  {doc.na_galeria ? "Editar publicação na galeria" : "Publicar na galeria"}
+                </button>
+              )}
+              {!doc.na_galeria && !doc.arquivado && (
+                <button
+                  onClick={(e) => { e.stopPropagation(); p.onArquivar(); }}
+                  disabled={p.processando}
+                  className="text-xs font-semibold text-brand-dark/70 hover:underline disabled:opacity-50"
+                >
+                  📁 Arquivar
+                </button>
+              )}
+              {doc.arquivado && (
+                <>
+                  <span className="rounded-full bg-black/5 px-2.5 py-0.5 text-xs font-semibold text-brand-dark/75">📁 Arquivado</span>
+                  <button
+                    onClick={(e) => { e.stopPropagation(); p.onDesarquivar(); }}
+                    disabled={p.processando}
+                    className="text-xs font-semibold text-brand-light hover:underline disabled:opacity-50"
+                  >
+                    Desarquivar
+                  </button>
+                </>
+              )}
             </div>
           )}
           {doc.status === "aprovado" && doc.na_galeria && doc.descricao_galeria && doc.descricao_galeria !== doc.descricao && (
@@ -615,69 +585,9 @@ function CartaoDocumento(p: CartaoProps) {
               <span className="font-semibold">Texto na galeria:</span> {doc.descricao_galeria}
             </p>
           )}
-          {doc.status === "rejeitado" && (
-            <div className="mt-3 text-[13px] text-brand-dark/85">
-              <span className="inline-flex items-center gap-1.5">
-                <span className="w-5 h-5 rounded-full bg-status-pendente text-white flex items-center justify-center"><XIcon className="w-3 h-3" /></span>
-                Reprovado{doc.validado_por_nome ? <> por <strong>{doc.validado_por_nome}</strong></> : ""}
-                {doc.validado_em && <> · {formatarDataHora(doc.validado_em)}</>}
-              </span>
-              {doc.motivo_rejeicao && (
-                <p className="mt-1.5 rounded-lg bg-status-pendente/5 border border-status-pendente/15 px-3 py-2 text-status-pendente">
-                  <strong>Motivo:</strong> {doc.motivo_rejeicao}
-                </p>
-              )}
-            </div>
-          )}
         </div>
       </div>
 
-      {/* Caixa de motivo da reprovação */}
-      {p.reprovandoAberto && (
-        <div
-          onClick={(e) => e.stopPropagation()}
-          className="relative z-20 mt-3 sm:absolute sm:right-4 sm:top-[64px] sm:mt-0 w-full sm:w-80 rounded-xl border border-black/10 bg-white p-4 shadow-xl"
-        >
-          <div className="flex items-center justify-between mb-3">
-            <p className="font-semibold text-brand-dark">Motivo da reprovação</p>
-            <button onClick={p.onFecharReprovar} className="p-1 rounded hover:bg-black/5" aria-label="Fechar"><XIcon className="w-4 h-4" /></button>
-          </div>
-          <div className="space-y-2">
-            {MOTIVOS.map((m) => {
-              const Icone = m.icone;
-              const ativo = p.motivoEscolhido === m.id;
-              return (
-                <button
-                  key={m.id}
-                  onClick={() => p.onMotivo(m.id)}
-                  className={`w-full flex items-center gap-2.5 rounded-lg border px-3 py-2 text-left text-sm transition-colors ${
-                    ativo ? "border-sky-400 bg-sky-50 text-brand-dark font-medium" : "border-black/10 text-brand-dark/85 hover:bg-black/[0.02]"
-                  }`}
-                >
-                  <Icone className="w-4 h-4 shrink-0" /> {m.rotulo}
-                </button>
-              );
-            })}
-          </div>
-          {p.motivoEscolhido && (
-            <textarea
-              value={p.motivoTexto}
-              onChange={(e) => p.onMotivoTexto(e.target.value)}
-              rows={2}
-              autoFocus={motivoOutro}
-              placeholder={motivoOutro ? "Descreva o motivo (obrigatório)" : "Detalhe para quem enviou (opcional)"}
-              className="mt-3 w-full border border-black/10 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-status-pendente/20"
-            />
-          )}
-          <button
-            onClick={p.onConfirmarReprovar}
-            disabled={!podeConfirmar || p.processando}
-            className="mt-3 w-full rounded-lg bg-status-pendente py-2.5 text-sm font-semibold text-white hover:brightness-110 disabled:opacity-40"
-          >
-            {p.processando ? "Reprovando..." : "Confirmar"}
-          </button>
-        </div>
-      )}
     </article>
   );
 }
