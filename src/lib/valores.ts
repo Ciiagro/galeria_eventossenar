@@ -17,3 +17,27 @@ export const VALORES: ValorInfo[] = [
   { chave: "acaocorreta", nome: "Ação correta", dimensao: "ação", descricao: "O que deve ser praticado.", cor: { barra: "#F2B705", fundo: "#FFF3CC", texto: "#6E4B00" } },
   { chave: "naoviolencia", nome: "Não violência", dimensao: "comportamento", descricao: "O que devemos ser plenamente.", cor: { barra: "#2678C4", fundo: "#E2EFFB", texto: "#0F4C85" } },
 ];
+
+
+export type CorValor = { barra: string; fundo: string; texto: string };
+
+const COR_NEUTRA: CorValor = { barra: "#9CA3AF", fundo: "#F3F4F6", texto: "#4B5563" };
+
+function semAcento(t: string) {
+  return t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().replace(/\s+/g, "");
+}
+
+// Cores (barra / fundo / texto) de um valor, a partir do nome ("Paz", "Ação correta"...).
+// Se o nome não for reconhecido mas vier uma cor em hexadecimal, usa essa cor como
+// barra, com fundo claro; sem nada, cai numa cor neutra (cinza).
+export function corDoValor(nome?: string | null, cor?: string | null): CorValor {
+  if (nome) {
+    const chave = semAcento(nome);
+    const achado = VALORES.find((v) => semAcento(v.nome) === chave || v.chave === chave);
+    if (achado) return achado.cor;
+  }
+  if (cor && /^#[0-9a-fA-F]{6}$/.test(cor)) {
+    return { barra: cor, fundo: `${cor}22`, texto: "#122E20" };
+  }
+  return COR_NEUTRA;
+}
