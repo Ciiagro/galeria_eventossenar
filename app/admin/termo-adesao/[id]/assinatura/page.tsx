@@ -5,9 +5,10 @@ import Link from "next/link";
 import { AdminGuard } from "@/components/AdminGuard";
 import { TermoConteudo } from "@/components/TermoDocumento";
 import { apiGet } from "@/lib/api";
+import { mascaraCpf } from "@/lib/mascaras";
 
 type Assinatura = {
-  papel: string; nome: string; email: string; assinado_em?: string | null;
+  papel: string; nome: string; email: string; cpf?: string | null; assinado_em?: string | null;
   assinado_nome_digitado?: string | null; ip?: string | null;
 };
 type Resposta = {
@@ -89,7 +90,7 @@ function Conteudo({ id }: { id: string }) {
               <li key={s.papel} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
                 <div className="min-w-0">
                   <p className="text-sm font-semibold text-brand-dark">{s.nome} <span className="font-normal text-brand-dark/60">· {PAPEL[s.papel] ?? s.papel}</span></p>
-                  <p className="truncate text-xs text-brand-dark/70">{s.email}</p>
+                  <p className="truncate text-xs text-brand-dark/70">{s.email}{s.cpf ? ` · CPF ${mascaraCpf(s.cpf)}` : ""}</p>
                   {s.assinado_em && (
                     <p className="text-[11px] text-brand-dark/60">
                       IP {s.ip ?? "—"}

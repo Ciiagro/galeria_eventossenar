@@ -104,6 +104,21 @@ export async function apiAbrirArquivo(path: string, janela?: Window | null) {
   }
 }
 
+// Baixa um arquivo protegido para o computador (precisa do login, então não dá para usar um link comum)
+export async function apiBaixarArquivo(path: string, nomeArquivo: string) {
+  const headers = await authHeader();
+  const res = await fetch(API_BASE + path, { headers });
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Erro ${res.status}`);
+  const url = URL.createObjectURL(await res.blob());
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = nomeArquivo;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
+  setTimeout(() => URL.revokeObjectURL(url), 10000);
+}
+
 export async function apiUpload(formData: FormData) {
   const headers = await authHeader();
   const res = await fetch(API_BASE + "/api/upload", { method: "POST", headers, body: formData });

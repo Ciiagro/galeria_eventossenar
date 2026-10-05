@@ -34,6 +34,7 @@ create table if not exists trab_divulgados.assinatura_signatarios (
   papel text not null check (papel in ('prefeito', 'secretario', 'sindicato', 'coordenador')),
   nome text not null,
   email text not null,
+  cpf text,                            -- CPF de quem assina (só dígitos); consta no termo e na comprovação
   token_hash text not null unique,     -- só o hash do link fica guardado
   codigo_hash text,                    -- hash do código de 6 dígitos enviado ao e-mail
   codigo_expira_em timestamptz,
@@ -62,5 +63,10 @@ alter table trab_divulgados.assinatura_signatarios drop constraint if exists ass
 alter table trab_divulgados.assinatura_signatarios
   add constraint assinatura_signatarios_papel_check
   check (papel in ('prefeito', 'secretario', 'sindicato', 'coordenador'));
+
+notify pgrst, 'reload schema';
+
+-- CPF de cada signatário (consta no termo assinado e na folha de comprovação)
+alter table trab_divulgados.assinatura_signatarios add column if not exists cpf text;
 
 notify pgrst, 'reload schema';

@@ -2990,8 +2990,9 @@ def baixar_termo_assinado():
         if not linhas or not linhas[0].get("termo_assinado_drive_id"):
             return jsonify({"error": "Nenhum termo assinado foi anexado."}), 404
         conteudo = baixar_arquivo(get_drive_service(), linhas[0]["termo_assinado_drive_id"])
+        disposicao = "attachment" if request.args.get("baixar") else "inline"
         return Response(conteudo, mimetype="application/pdf", headers={
-            "Content-Disposition": 'inline; filename="termo-de-adesao-assinado.pdf"',
+            "Content-Disposition": f'{disposicao}; filename="termo-de-adesao-assinado.pdf"',
             "Cache-Control": "private, no-store",
         })
     except Exception as e:  # noqa: BLE001
@@ -3331,8 +3332,8 @@ def assinatura_status():
         # reaproveita o que já foi digitado numa rodada anterior (inclusive cancelada)
         ultimo = db.table("assinatura_pedidos").select("id").eq("adesao_id", adesao["id"]).order("created_at", desc=True).limit(1).execute().data or []
         if ultimo:
-            antigos = db.table("assinatura_signatarios").select("papel, nome, email").eq("pedido_id", ultimo[0]["id"]).execute().data or []
-            resposta["sugestoes"] = {s["papel"]: {"nome": s["nome"], "email": s["email"]} for s in antigos}
+            antigos = db.table("assinatura_signatarios").select("papel, nome, email, cpf").eq("pedido_id", ultimo[0]["id"]).execute().data or []
+            resposta["sugestoes"] = {s["papel"]: {"nome": s["nome"], "email": s["email"], "cpf": s.get("cpf")} for s in antigos}
         return jsonify(resposta)
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500
@@ -3369,25 +3370,36 @@ def assinatura_enviar():
         if not itens:
             return jsonify({"error": "Marque as escolas participantes antes de enviar o termo para assinatura."}), 400
 
-        cad = db.table("coordenadores_cadastro").select("nome, email").eq("user_id", user.id).limit(1).execute().data or []
+        cad = db.table("coordenadores_cadastro").select("nome, email, cpf").eq("user_id", user.id).limit(1).execute().data or []
         coord_nome = (cad[0].get("nome") if cad else None) or carregar_perfil(user).get("nome") or "Coordenador(a)"
         coord_email = ((cad[0].get("email") if cad else None) or getattr(user, "email", "") or "").strip().lower()
 
         candidatos = {
-            "prefeito": ("prefeito", adesao.get("prefeito_nome"), _texto(body.get("prefeito_email"), 120)),
+            "prefeito": ("prefeito", adesao.get("prefeito_nome"), _texto(body.get("prefeito_email"), 120),
+                         _so_digitos(adesao.get("prefeito_cpf"))),
             "secretario": ("secretario", adesao.get("secretario_nome"),
-                           _texto(body.get("secretario_email"), 120) or adesao.get("secretaria_email")),
-            "sindicato": ("sindicato", _texto(body.get("sindicato_nome"), 150), _texto(body.get("sindicato_email"), 120)),
-            "coordenador": ("coordenador", coord_nome, coord_email),
+                           _texto(body.get("secretario_email"), 120) or adesao.get("secretaria_email"),
+                           _so_digitos(adesao.get("secretario_cpf"))),
+            "sindicato": ("sindicato", _texto(body.get("sindicato_nome"), 150), _texto(body.get("sindicato_email"), 120),
+                          _so_digitos(body.get("sindicato_cpf"))),
+            "coordenador": ("coordenador", coord_nome, coord_email, _so_digitos(cad[0].get("cpf") if cad else "")),
+        }
+        onde_corrigir = {
+            "prefeito": "Corrija na aba Município e prefeitura da ficha.",
+            "secretario": "Corrija na aba Secretaria de Educação da ficha.",
+            "sindicato": "Informe o CPF do(a) presidente do sindicato.",
+            "coordenador": "Corrija o CPF no cadastro do coordenador.",
         }
         previstos = [candidatos[p] for p in ativos]
-        for papel, nome, email in previstos:
+        for papel, nome, email, cpf in previstos:
             rotulo = PAPEIS_ASSINATURA[papel]
             if not nome:
                 return jsonify({"error": f"Informe o nome de: {rotulo}."}), 400
             if not _email_valido((email or "").lower()):
                 return jsonify({"error": f"Informe um e-mail válido para: {rotulo}."}), 400
-        emails = [(e or "").lower() for _, _, e in previstos]
+            if not _cpf_valido(cpf):
+                return jsonify({"error": f"O CPF de {rotulo} está vazio ou inválido (ele precisa constar no termo). {onde_corrigir[papel]}"}), 400
+        emails = [(e or "").lower() for _, _, e, _ in previstos]
         if len(set(emails)) != len(emails):
             return jsonify({"error": "Cada pessoa precisa de um e-mail diferente (o link e o código vão para o e-mail de quem assina)."}), 400
 
@@ -3399,10 +3411,10 @@ def assinatura_enviar():
         }).execute().data[0]
 
         falhas = []
-        for (papel, nome, _), email in zip(previstos, emails):
+        for (papel, nome, _, cpf), email in zip(previstos, emails):
             token = secrets.token_urlsafe(32)
             sig = db.table("assinatura_signatarios").insert({
-                "pedido_id": pedido["id"], "papel": papel, "nome": nome, "email": email, "token_hash": _sha(token),
+                "pedido_id": pedido["id"], "papel": papel, "nome": nome, "email": email, "cpf": cpf, "token_hash": _sha(token),
             }).execute().data[0]
             try:
                 _enviar_convite(sig, token, pedido, coord_nome)
@@ -3583,7 +3595,10 @@ def assinar_info():
             return jsonify(_ERRO_LINK[0]), _ERRO_LINK[1]
         if pedido["status"] == "cancelado":
             return jsonify(_ERRO_CANCELADO[0]), _ERRO_CANCELADO[1]
-        todos = db.table("assinatura_signatarios").select("papel, nome, assinado_em").eq("pedido_id", pedido["id"]).execute().data or []
+        todos = db.table("assinatura_signatarios").select("papel, nome, cpf, assinado_em").eq("pedido_id", pedido["id"]).execute().data or []
+        todos = [{k: x.get(k) for k in ("papel", "nome", "cpf", "assinado_em")} for x in todos]
+        for x in todos:
+            x["cpf"] = x.get("cpf") or _cpf_do_papel(pedido["snapshot"], x["papel"]) or None
         todos.sort(key=lambda s: ORDEM_PAPEIS.index(s["papel"]) if s["papel"] in ORDEM_PAPEIS else 9)
         return jsonify({
             "papel": sig["papel"], "papel_rotulo": PAPEIS_ASSINATURA[sig["papel"]], "nome": sig["nome"],
@@ -3681,6 +3696,18 @@ def assinar_confirmar():
         return jsonify({"error": str(e)}), 500
 
 
+def _cpf_do_papel(snap, papel):
+    """CPF de quem assina, tirado dos dados do termo (vale também para pedidos criados antes de o CPF ser gravado na assinatura)."""
+    snap = snap or {}
+    if papel == "prefeito":
+        return _so_digitos(snap.get("prefeito_cpf"))
+    if papel == "secretario":
+        return _so_digitos(snap.get("secretario_cpf"))
+    if papel == "coordenador":
+        return _so_digitos((snap.get("coordenador") or {}).get("cpf"))
+    return ""
+
+
 def _resumo_assinaturas_por_adesao(db, adesao_ids):
     """Para o painel do admin: a rodada de assinatura mais recente (pendente ou concluída) de cada adesão."""
     if not adesao_ids:
@@ -3733,11 +3760,13 @@ def admin_ver_assinatura():
         pedido = _pedido_vigente(db, adesao_id)
         if not pedido:
             return jsonify({"error": "Esta adesão não foi enviada para assinatura por e-mail."}), 404
-        sigs = db.table("assinatura_signatarios").select("papel, nome, email, assinado_em, assinado_nome_digitado, ip, convite_enviado_em") \
+        sigs = db.table("assinatura_signatarios").select("papel, nome, email, cpf, assinado_em, assinado_nome_digitado, ip, convite_enviado_em") \
             .eq("pedido_id", pedido["id"]).execute().data or []
         sigs.sort(key=lambda x: ORDEM_PAPEIS.index(x["papel"]) if x["papel"] in ORDEM_PAPEIS else 9)
-        publicos = ("papel", "nome", "email", "assinado_em", "assinado_nome_digitado", "ip", "convite_enviado_em")
+        publicos = ("papel", "nome", "email", "cpf", "assinado_em", "assinado_nome_digitado", "ip", "convite_enviado_em")
         sigs = [{k: x.get(k) for k in publicos} for x in sigs]  # nunca devolve hashes de link/código
+        for x in sigs:
+            x["cpf"] = x.get("cpf") or _cpf_do_papel(pedido["snapshot"], x["papel"]) or None
         adesao = (db.table("adesoes").select("*").eq("id", adesao_id).limit(1).execute().data or [None])[0]
         atualizado = None
         if adesao:

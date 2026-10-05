@@ -52,6 +52,22 @@ def data_hora_br(valor) -> str:
         return str(valor)
 
 
+def data_hora_curta(valor) -> str:
+    if not valor:
+        return "-"
+    try:
+        dt = datetime.fromisoformat(str(valor).replace("Z", "+00:00"))
+        return dt.astimezone(FORTALEZA).strftime("%d/%m/%Y %H:%M:%S")
+    except ValueError:
+        return str(valor)
+
+
+def _linhas(pdf, largura, texto, estilo="", tam=9):
+    """Quantas linhas o texto ocupa na largura dada (para calcular a altura das linhas da tabela)."""
+    pdf.set_font("Helvetica", estilo, tam)
+    return max(1, len(pdf.multi_cell(largura, 1, _t(texto), dry_run=True, output="LINES")))
+
+
 class _Pdf(FPDF):
     def footer(self):
         self.set_y(-12)
@@ -61,17 +77,17 @@ class _Pdf(FPDF):
 
 
 def _secao(pdf: _Pdf, n: int, titulo: str):
-    pdf.ln(3)
+    pdf.ln(2)
     pdf.set_fill_color(*FUNDO)
     pdf.set_draw_color(*VERDE)
     pdf.set_text_color(*VERDE_ESCURO)
     pdf.set_font("Helvetica", "B", 11)
     y = pdf.get_y()
-    pdf.cell(0, 8, _t(f"  {n}. {titulo}"), fill=True, new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 7, _t(f"  {n}. {titulo}"), fill=True, new_x="LMARGIN", new_y="NEXT")
     pdf.set_line_width(1.2)
-    pdf.line(pdf.l_margin, y, pdf.l_margin, y + 8)
+    pdf.line(pdf.l_margin, y, pdf.l_margin, y + 7)
     pdf.set_line_width(0.2)
-    pdf.ln(1.5)
+    pdf.ln(1)
 
 
 def _campos(pdf: _Pdf, pares):
@@ -91,7 +107,7 @@ def _campos(pdf: _Pdf, pares):
             pdf.set_text_color(42, 38, 32)
             pdf.multi_cell(largura - 4, 4.6, _t(valor or "-"), new_x="LEFT", new_y="NEXT")
             alturas.append(pdf.get_y())
-        pdf.set_xy(pdf.l_margin, max(alturas) + 1.5)
+        pdf.set_xy(pdf.l_margin, max(alturas) + 0.8)
 
 
 def _tabela(pdf: _Pdf, cabecalho, linha, negrito_ultima=True):
@@ -111,6 +127,120 @@ def _tabela(pdf: _Pdf, cabecalho, linha, negrito_ultima=True):
     pdf.ln(8)
 
 
+def _tabela_escolas_cabecalho(pdf, larg_nome, larg_num):
+    pdf.set_draw_color(*BORDA)
+    pdf.set_fill_color(*FUNDO)
+    pdf.set_text_color(*VERDE_ESCURO)
+    pdf.set_font("Helvetica", "B", 8)
+    pdf.cell(larg_nome, 6, "Escola", border=1, fill=True)
+    for h in ("Professores", "Infantil 3", "Infantil 4", "Infantil 5", "Total alunos"):
+        pdf.cell(larg_num, 6, h, border=1, align="C", fill=True)
+    pdf.ln()
+
+
+def _tabela_escolas(pdf, escolas):
+    """Todas as escolas numa única tabela (uma linha por escola): ocupa bem menos espaço que um quadro por escola."""
+    usavel = pdf.w - pdf.l_margin - pdf.r_margin
+    larg_nome = 84
+    larg_num = (usavel - larg_nome) / 5
+    _tabela_escolas_cabecalho(pdf, larg_nome, larg_num)
+    for i, e in enumerate(escolas, 1):
+        nome = f"{i}. {e.get('nome') or '-'}"
+        sub = " · ".join(x for x in (e.get("tipo"), e.get("endereco")) if x)
+        n1 = _linhas(pdf, larg_nome - 3, nome, "B", 8.5)
+        n2 = _linhas(pdf, larg_nome - 3, sub, "", 7) if sub else 0
+        altura = max(7.5, 1.6 + n1 * 3.9 + n2 * 3.2 + 1.4)
+        if pdf.get_y() + altura > pdf.h - 18:
+            pdf.add_page()
+            _tabela_escolas_cabecalho(pdf, larg_nome, larg_num)
+        x0, y0 = pdf.l_margin, pdf.get_y()
+        pdf.set_draw_color(*BORDA)
+        pdf.rect(x0, y0, larg_nome, altura)
+        pdf.set_xy(x0 + 1.5, y0 + 1.6)
+        pdf.set_font("Helvetica", "B", 8.5)
+        pdf.set_text_color(*VERDE_ESCURO)
+        pdf.multi_cell(larg_nome - 3, 3.9, _t(nome), new_x="LEFT", new_y="NEXT")
+        if sub:
+            pdf.set_x(x0 + 1.5)
+            pdf.set_font("Helvetica", "", 7)
+            pdf.set_text_color(74, 69, 58)
+            pdf.multi_cell(larg_nome - 3, 3.2, _t(sub), new_x="LEFT", new_y="NEXT")
+        p, i3, i4, i5 = (int(e.get(k) or 0) for k in ("quantidade_professores", "matricula_infantil_3", "matricula_infantil_4", "matricula_infantil_5"))
+        valores = [p, i3, i4, i5, i3 + i4 + i5]
+        for k, v in enumerate(valores):
+            x = x0 + larg_nome + k * larg_num
+            if k == 4:
+                pdf.set_fill_color(251, 250, 243)
+                pdf.rect(x, y0, larg_num, altura, style="DF")
+            else:
+                pdf.rect(x, y0, larg_num, altura)
+            pdf.set_xy(x, y0 + (altura - 5) / 2)
+            pdf.set_font("Helvetica", "B" if k == 4 else "", 9)
+            pdf.set_text_color(42, 38, 32)
+            pdf.cell(larg_num, 5, str(v), align="C")
+        pdf.set_y(y0 + altura)
+    pdf.ln(2)
+
+
+def _bloco_assinaturas(pdf, a, c, signatarios):
+    """Grade 2x2 com os 4 signatários: quem assinou por e-mail aparece assinado; os demais, com linha para assinar."""
+    ordem_papeis = ["prefeito", "secretario", "sindicato", "coordenador"]
+    por_papel = {s["papel"]: s for s in signatarios}
+    nomes = {"prefeito": a.get("prefeito_nome"), "secretario": a.get("secretario_nome"), "coordenador": c.get("nome")}
+    cpfs_ficha = {"prefeito": a.get("prefeito_cpf"), "secretario": a.get("secretario_cpf"), "coordenador": c.get("cpf")}
+    usavel = pdf.w - pdf.l_margin - pdf.r_margin
+    folga = 8
+    larg = (usavel - folga) / 2
+    altura = 29
+    for linha in (0, 2):
+        y0 = pdf.get_y()
+        for col in (0, 1):
+            papel = ordem_papeis[linha + col]
+            x = pdf.l_margin + col * (larg + folga)
+            s = por_papel.get(papel)
+            if s:
+                pdf.set_draw_color(*VERDE)
+                pdf.set_fill_color(247, 251, 248)
+                pdf.rect(x, y0, larg, altura, style="DF")
+                pdf.set_xy(x + 3, y0 + 2)
+                pdf.set_font("Helvetica", "B", 7.5)
+                pdf.set_text_color(*VERDE)
+                pdf.cell(larg - 6, 4, _t("ASSINADO ELETRONICAMENTE"), new_x="LEFT", new_y="NEXT")
+                pdf.set_x(x + 3)
+                pdf.set_font("Helvetica", "B", 10)
+                pdf.set_text_color(*VERDE_ESCURO)
+                pdf.cell(larg - 6, 5, _t(s["nome"]), new_x="LEFT", new_y="NEXT")
+                pdf.set_x(x + 3)
+                pdf.set_font("Helvetica", "", 8.5)
+                pdf.set_text_color(*CINZA)
+                pdf.cell(larg - 6, 4.2, _t(ROTULO_PAPEL.get(papel, papel)), new_x="LEFT", new_y="NEXT")
+                pdf.set_x(x + 3)
+                pdf.set_text_color(42, 38, 32)
+                pdf.set_font("Helvetica", "B", 8.5)
+                pdf.cell(larg - 6, 4.4, _t(f"CPF {cpf_formatado(s.get('cpf') or cpfs_ficha.get(papel)) or '-'}"), new_x="LEFT", new_y="NEXT")
+                pdf.set_x(x + 3)
+                pdf.set_font("Helvetica", "", 8)
+                pdf.cell(larg - 6, 4.2, _t(f"{data_hora_curta(s.get('assinado_em'))}  |  IP {s.get('ip') or '-'}"), new_x="LEFT", new_y="NEXT")
+            else:
+                pdf.set_draw_color(42, 38, 32)
+                pdf.line(x, y0 + 13, x + larg, y0 + 13)
+                pdf.set_xy(x, y0 + 14)
+                if nomes.get(papel):
+                    pdf.set_font("Helvetica", "B", 9.5)
+                    pdf.set_text_color(42, 38, 32)
+                    pdf.cell(larg, 4.6, _t(nomes[papel]), new_x="LEFT", new_y="NEXT")
+                pdf.set_x(x)
+                pdf.set_font("Helvetica", "", 8.5)
+                pdf.set_text_color(*CINZA)
+                pdf.cell(larg, 4.4, _t(ROTULO_PAPEL.get(papel, papel)), new_x="LEFT", new_y="NEXT")
+                pdf.set_x(x)
+                pdf.set_text_color(42, 38, 32)
+                pdf.set_font("Helvetica", "B", 8.5)
+                cpf_conhecido = cpfs_ficha.get(papel)
+                pdf.cell(larg, 4.4, _t(f"CPF {cpf_formatado(cpf_conhecido)}" if cpf_conhecido else "CPF: ______________________"), new_x="LEFT", new_y="NEXT")
+        pdf.set_y(y0 + altura + 3)
+
+
 def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_id: str) -> bytes:
     a = snapshot
     c = a.get("coordenador") or {}
@@ -124,28 +254,28 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
     pdf.add_page()
 
     # logos (se os arquivos estiverem presentes no deploy)
-    for arquivo, x, w in (("logo-senar-termo.png", 15, 38), ("logo-valores-termo.png", 142, 52)):
+    for arquivo, x, w in (("logo-senar-termo.png", 15, 34), ("logo-valores-termo.png", 144, 48)):
         caminho = os.path.join(RAIZ, "public", arquivo)
         if os.path.exists(caminho):
             try:
-                pdf.image(caminho, x=x, y=12, w=w)
+                pdf.image(caminho, x=x, y=11, w=w)
             except Exception:  # noqa: BLE001 - o logo faltando não pode impedir o termo
                 pass
-    pdf.set_y(30)
+    pdf.set_y(27)
     pdf.set_draw_color(*VERDE)
     pdf.set_line_width(0.8)
     pdf.line(15, pdf.get_y(), 195, pdf.get_y())
     pdf.set_line_width(0.2)
-    pdf.ln(3)
+    pdf.ln(2)
     pdf.set_font("Helvetica", "B", 8)
     pdf.set_text_color(*VERDE)
-    pdf.cell(0, 5, "FAEC - SENAR CEARÁ".encode("latin-1", "replace").decode("latin-1"), new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "B", 16)
+    pdf.cell(0, 4, _t("FAEC - SENAR CEARÁ"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "B", 15)
     pdf.set_text_color(*VERDE_ESCURO)
-    pdf.cell(0, 8, _t(f"Termo de Adesão - Projeto Valores{(' - ' + ano) if ano else ''}"), new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 9)
+    pdf.cell(0, 7.5, _t(f"Termo de Adesão - Projeto Valores{(' - ' + ano) if ano else ''}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 8.5)
     pdf.set_text_color(*CINZA)
-    pdf.cell(0, 5, _t("Projeto Valores Humanos - Brincando e cultivando os valores humanos"), new_x="LMARGIN", new_y="NEXT")
+    pdf.cell(0, 4.5, _t("Projeto Valores Humanos - Brincando e cultivando os valores humanos"), new_x="LMARGIN", new_y="NEXT")
 
     _secao(pdf, 1, "Identificação do Município")
     _campos(pdf, [
@@ -187,26 +317,17 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
     if not escolas:
         pdf.set_font("Helvetica", "", 9.5)
         pdf.cell(0, 6, "Nenhuma escola cadastrada nesta adesão.", new_x="LMARGIN", new_y="NEXT")
-    for i, e in enumerate(escolas, 1):
-        if pdf.get_y() > pdf.h - 50:
-            pdf.add_page()
-        pdf.set_font("Helvetica", "B", 9.5)
-        pdf.set_text_color(*VERDE_ESCURO)
-        pdf.multi_cell(0, 5, _t(f"{i}. {e.get('nome')}"), new_x="LMARGIN", new_y="NEXT")
-        sub = " · ".join(x for x in (e.get("tipo"), e.get("endereco")) if x)
-        if sub:
-            pdf.set_font("Helvetica", "", 8.5)
-            pdf.set_text_color(74, 69, 58)
-            pdf.multi_cell(0, 4.2, _t(sub), new_x="LMARGIN", new_y="NEXT")
-        p, i3, i4, i5 = (int(e.get(k) or 0) for k in ("quantidade_professores", "matricula_infantil_3", "matricula_infantil_4", "matricula_infantil_5"))
-        pdf.ln(0.5)
-        _tabela(pdf, ["Professores", "Infantil 3", "Infantil 4", "Infantil 5", "Total de alunos"], [p, i3, i4, i5, i3 + i4 + i5])
+    else:
+        _tabela_escolas(pdf, escolas)
 
-    pdf.add_page()
+    # termo + assinaturas ficam juntos; só muda de página se não couberem no que sobrou
+    if pdf.get_y() > pdf.h - 16 - 126:
+        pdf.add_page()
     _secao(pdf, 6, "Termo de Adesão e Compromisso")
-    pdf.set_font("Helvetica", "", 10)
+    pdf.set_font("Helvetica", "", 9.5)
     pdf.set_text_color(42, 38, 32)
     pdf.set_fill_color(251, 250, 243)
+    pdf.set_draw_color(*BORDA)
     texto1 = (
         f"Pelo presente termo, o município de {a.get('municipio_nome')}, por meio de seus representantes abaixo assinados, "
         f"formaliza sua adesão ao Projeto Valores{(' para o ciclo ' + ano) if ano else ''}, comprometendo-se a viabilizar a execução do "
@@ -219,98 +340,56 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
         "informados serão tratados pela FAEC/SENAR exclusivamente para as finalidades do Projeto Valores, em conformidade com a Lei nº "
         "13.709/2018 (LGPD). A informação inverídica poderá ensejar a suspensão ou o cancelamento da adesão."
     )
-    pdf.multi_cell(0, 5.4, _t(texto1), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=3)
-    pdf.ln(2.5)
-    pdf.multi_cell(0, 5.4, _t(texto2), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=3)
+    pdf.multi_cell(0, 5, _t(texto1), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=2.5)
+    pdf.ln(2)
+    pdf.multi_cell(0, 5, _t(texto2), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=2.5)
 
-    # ---- assinaturas eletrônicas ----
-    pdf.ln(6)
-    pdf.set_font("Helvetica", "B", 9)
-    pdf.set_text_color(*CINZA)
-    pdf.cell(0, 6, "Assinaturas eletrônicas".encode("latin-1", "replace").decode("latin-1"), new_x="LMARGIN", new_y="NEXT")
-    ordem = {"prefeito": 0, "secretario": 1, "sindicato": 2, "coordenador": 3}
-    for s in sorted(signatarios, key=lambda x: ordem.get(x["papel"], 9)):
-        if pdf.get_y() > pdf.h - 40:
-            pdf.add_page()
-        pdf.set_draw_color(*BORDA)
-        pdf.set_fill_color(251, 250, 243)
-        y = pdf.get_y()
-        pdf.rect(pdf.l_margin, y, pdf.w - pdf.l_margin - pdf.r_margin, 22, style="DF")
-        pdf.set_xy(pdf.l_margin + 3, y + 2)
-        pdf.set_font("Helvetica", "B", 10.5)
-        pdf.set_text_color(*VERDE_ESCURO)
-        pdf.cell(0, 5, _t(f"{s.get('assinado_nome_digitado') or s['nome']}"), new_x="LEFT", new_y="NEXT")
-        pdf.set_x(pdf.l_margin + 3)
-        pdf.set_font("Helvetica", "", 8.5)
-        pdf.set_text_color(*CINZA)
-        pdf.cell(0, 4.5, _t(ROTULO_PAPEL.get(s["papel"], s["papel"])), new_x="LEFT", new_y="NEXT")
-        pdf.set_x(pdf.l_margin + 3)
-        pdf.set_text_color(42, 38, 32)
-        pdf.cell(0, 4.5, _t(f"Assinado eletronicamente em {data_hora_br(s.get('assinado_em'))}"), new_x="LEFT", new_y="NEXT")
-        pdf.set_x(pdf.l_margin + 3)
-        pdf.cell(0, 4.5, _t(f"E-mail: {s['email']}   |   IP: {s.get('ip') or '-'}"), new_x="LEFT", new_y="NEXT")
-        pdf.set_y(y + 25)
-
-    # quem não assinou por e-mail (ex.: prefeito e sindicato, enquanto não liberados): linha para assinar fora do sistema
-    assinaram = {s["papel"] for s in signatarios}
-    faltam = [pp for pp in ("prefeito", "secretario", "sindicato", "coordenador") if pp not in assinaram]
-    if faltam:
-        if pdf.get_y() > pdf.h - 24 - 22 * len(faltam):
-            pdf.add_page()
-        pdf.ln(2)
-        pdf.set_font("Helvetica", "B", 9)
-        pdf.set_text_color(*CINZA)
-        pdf.cell(0, 6, _t("Demais assinaturas (fora do sistema)"), new_x="LMARGIN", new_y="NEXT")
-        nomes = {"prefeito": a.get("prefeito_nome"), "secretario": a.get("secretario_nome"), "coordenador": c.get("nome")}
-        for pp in faltam:
-            pdf.ln(10)
-            y = pdf.get_y()
-            pdf.set_draw_color(42, 38, 32)
-            pdf.line(pdf.l_margin, y, pdf.l_margin + 85, y)
-            pdf.set_xy(pdf.l_margin, y + 1)
-            if nomes.get(pp):
-                pdf.set_font("Helvetica", "B", 9.5)
-                pdf.set_text_color(42, 38, 32)
-                pdf.cell(0, 4.8, _t(nomes[pp]), new_x="LMARGIN", new_y="NEXT")
-            pdf.set_font("Helvetica", "", 8.5)
-            pdf.set_text_color(*CINZA)
-            pdf.cell(0, 4.5, _t(ROTULO_PAPEL.get(pp, pp)), new_x="LMARGIN", new_y="NEXT")
-
-    # ---- folha de comprovação ----
-    pdf.add_page()
-    pdf.set_font("Helvetica", "B", 14)
-    pdf.set_text_color(*VERDE_ESCURO)
-    pdf.cell(0, 9, _t("Folha de comprovação das assinaturas"), new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Helvetica", "", 9.5)
-    pdf.set_text_color(42, 38, 32)
-    pdf.multi_cell(
-        0, 5,
-        _t(
-            "As assinaturas deste documento foram colhidas pelo Painel do Projeto Valores Humanos por meio de link pessoal enviado ao "
-            "e-mail de cada signatário e confirmação com código de 6 dígitos enviado ao mesmo e-mail. Trata-se de assinatura eletrônica "
-            "simples, nos termos do art. 4º, inciso I, da Lei nº 14.063/2020. Cada assinatura registra data, hora, endereço IP e navegador."
-        ),
-        new_x="LMARGIN", new_y="NEXT",
-    )
     pdf.ln(4)
-    for s in sorted(signatarios, key=lambda x: ordem.get(x["papel"], 9)):
-        pdf.set_font("Helvetica", "B", 9.5)
-        pdf.set_text_color(*VERDE_ESCURO)
-        pdf.cell(0, 5.5, _t(f"{ROTULO_PAPEL.get(s['papel'], s['papel'])}: {s['nome']}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.set_font("Helvetica", "", 8.5)
-        pdf.set_text_color(42, 38, 32)
-        pdf.cell(0, 4.5, _t(f"E-mail: {s['email']}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(0, 4.5, _t(f"Data e hora: {data_hora_br(s.get('assinado_em'))}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(0, 4.5, _t(f"IP: {s.get('ip') or '-'}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.multi_cell(0, 4.5, _t(f"Navegador: {(s.get('user_agent') or '-')[:180]}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.ln(3)
+    pdf.set_font("Helvetica", "B", 8.5)
+    pdf.set_text_color(*CINZA)
+    pdf.cell(0, 5, "Assinaturas", new_x="LMARGIN", new_y="NEXT")
+    pdf.ln(1)
+    _bloco_assinaturas(pdf, a, c, signatarios)
 
+    # ---- comprovação das assinaturas eletrônicas (no mesmo fluxo, sem página nova à toa) ----
+    ordem = {"prefeito": 0, "secretario": 1, "sindicato": 2, "coordenador": 3}
+    ordenados = sorted(signatarios, key=lambda x: ordem.get(x["papel"], 9))
+    cpf_da_ficha = {"prefeito": a.get("prefeito_cpf"), "secretario": a.get("secretario_cpf"), "coordenador": c.get("cpf")}
+    if pdf.get_y() > pdf.h - 16 - (34 + 13 * len(ordenados)):
+        pdf.add_page()
+    pdf.ln(2)
+    pdf.set_draw_color(*BORDA)
+    pdf.line(pdf.l_margin, pdf.get_y(), pdf.w - pdf.r_margin, pdf.get_y())
     pdf.ln(2)
     pdf.set_font("Helvetica", "B", 9)
     pdf.set_text_color(*VERDE_ESCURO)
-    pdf.cell(0, 5.5, _t("Identificação do documento"), new_x="LMARGIN", new_y="NEXT")
-    pdf.set_font("Courier", "", 8)
+    pdf.cell(0, 5, _t("Comprovação das assinaturas eletrônicas"), new_x="LMARGIN", new_y="NEXT")
+    pdf.set_font("Helvetica", "", 7.5)
     pdf.set_text_color(42, 38, 32)
-    pdf.multi_cell(0, 4.2, _t(f"Pedido: {pedido_id}\nImpressão digital (SHA-256) dos dados do termo:\n{hash_termo}"), new_x="LMARGIN", new_y="NEXT")
+    pdf.multi_cell(
+        0, 3.8,
+        _t(
+            "Assinaturas colhidas pelo Painel do Projeto Valores Humanos por link pessoal enviado ao e-mail de cada signatário, "
+            "com confirmação por código de 6 dígitos enviado ao mesmo e-mail. Assinatura eletrônica simples (art. 4º, inciso I, "
+            "da Lei nº 14.063/2020), com registro de data, hora, endereço IP e navegador."
+        ),
+        new_x="LMARGIN", new_y="NEXT",
+    )
+    pdf.ln(1.5)
+    for s in ordenados:
+        pdf.set_font("Helvetica", "B", 8)
+        pdf.set_text_color(*VERDE_ESCURO)
+        pdf.cell(0, 4.2, _t(f"{ROTULO_PAPEL.get(s['papel'], s['papel'])}: {s['nome']} - CPF {cpf_formatado(s.get('cpf') or cpf_da_ficha.get(s['papel'])) or '-'} <{s['email']}>"), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 7.5)
+        pdf.set_text_color(42, 38, 32)
+        pdf.cell(0, 3.8, _t(f"{data_hora_curta(s.get('assinado_em'))} (horário de Fortaleza)  |  IP {s.get('ip') or '-'}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.set_font("Helvetica", "", 6.5)
+        pdf.set_text_color(*CINZA)
+        pdf.multi_cell(0, 3.3, _t(f"Navegador: {(s.get('user_agent') or '-')[:140]}"), new_x="LMARGIN", new_y="NEXT")
+        pdf.ln(1.2)
+
+    pdf.set_font("Courier", "", 6.5)
+    pdf.set_text_color(42, 38, 32)
+    pdf.multi_cell(0, 3.3, _t(f"Pedido: {pedido_id}\nSHA-256 dos dados do termo: {hash_termo}"), new_x="LMARGIN", new_y="NEXT")
 
     return bytes(pdf.output())

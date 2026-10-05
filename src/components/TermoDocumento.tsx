@@ -53,7 +53,7 @@ function dataBr(iso?: string | null) {
   return isNaN(d.getTime()) ? null : d.toLocaleDateString("pt-BR");
 }
 
-export type AssinaturaTermo = { papel: string; nome?: string; assinado_em?: string | null };
+export type AssinaturaTermo = { papel: string; nome?: string; cpf?: string | null; assinado_em?: string | null };
 
 // O documento em si (cabeçalho, seções, termo e assinaturas). Usado pela tela de impressão (TermoDocumento)
 // e pela página pública em que prefeito, sindicato e coordenador assinam por e-mail.
@@ -178,8 +178,12 @@ export function TermoConteudo({ a, assinaturas }: { a: Adesao; assinaturas?: Ass
         <div className="grid grid-cols-2 gap-x-6">
           <Assinatura nome={a.prefeito_nome} cargo={`Prefeito(a) Municipal${a.prefeito_cpf ? ` — CPF ${mascaraCpf(a.prefeito_cpf)}` : ""}`} assinadoEm={quando("prefeito")} />
           <Assinatura nome={a.secretario_nome} cargo={`Secretário(a) de Educação${a.secretario_cpf ? ` — CPF ${mascaraCpf(a.secretario_cpf)}` : ""}`} assinadoEm={quando("secretario")} />
-          <Assinatura nome={assinaturas?.find((x) => x.papel === "sindicato")?.nome} cargo="Presidente do Sindicato Rural" assinadoEm={quando("sindicato")} />
-          <Assinatura nome={c?.nome} cargo="Coordenador(a) do Projeto" assinadoEm={quando("coordenador")} />
+          <Assinatura
+            nome={assinaturas?.find((x) => x.papel === "sindicato")?.nome}
+            cargo={`Presidente do Sindicato Rural${assinaturas?.find((x) => x.papel === "sindicato")?.cpf ? ` — CPF ${mascaraCpf(assinaturas!.find((x) => x.papel === "sindicato")!.cpf!)}` : ""}`}
+            assinadoEm={quando("sindicato")}
+          />
+          <Assinatura nome={c?.nome} cargo={`Coordenador(a) do Projeto${c?.cpf ? ` — CPF ${mascaraCpf(c.cpf)}` : ""}`} assinadoEm={quando("coordenador")} />
         </div>
 
         <p className="mt-6 border-t border-[#D8D0B8] pt-2 text-[9.5px] text-[#6E6555]">

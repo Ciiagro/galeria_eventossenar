@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/api";
+import { mascaraCpf } from "@/lib/mascaras";
 
 type Signatario = { papel: string; nome: string; email: string; assinado_em?: string | null; convite_enviado_em?: string | null };
 type Pedido = {
@@ -10,7 +11,7 @@ type Pedido = {
 };
 type Estado = {
   configurado: boolean; papeis_ativos?: string[]; pedido: Pedido | null;
-  sugestoes: Record<string, { nome?: string; email?: string }>;
+  sugestoes: Record<string, { nome?: string; email?: string; cpf?: string | null }>;
 };
 
 const ROTULO: Record<string, string> = {
@@ -31,13 +32,14 @@ const ROTULO_CAMPO = "mb-1 block text-sm font-medium text-brand-dark";
 // Bloco da etapa "Termo assinado": envia o termo por e-mail para os 3 assinarem e acompanha quem já assinou.
 export function AssinaturaEmail({
   prefeitoNome, prefeitoEmail, secretarioNome, secretarioEmail, coordenadorNome, coordenadorEmail, pronto, motivoBloqueio, somenteLeitura, salvarAntes, onConcluido,
-  abrirTermo, abrindoTermo, declaracao, onDeclaracao,
+  abrirTermo, abrindoTermo, declaracao, onDeclaracao, vistoAssinado, onAbrirAssinado, onBaixarAssinado,
 }: {
   prefeitoNome: string; prefeitoEmail: string; secretarioNome: string; secretarioEmail: string; coordenadorNome: string; coordenadorEmail: string;
   pronto: boolean; motivoBloqueio?: string; somenteLeitura: boolean;
   salvarAntes: () => Promise<void>; onConcluido: () => void;
   abrirTermo: () => Promise<boolean>; abrindoTermo: boolean;
   declaracao: boolean; onDeclaracao: (aceita: boolean) => void;
+  vistoAssinado: boolean; onAbrirAssinado: () => void; onBaixarAssinado: () => void;
 }) {
   const [estado, setEstado] = useState<Estado | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -47,6 +49,7 @@ export function AssinaturaEmail({
   const [emailSecretario, setEmailSecretario] = useState(secretarioEmail);
   const [sindNome, setSindNome] = useState("");
   const [sindEmail, setSindEmail] = useState("");
+  const [sindCpf, setSindCpf] = useState("");
   const [corrigindo, setCorrigindo] = useState<{ papel: string; email: string } | null>(null);
   const [refazendo, setRefazendo] = useState(false);
   const [abriuTermo, setAbriuTermo] = useState(false); // só libera o envio depois de abrir o termo
@@ -79,6 +82,7 @@ export function AssinaturaEmail({
     setSindNome((atual) => atual || s.sindicato?.nome || "");
     setEmailSecretario((atual) => atual || s.secretario?.email || secretarioEmail || "");
     setSindEmail((atual) => atual || s.sindicato?.email || "");
+    setSindCpf((atual) => atual || (s.sindicato?.cpf ? mascaraCpf(s.sindicato.cpf) : ""));
   }, [estado, prefeitoEmail, secretarioEmail]);
 
   const pedido = estado?.pedido ?? null;
@@ -120,7 +124,7 @@ export function AssinaturaEmail({
     await agir(async () => {
       await salvarAntes(); // o termo é montado a partir da ficha salva
       const r = await apiPost("/api/adesao/assinaturas/enviar", {
-        prefeito_email: emailPrefeito, secretario_email: emailSecretario, sindicato_nome: sindNome, sindicato_email: sindEmail,
+        prefeito_email: emailPrefeito, secretario_email: emailSecretario, sindicato_nome: sindNome, sindicato_email: sindEmail, sindicato_cpf: sindCpf,
       });
       if (r.falhas?.length) {
         setErro(`Não consegui enviar para: ${r.falhas.map((f: any) => f.email).join(", ")}. ${r.falhas[0]?.motivo ?? ""} Confira o endereço e use "Reenviar".`);
@@ -181,7 +185,7 @@ export function AssinaturaEmail({
   const pedeSindicato = ativos.includes("sindicato");
   const sosCoordenador = !pedePrefeito && !pedeSecretario && !pedeSindicato;
   const camposOk = (!pedePrefeito || Boolean(emailPrefeito)) && (!pedeSecretario || Boolean(emailSecretario))
-    && (!pedeSindicato || Boolean(sindNome && sindEmail));
+    && (!pedeSindicato || Boolean(sindNome && sindEmail && sindCpf.replace(/\D/g, "").length === 11));
   const outrosRotulos = [pedePrefeito && "prefeito(a)", pedeSecretario && "secretário(a) de educação", pedeSindicato && "presidente do sindicato"].filter(Boolean) as string[];
 
   const mostrarFormulario = !somenteLeitura && (!pedido || pedido.status === "cancelado" || refazendo || (concluido && !pedido.atualizado));
@@ -214,8 +218,24 @@ export function AssinaturaEmail({
       {pedido && pedido.status !== "cancelado" && (
         <div className="mt-3 space-y-2">
           {concluido && pedido.atualizado && (
-            <div className="rounded-lg bg-[#E3F4EA] px-3 py-2 text-sm font-semibold text-[#17613B]">
-              ✅ Todas as assinaturas foram concluídas e o termo assinado já está anexado à adesão.
+            <div className="rounded-lg border border-[#17613B]/25 bg-[#E3F4EA] px-4 py-3 text-[#17613B]">
+              <p className="text-sm font-semibold">✅ Assinaturas concluídas. O termo assinado já está anexado à adesão.</p>
+              <p className="mt-1 text-sm">
+                Abra o PDF assinado e confira antes de enviar a adesão. Você pode baixar uma cópia para guardar (os signatários também receberam o PDF por e-mail).
+              </p>
+              <div className="mt-2 flex flex-wrap items-center gap-2">
+                <button type="button" onClick={onAbrirAssinado}
+                  className="rounded-lg bg-brand-light px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent">
+                  Abrir termo assinado (PDF)
+                </button>
+                <button type="button" onClick={onBaixarAssinado}
+                  className="rounded-lg border border-brand-light bg-white px-4 py-2 text-sm font-semibold text-brand-light hover:bg-brand-light/5">
+                  Baixar o PDF
+                </button>
+                <span className={`text-xs font-semibold ${vistoAssinado ? "text-[#17613B]" : "text-[#6E4B00]"}`}>
+                  {vistoAssinado ? "✓ Você já abriu o termo assinado" : "Falta abrir ou baixar o termo assinado para poder enviar a adesão"}
+                </span>
+              </div>
             </div>
           )}
           {concluido && !pedido.atualizado && (
@@ -339,12 +359,17 @@ export function AssinaturaEmail({
                       <span className={ROTULO_CAMPO}>E-mail do(a) presidente do sindicato</span>
                       <input type="email" value={sindEmail} onChange={(e) => setSindEmail(e.target.value)} className={CAMPO} />
                     </label>
+                    <label>
+                      <span className={ROTULO_CAMPO}>CPF do(a) presidente do sindicato</span>
+                      <input inputMode="numeric" value={sindCpf} onChange={(e) => setSindCpf(mascaraCpf(e.target.value))} className={CAMPO} placeholder="000.000.000-00" />
+                    </label>
                   </>
                 )}
                 <p className="text-xs text-brand-dark/70 sm:col-span-2">
                   {sosCoordenador ? "O link será enviado para " : "Coordenador(a): "}<strong>{coordenadorNome || "você"}</strong>
                   {sosCoordenador ? " no e-mail do seu cadastro" : ", no e-mail do seu cadastro"}{coordenadorEmail ? ` (${coordenadorEmail})` : ""}.
                   {!sosCoordenador && " Cada pessoa precisa de um e-mail diferente."}
+                  {" "}O CPF de cada assinante consta no termo: o do(a) prefeito(a) e o do(a) secretário(a) vêm da ficha, e o seu, do cadastro.
                 </p>
               </div>
               <button type="button" onClick={enviar} disabled={ocupado || !conferiu || !pronto || !estado.configurado || !camposOk}

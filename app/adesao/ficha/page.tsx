@@ -4,7 +4,7 @@ import { TituloPagina, Indicador } from "@/components/TituloPagina";
 
 import { Fragment, useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { apiAbrirArquivo, apiGet, apiPost, apiPostForm, limparCacheApi } from "@/lib/api";
+import { apiAbrirArquivo, apiBaixarArquivo, apiGet, apiPost, apiPostForm, limparCacheApi } from "@/lib/api";
 import { usePerfil } from "@/lib/usePerfil";
 import { FileTextIcon } from "@/components/icons";
 import { estaCompleta, FormularioEscola } from "@/components/FormularioEscola";
@@ -67,6 +67,7 @@ export default function AdesaoPage() {
   const [status, setStatus] = useState<"rascunho" | "enviada" | "aprovada">("rascunho");
   const [observacao, setObservacao] = useState<string | null>(null);
   const [termo, setTermo] = useState<TermoAssinado | null>(null); // PDF do termo assinado digitalmente
+  const [vistoAssinado, setVistoAssinado] = useState(false); // o coordenador abriu/baixou o termo assinado antes de enviar a adesão
   const [declaracao, setDeclaracao] = useState(false); // ciência da cláusula de veracidade e uso dos dados
   const [editando, setEditando] = useState(false); // enviada/aprovada abre em modo consulta; "Corrigir" volta ao formulário
 
@@ -206,6 +207,11 @@ export default function AdesaoPage() {
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
+    if (acao === "enviar" && !vistoAssinado) {
+      setErro("Abra ou baixe o termo assinado (PDF) para conferir antes de enviar a adesão.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
     if (acao === "enviar" && !confirm("Enviar a adesão, com o termo assinado, para aprovação do administrador?")) return;
     setSalvando(true);
     try {
@@ -288,6 +294,7 @@ export default function AdesaoPage() {
       const r = await apiPostForm("/api/adesao/termo-assinado", form);
       setStatus("rascunho");
       setTermo(r.termo_assinado);
+      setVistoAssinado(true); // quem anexa o PDF já está com ele em mãos
       setMensagem("Termo assinado anexado. Agora é só clicar em \"Enviar adesão\".");
     } catch (e: any) {
       setErro(e.message);
@@ -325,6 +332,17 @@ export default function AdesaoPage() {
     setErro(null);
     try {
       await apiAbrirArquivo("/api/adesao/termo-assinado");
+      setVistoAssinado(true);
+    } catch (e: any) {
+      setErro(e.message);
+    }
+  }
+
+  async function baixarTermoAssinado() {
+    setErro(null);
+    try {
+      await apiBaixarArquivo("/api/adesao/termo-assinado?baixar=1", `Termo de Adesao assinado.pdf`);
+      setVistoAssinado(true);
     } catch (e: any) {
       setErro(e.message);
     }
@@ -672,6 +690,9 @@ export default function AdesaoPage() {
                 abrindoTermo={salvando}
                 declaracao={declaracao}
                 onDeclaracao={setDeclaracao}
+                vistoAssinado={vistoAssinado}
+                onAbrirAssinado={verTermoAssinado}
+                onBaixarAssinado={baixarTermoAssinado}
                 onConcluido={aoConcluirAssinaturaEmail}
               />
 
@@ -749,8 +770,8 @@ export default function AdesaoPage() {
                 className="rounded-lg border border-brand-light px-4 py-2 text-sm font-semibold text-brand-light hover:bg-brand-light/5 disabled:opacity-50">
                 Salvar rascunho
               </button>
-              <button type="button" disabled={salvando || !resp?.ciclo || !termo?.atualizado || !declaracao} onClick={() => salvar("enviar")}
-                title={!termo?.atualizado ? "Anexe o termo assinado (etapa 5) para enviar" : !declaracao ? "Marque a declaração de veracidade (na aba Termo assinado) para enviar" : undefined}
+              <button type="button" disabled={salvando || !resp?.ciclo || !termo?.atualizado || !declaracao || !vistoAssinado} onClick={() => salvar("enviar")}
+                title={!termo?.atualizado ? "Envie o termo para assinatura (etapa 5) para enviar" : !declaracao ? "Marque a declaração de veracidade (na aba Termo assinado) para enviar" : !vistoAssinado ? "Abra ou baixe o termo assinado (PDF) para conferir antes de enviar" : undefined}
                 className="rounded-lg bg-brand-light px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent disabled:opacity-50">
                 {status === "enviada" ? "Reenviar adesão" : "Enviar adesão"}
               </button>
