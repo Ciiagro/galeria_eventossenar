@@ -331,7 +331,7 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
         _tabela_escolas(pdf, escolas)
 
     # termo + assinaturas ficam juntos; só muda de página se não couberem no que sobrou
-    if pdf.get_y() > pdf.h - 16 - 126:
+    if pdf.get_y() > pdf.h - 16 - 153:
         pdf.add_page()
     _secao(pdf, 6, "Termo de Adesão e Compromisso")
     pdf.set_font("Helvetica", "", 9.5)
@@ -344,6 +344,9 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
         "programa junto às escolas listadas neste documento, garantindo a participação de gestores, professores e alunos nas atividades "
         "previstas, bem como o correto envio das informações de acompanhamento solicitadas pela coordenação do projeto."
     )
+    texto_visitas = (
+        "Declaramos, para os devidos fins, que os municípios participantes do Projeto Valores estão cientes de que, no decorrer das ações do projeto, serão realizadas visitas de acompanhamento pelos apoiadores às escolas participantes, com o objetivo de acompanhar as atividades desenvolvidas, fortalecer as orientações pedagógicas e conhecer as experiências vivenciadas pelas unidades escolares."
+    )
     texto2 = (
         "Da veracidade e do uso dos dados. O município declara que as informações prestadas neste Termo são verdadeiras e atualizadas, "
         "responsabilizando-se por sua exatidão e por comunicar eventuais alterações à coordenação do projeto. Os dados pessoais aqui "
@@ -351,6 +354,8 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
         "13.709/2018 (LGPD). A informação inverídica poderá ensejar a suspensão ou o cancelamento da adesão."
     )
     pdf.multi_cell(0, 5, _t(texto1), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=2.5)
+    pdf.ln(2)
+    pdf.multi_cell(0, 5, _t(texto_visitas), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=2.5)
     pdf.ln(2)
     pdf.multi_cell(0, 5, _t(texto2), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=2.5)
 

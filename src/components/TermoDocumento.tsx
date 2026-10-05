@@ -169,6 +169,10 @@ export function TermoConteudo({ a, assinaturas }: { a: Adesao; assinaturas?: Ass
         </div>
 
         <div className="mt-2.5 break-inside-avoid rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-[12px] leading-relaxed">
+          Declaramos, para os devidos fins, que os municípios participantes do Projeto Valores estão cientes de que, no decorrer das ações do projeto, serão realizadas visitas de acompanhamento pelos apoiadores às escolas participantes, com o objetivo de acompanhar as atividades desenvolvidas, fortalecer as orientações pedagógicas e conhecer as experiências vivenciadas pelas unidades escolares.
+        </div>
+
+        <div className="mt-2.5 break-inside-avoid rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-[12px] leading-relaxed">
           <strong>Da veracidade e do uso dos dados.</strong> O município declara que as informações prestadas neste Termo são verdadeiras e
           atualizadas, responsabilizando-se por sua exatidão e por comunicar eventuais alterações à coordenação do projeto. Os dados pessoais aqui
           informados serão tratados pela FAEC/SENAR exclusivamente para as finalidades do Projeto Valores, em conformidade com a Lei nº 13.709/2018
