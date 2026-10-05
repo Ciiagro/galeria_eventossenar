@@ -2,18 +2,46 @@
 
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
-import { apiGet, apiPost, DocumentoGaleria, EscolaParticipanteGaleria } from "@/lib/api";
+import { apiGet, apiGetCache, apiPost, esquecerCacheApiPor, DocumentoGaleria, EscolaParticipanteGaleria } from "@/lib/api";
 import MapaCearaGaleria, { COR_PARTICIPANTE } from "@/components/MapaCearaGaleria";
 import PreviewLink from "@/components/PreviewLink";
 import { normalizarLink } from "@/lib/linkIncorporavel";
 import { urlsMiniatura } from "@/lib/miniatura";
 import { useFiltroCiclo } from "@/lib/ciclos";
 import { FundoFestivo, LogoValores } from "@/components/Sol";
-import { IconeAcao } from "@/components/IconesAcoes";
+import CabecalhoPublico from "@/components/CabecalhoPublico";
+import { VALORES } from "@/lib/valoresProjeto";
+import { corDaAcao, SimboloAcao } from "@/components/IconesAcoes";
+import { ImageIcon } from "@/components/icons";
 
 type Ordem = "recentes" | "antigas";
 type MunicipioGaleria = { id: number; nome: string; publicacoes: number };
 type Resumo = { municipios: number; escolas: number; publicacoes: number; visualizacoes: number };
+
+// Ordem em que as ações aparecem na vitrine (a da apresentação do projeto); as demais vêm depois
+const ORDEM_ACOES = ["acolh", "meditac", "civico", "circulo", "conto", "pratica", "cultura", "familia", "refeic", "aniversari"];
+// ATENÇÃO: frases PROVISÓRIAS para os cartões. A equipe do projeto precisa revisar cada uma.
+const DESCRICAO_ACAO: [string, string][] = [
+  ["acolh", "Receber cada criança com carinho, começando o dia com afeto e presença."],
+  ["meditac", "Um momento de silêncio e atenção para acalmar a mente e o corpo."],
+  ["civico", "Vivenciar o respeito à pátria, aos símbolos e à convivência em comunidade."],
+  ["circulo", "Crianças e professor em roda, compartilhando gestos de amor e cuidado."],
+  ["conto", "Histórias que ensinam e despertam os valores humanos."],
+  ["pratica", "Atividades em grupo que ensinam a cooperar e a partilhar."],
+  ["cultura", "Cuidar da natureza e valorizar a cultura no dia a dia da escola."],
+  ["familia", "A família participa e fortalece, junto com a escola, a formação das crianças."],
+  ["refeic", "Partilhar a refeição com gratidão, respeito e boas maneiras."],
+  ["aniversari", "Celebrar cada criança, valorizando a alegria de estar juntos."],
+];
+const ordemDaAcao = (nome: string) => {
+  const n = normalizar(nome);
+  const i = ORDEM_ACOES.findIndex((chave) => n.includes(chave));
+  return i === -1 ? ORDEM_ACOES.length : i;
+};
+const descricaoDaAcao = (nome: string) => {
+  const n = normalizar(nome);
+  return DESCRICAO_ACAO.find(([chave]) => n.includes(chave))?.[1] ?? "Registros desta ação pedagógica.";
+};
 
 const MESES = ["Janeiro", "Fevereiro", "Março", "Abril", "Maio", "Junho", "Julho", "Agosto", "Setembro", "Outubro", "Novembro", "Dezembro"];
 
@@ -31,7 +59,8 @@ export default function GaleriaPublica() {
 
   // ciclo (cada ano é um ciclo): abre no ativo; "" = todos
   const { ciclos, cicloId, setCicloId, ehPadrao: cicloPadrao, carregando: carregandoCiclos } = useFiltroCiclo(true);
-  const parametroCiclo = cicloId ? `ciclo_id=${cicloId}` : "";
+  // Ciclo padrão = "ativo" (o servidor resolve): a galeria começa a carregar já, sem esperar a lista de ciclos
+  const parametroCiclo = cicloPadrao ? "ciclo_id=ativo" : cicloId ? `ciclo_id=${cicloId}` : "";
 
   // filtros
   const [categoria, setCategoria] = useState("");
@@ -49,25 +78,24 @@ export default function GaleriaPublica() {
   const listaRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
-    if (carregandoCiclos) return;
     const extra = parametroCiclo ? `&${parametroCiclo}` : "";
-    apiGet(`/api/galeria?municipios=1${extra}`).then(setMunicipios).catch(() => null);
-    apiGet(`/api/galeria?mapa=1${extra}`).then(setEscolasMapa).catch(() => null);
-    apiGet(`/api/galeria?resumo=1${extra}`).then(setResumo).catch(() => null);
-  }, [carregandoCiclos, parametroCiclo]);
+    // apiGetCache: voltar para a galeria (ou ir e voltar de "O projeto") não refaz os pedidos
+    apiGetCache(`/api/galeria?municipios=1${extra}`).then(setMunicipios).catch(() => null);
+    apiGetCache(`/api/galeria?mapa=1${extra}`).then(setEscolasMapa).catch(() => null);
+    apiGetCache(`/api/galeria?resumo=1${extra}`).then(setResumo).catch(() => null);
+  }, [parametroCiclo]);
 
   useEffect(() => {
-    if (carregandoCiclos) return;
     setDocumentos(null);
     setAcaoPed("");
     setEscola(escolaPendente.current ?? "");
     escolaPendente.current = null;
     const consulta = [municipioId ? `municipio_id=${municipioId}` : "", parametroCiclo].filter(Boolean).join("&");
-    apiGet(`/api/galeria${consulta ? `?${consulta}` : ""}`)
-      .then(setDocumentos)
+    apiGetCache(`/api/galeria${consulta ? `?${consulta}` : ""}`)
+      .then((lista: DocumentoGaleria[]) => setDocumentos(lista))
       .catch((e) => setErro(e.message));
     if (municipioId) setDestaqueId(Number(municipioId));
-  }, [municipioId, carregandoCiclos, parametroCiclo]);
+  }, [municipioId, parametroCiclo]);
 
   function mudarMunicipio(novoId: string) {
     router.replace(novoId ? `/galeria?municipio_id=${novoId}` : "/galeria", { scroll: false });
@@ -100,11 +128,6 @@ export default function GaleriaPublica() {
     () => Array.from(new Set((documentos ?? []).map((d) => d.acoes_pedagogicas?.nome).filter(Boolean) as string[])).sort((a, b) => a.localeCompare(b)),
     [documentos]
   );
-  const escolasOpcoes = useMemo(
-    () =>
-      Array.from(new Set((documentos ?? []).filter((d) => !acaoPed || d.acoes_pedagogicas?.nome === acaoPed).map((d) => d.escolas?.nome).filter(Boolean) as string[])).sort(),
-    [documentos, acaoPed]
-  );
 
   const lista = useMemo(() => {
     const termo = normalizar(busca.trim());
@@ -118,6 +141,38 @@ export default function GaleriaPublica() {
     );
     return [...filtrada].sort((a, b) => (ordem === "recentes" ? chaveData(b).localeCompare(chaveData(a)) : chaveData(a).localeCompare(chaveData(b))));
   }, [documentos, categoria, periodo, acaoPed, escola, busca, ordem, nomeMunicipio]);
+
+  // Escolas do programa no município escolhido, com quantas publicações cada uma tem na galeria
+  const escolasDoMunicipio = useMemo(() => {
+    if (!municipioId) return [];
+    const total = new Map<string, number>();
+    (documentos ?? []).forEach((d) => d.escolas?.nome && total.set(d.escolas.nome, (total.get(d.escolas.nome) ?? 0) + 1));
+    return escolasMapa
+      .filter((e) => String(e.municipio_id) === municipioId)
+      .map((e) => ({ id: e.id, nome: e.nome, publicacoes: total.get(e.nome) ?? 0 }))
+      .sort((a, b) => b.publicacoes - a.publicacoes || a.nome.localeCompare(b.nome, "pt-BR"));
+  }, [municipioId, escolasMapa, documentos]);
+
+  // Cartões por ação: respeitam os demais filtros, mas não o de ação (cada cartão mostra a sua)
+  const cartoesAcoes = useMemo(() => {
+    const termo = normalizar(busca.trim());
+    const base = (documentos ?? []).filter(
+      (d) =>
+        d.acoes_pedagogicas?.nome &&
+        (!categoria || rotuloTipo(d) === categoria) &&
+        (!periodo || (d.data_realizacao ?? "").startsWith(periodo)) &&
+        (!escola || d.escolas?.nome === escola) &&
+        (!termo || [d.acao_evento, d.acoes_pedagogicas?.nome, d.descricao, d.escolas?.nome, nomeMunicipio(d.municipio_id)].some((v) => normalizar(v).includes(termo)))
+    );
+    const porAcao = new Map<string, DocumentoGaleria[]>();
+    for (const d of base) {
+      const nome = d.acoes_pedagogicas!.nome;
+      porAcao.set(nome, [...(porAcao.get(nome) ?? []), d]);
+    }
+    return Array.from(porAcao.entries())
+      .map(([nome, docs]) => ({ nome, total: docs.length, docs: [...docs].sort((a, b) => chaveData(b).localeCompare(chaveData(a))).slice(0, 5) }))
+      .sort((a, b) => ordemDaAcao(a.nome) - ordemDaAcao(b.nome) || a.nome.localeCompare(b.nome));
+  }, [documentos, categoria, periodo, escola, busca, nomeMunicipio]);
 
   const destaques = useMemo(() => [...lista].sort((a, b) => chaveData(b).localeCompare(chaveData(a))).slice(0, 3), [lista]);
 
@@ -139,9 +194,19 @@ export default function GaleriaPublica() {
   // ---------- ações ----------
   function abrir(doc: DocumentoGaleria) {
     setAberto(doc);
+    // mostra +1 na hora (card, janela aberta e número do topo) e depois confirma com o total do servidor
+    atualizar(doc.id, { visualizacoes: (doc.visualizacoes ?? 0) + 1 });
+    setResumo((r) => (r ? { ...r, visualizacoes: r.visualizacoes + 1 } : r));
     apiPost("/api/galeria", { acao: "visualizar", documento_id: doc.id })
-      .then((resp) => resp?.visualizacoes !== undefined && atualizar(doc.id, { visualizacoes: resp.visualizacoes }))
-      .catch(() => null);
+      .then((resp) => {
+        if (resp?.visualizacoes !== undefined) atualizar(doc.id, { visualizacoes: resp.visualizacoes });
+        esquecerCacheApiPor("/api/galeria"); // ao voltar para a galeria, busca os números novos
+      })
+      .catch(() => {
+        // não conseguiu registrar: desfaz o +1 para não mostrar um número que o servidor não tem
+        atualizar(doc.id, { visualizacoes: doc.visualizacoes ?? 0 });
+        setResumo((r) => (r ? { ...r, visualizacoes: Math.max(0, r.visualizacoes - 1) } : r));
+      });
   }
   function atualizar(id: string, campos: Partial<DocumentoGaleria>) {
     setDocumentos((atual) => atual?.map((d) => (d.id === id ? { ...d, ...campos } : d)) ?? atual);
@@ -174,63 +239,51 @@ export default function GaleriaPublica() {
   return (
     <div className="min-h-screen bg-[#f3f7f2] text-brand-dark">
       {/* ================= Topo ================= */}
-      <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-black/5 overflow-hidden">
-        <div className="max-w-[1400px] mx-auto px-4 sm:px-8 h-16 flex items-center gap-4 sm:gap-8">
-          <a href="/galeria" className="flex items-center gap-2 shrink-0">
-            <LogoSenar />
-            <span className="leading-none">
-              <span className="block text-lg font-extrabold tracking-tight text-brand">SENAR</span>
-              <span className="block text-xs font-semibold text-brand-light">Ceará</span>
-            </span>
-          </a>
-          <span className="hidden sm:inline-flex items-center gap-1.5 self-stretch border-b-2 border-brand-light px-1 text-sm font-semibold text-brand-light">
-            🗺️ Galeria
-          </span>
-          <div className="relative flex-1 max-w-xl mx-auto">
-            <span className="absolute left-3.5 top-1/2 -translate-y-1/2 text-brand-dark/50">⌕</span>
-            <input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar ações, escolas, municípios..."
-              className="w-full rounded-full border border-black/10 bg-[#f6f8f5] pl-9 pr-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30"
-            />
-          </div>
-          <div className="hidden lg:flex items-center gap-4 shrink-0">
-            <p className="border-l-2 border-brand pl-3 text-xs font-bold leading-tight text-brand max-w-[150px]">
-              Juntos pelo desenvolvimento do nosso campo.
-            </p>
-            <span className="relative -mr-8 h-16 w-28" aria-hidden>
-              <span className="absolute inset-y-0 right-10 w-6 -skew-x-[35deg] bg-brand" />
-              <span className="absolute inset-y-0 right-4 w-6 -skew-x-[35deg] bg-brand-light" />
-              <span className="absolute inset-y-0 -right-2 w-6 -skew-x-[35deg] bg-lime-400" />
-            </span>
-          </div>
-        </div>
-      </header>
+      <CabecalhoPublico ativo="galeria" busca={busca} onBusca={setBusca} />
 
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-8 py-6 space-y-5">
-        {/* ================= Título + números ================= */}
-        <FundoFestivo className="rounded-2xl border border-black/5">
-          <section className="grid gap-5 p-5 sm:p-8">
-            <div className="pr-24 sm:pr-44 lg:pr-56">
-              <LogoValores className="w-44 sm:w-56" />
-              <h1 className="mt-3 text-2xl sm:text-3xl font-bold">
-                {municipioId && nomeMunicipio(Number(municipioId)) ? `Galeria de ${nomeMunicipio(Number(municipioId))}` : "Galeria de Publicações"}
-              </h1>
-              <p className="text-brand-dark/80">
-                As ações das escolas e municípios do Ceará{ciclos.find((c) => c.id === cicloId) ? ` · ${ciclos.find((c) => c.id === cicloId)!.nome}` : ""}.
-              </p>
-            </div>
-            {resumo && (
-              <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
-                <Numero icone="📍" rotulo="Municípios participantes" valor={resumo.municipios} />
-                <Numero icone="🏫" rotulo="Escolas" valor={resumo.escolas} />
-                <Numero icone="📄" rotulo="Publicações" valor={resumo.publicacoes} />
-                <Numero icone="👁️" rotulo="Visualizações" valor={resumo.visualizacoes} />
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-8 py-4 space-y-4">
+        {/* ================= Topo compacto: logo, texto, valores, botão e o sol (sem cortar nada) ================= */}
+        <FundoFestivo className="rounded-2xl border border-black/5" mostrarSol={false}>
+          <section className="p-4 sm:px-6 sm:py-5">
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <LogoValores className="order-1 w-36 shrink-0 sm:w-44" />
+
+              {/* o sol fica no fluxo da página (e não solto no fundo), então nunca é cortado */}
+              {/* eslint-disable-next-line @next/next/no-img-element */}
+              <img src="/sol-valores.png" alt="" width={900} height={545} className="order-2 ml-auto h-auto w-28 shrink-0 sm:order-3 sm:w-40 lg:w-52" />
+
+              <div className="order-3 w-full sm:order-2 sm:w-auto sm:min-w-[280px] sm:flex-1">
+                {municipioId && nomeMunicipio(Number(municipioId)) ? (
+                  <h1 className="mb-2 text-xl font-bold sm:text-2xl">Galeria de {nomeMunicipio(Number(municipioId))}</h1>
+                ) : (
+                  <h1 className="sr-only">Projeto Valores: galeria de publicações</h1>
+                )}
+                <p className="max-w-2xl text-sm leading-relaxed text-brand-dark/90 sm:text-base">
+                  Colabore com a formação do caráter na <strong>educação infantil</strong>, proporcionando à sociedade um ser integral dotado dos valores humanos universais.
+                </p>
+                <ul className="mt-3 flex flex-wrap gap-2" aria-label="Valores humanos do projeto">
+                  {VALORES.map((v) => (
+                    <li key={v.nome} className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/90 px-3 py-1 text-sm font-semibold text-brand-dark">
+                      <span className="h-2.5 w-2.5 rounded-full" style={{ background: v.cor }} aria-hidden="true" />
+                      {v.nome}
+                    </li>
+                  ))}
+                </ul>
+                <BotaoConheca />
               </div>
-            )}
+            </div>
           </section>
         </FundoFestivo>
+
+        {/* ================= Números (uma linha só) ================= */}
+        {resumo && (
+          <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+            <Numero icone="📍" rotulo="Municípios participantes" valor={resumo.municipios} />
+            <Numero icone="🏫" rotulo="Escolas" valor={resumo.escolas} />
+            <Numero icone="📄" rotulo="Publicações" valor={resumo.publicacoes} />
+            <Numero icone="👁️" rotulo="Visualizações" valor={resumo.visualizacoes} />
+          </div>
+        )}
 
         {/* ================= Filtros ================= */}
         <div className="flex flex-wrap items-center gap-2">
@@ -244,6 +297,18 @@ export default function GaleriaPublica() {
             <option value="">Todos os municípios</option>
             {municipios.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </Filtro>
+          {municipioId ? (
+            <Filtro icone="🏫" valor={escola} onChange={setEscola}>
+              <option value="">Todas as escolas ({escolasDoMunicipio.length})</option>
+              {[...escolasDoMunicipio].sort((a, b) => a.nome.localeCompare(b.nome, "pt-BR")).map((e) => (
+                <option key={e.id} value={e.nome}>{e.nome} ({e.publicacoes})</option>
+              ))}
+            </Filtro>
+          ) : (
+            <Filtro icone="🏫" valor="" onChange={() => {}} desativado dica="Escolha um município para filtrar por escola">
+              <option value="">Escolas: escolha um município</option>
+            </Filtro>
+          )}
           <Filtro icone="▦" valor={categoria} onChange={setCategoria}>
             <option value="">Todas as categorias</option>
             {categorias.map((c) => <option key={c} value={c}>{c}</option>)}
@@ -252,42 +317,85 @@ export default function GaleriaPublica() {
             <option value="">Todo o período</option>
             {periodos.map((p) => <option key={p} value={p}>{MESES[Number(p.slice(5, 7)) - 1]} de {p.slice(0, 4)}</option>)}
           </Filtro>
-          {municipioId && (
-            <>
-              <Filtro icone="🏫" valor={escola} onChange={setEscola}>
-                <option value="">Todas as escolas</option>
-                {escolasOpcoes.map((e) => <option key={e} value={e}>{e}</option>)}
-              </Filtro>
-            </>
-          )}
           {temFiltro && (
             <button onClick={limparFiltros} className="text-sm font-semibold text-brand-light hover:underline ml-1">Limpar filtros</button>
           )}
         </div>
 
-        {/* Ações pedagógicas: clique para ver só as publicações daquela ação */}
-        {acoesPedagogicas.length > 0 && (
-          <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por ação pedagógica">
-            {acoesPedagogicas.map((acao) => {
-              const marcada = acaoPed === acao;
-              const total = (documentos ?? []).filter((d) => d.acoes_pedagogicas?.nome === acao).length;
-              return (
-                <button
-                  key={acao}
-                  type="button"
-                  aria-pressed={marcada}
-                  onClick={() => { setAcaoPed(marcada ? "" : acao); setEscola(""); }}
-                  className={`inline-flex items-center gap-2 rounded-full border px-3.5 py-1.5 text-sm font-semibold transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-light/40 ${
-                    marcada ? "border-brand bg-brand text-white" : "border-black/10 bg-white text-brand-dark hover:bg-brand-light/5"
-                  }`}
-                >
-                  <IconeAcao nome={acao} className="h-3.5 w-3.5" tileClassName="h-6 w-6 rounded-full" />
-                  {acao}
-                  <span className={`text-xs font-medium ${marcada ? "text-white/80" : "text-brand-dark/60"}`}>{total}</span>
-                </button>
-              );
-            })}
-          </div>
+        {/* ================= Galeria de fotos e vídeos, por ação pedagógica ================= */}
+        {cartoesAcoes.length > 0 && (
+          <section aria-labelledby="titulo-vitrine" className="space-y-4 rounded-2xl border border-black/5 bg-white p-4 shadow-sm sm:p-6">
+            <div>
+              <h2 id="titulo-vitrine" className="flex items-center gap-3 text-xl sm:text-2xl font-extrabold text-brand">
+                <span className="flex h-9 w-9 items-center justify-center rounded-lg border-2 border-brand" aria-hidden="true">
+                  <ImageIcon className="h-5 w-5" />
+                </span>
+                Galeria de fotos e vídeos
+              </h2>
+              <p className="mt-1 text-brand-dark/80">Explore os registros das nossas ações pedagógicas e momentos especiais.</p>
+            </div>
+
+            <div className="flex flex-wrap items-center gap-2" role="group" aria-label="Filtrar por ação pedagógica">
+              <button
+                type="button"
+                aria-pressed={acaoPed === ""}
+                onClick={() => { setAcaoPed(""); setEscola(""); }}
+                className={`rounded-full border px-6 py-2.5 text-sm font-semibold transition-colors ${acaoPed === "" ? "border-brand bg-brand text-white" : "border-black/10 bg-white text-brand-dark hover:bg-black/[0.03]"}`}
+              >
+                Todas
+              </button>
+              {cartoesAcoes.map(({ nome }) => {
+                const marcada = acaoPed === nome;
+                const cor = corDaAcao(nome);
+                return (
+                  <button
+                    key={nome}
+                    type="button"
+                    aria-pressed={marcada}
+                    onClick={() => { setAcaoPed(marcada ? "" : nome); setEscola(""); }}
+                    className={`inline-flex items-center gap-2 rounded-full border px-4 py-2.5 text-sm font-semibold transition-colors ${marcada ? "border-brand bg-brand text-white" : "border-black/10 bg-white text-brand-dark hover:bg-black/[0.03]"}`}
+                  >
+                    <span style={{ color: marcada ? "#FFFFFF" : cor.escuro }}><SimboloAcao nome={nome} className="h-5 w-5" /></span>
+                    {nome}
+                  </button>
+                );
+              })}
+            </div>
+
+            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
+              {cartoesAcoes.map(({ nome, docs, total }) => {
+                const cor = corDaAcao(nome);
+                return (
+                  <article
+                    key={nome}
+                    className={`flex flex-col rounded-2xl border border-black/5 shadow-sm ${acaoPed === nome ? "ring-2 ring-brand" : ""}`}
+                    style={{ background: `color-mix(in srgb, ${cor.fundo} 12%, #ffffff)` }}
+                  >
+                    <header className="flex items-center gap-3 rounded-2xl px-4 py-3.5" style={{ background: cor.fundo, color: cor.texto }}>
+                      <SimboloAcao nome={nome} className="h-8 w-8 shrink-0" />
+                      <h3 className="text-xl font-bold leading-tight">{nome}</h3>
+                    </header>
+                    <p className="px-4 pt-4 pb-3 text-sm leading-snug" style={{ color: cor.escuro }}>{descricaoDaAcao(nome)}</p>
+                    {/* a caixa branca cresce para ocupar o espaço que sobra: o "Ver mais" fica sempre embaixo, alinhado com os outros cartões */}
+                    <div className="mx-3 flex flex-1 items-center rounded-xl bg-white p-1.5 shadow-sm">
+                      <div className="w-full">
+                        <Mosaico docs={docs} onAbrir={abrir} />
+                      </div>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={() => { setAcaoPed(nome); setEscola(""); irParaLista(); }}
+                      className="mx-4 mb-4 mt-4 rounded-full border-2 bg-white/70 px-4 py-2 text-sm font-semibold transition-colors hover:bg-white"
+                      style={{ borderColor: cor.fundo, color: cor.escuro }}
+                    >
+                      Ver mais <span aria-hidden="true">›</span>
+                      <span className="sr-only"> registros de {nome} ({total})</span>
+                    </button>
+                  </article>
+                );
+              })}
+            </div>
+          </section>
         )}
 
         {erro && <p className="text-sm text-status-pendente">{erro}</p>}
@@ -511,21 +619,11 @@ export default function GaleriaPublica() {
 // ================================================================
 const CARTAO = "rounded-2xl bg-white border border-black/5 shadow-sm p-4 sm:p-5";
 
-function LogoSenar() {
+function Filtro({ icone, valor, onChange, children, desativado, dica }: { icone: string; valor: string; onChange: (v: string) => void; children: React.ReactNode; desativado?: boolean; dica?: string }) {
   return (
-    <svg viewBox="0 0 40 40" className="w-10 h-10" aria-hidden>
-      {[0, 1, 2, 3, 4].map((i) => (
-        <path key={i} d={`M${8 + i * 6} 34 C ${6 + i * 6} 22, ${10 + i * 6} 12, ${16 + i * 5} 5`} stroke={i % 2 ? "#3F9B5E" : "#1E6B45"} strokeWidth="3.2" fill="none" strokeLinecap="round" />
-      ))}
-    </svg>
-  );
-}
-
-function Filtro({ icone, valor, onChange, children }: { icone: string; valor: string; onChange: (v: string) => void; children: React.ReactNode }) {
-  return (
-    <label className={`relative inline-flex items-center rounded-lg border bg-white shadow-sm ${valor ? "border-brand-light/50 ring-1 ring-brand-light/20" : "border-black/10"}`}>
+    <label title={dica} className={`relative inline-flex items-center rounded-lg border bg-white shadow-sm ${desativado ? "opacity-55" : ""} ${valor ? "border-brand-light/50 ring-1 ring-brand-light/20" : "border-black/10"}`}>
       <span className="pointer-events-none absolute left-3 text-sm" aria-hidden>{icone}</span>
-      <select value={valor} onChange={(e) => onChange(e.target.value)} className="appearance-none bg-transparent pl-9 pr-8 py-2 text-sm font-medium focus:outline-none max-w-[240px]">
+      <select value={valor} disabled={desativado} onChange={(e) => onChange(e.target.value)} className="appearance-none bg-transparent pl-9 pr-8 py-2 text-sm font-medium focus:outline-none max-w-[240px] disabled:cursor-not-allowed">
         {children}
       </select>
       <span className="pointer-events-none absolute right-3 text-xs text-brand-dark/60" aria-hidden>▾</span>
@@ -533,12 +631,43 @@ function Filtro({ icone, valor, onChange, children }: { icone: string; valor: st
   );
 }
 
+// Botão "Conheça o projeto": verde escuro, lâmpada num círculo à esquerda, seta à direita e faíscas em volta
+function BotaoConheca() {
+  return (
+    <span className="relative mt-4 inline-block px-3 py-1.5">
+      <span aria-hidden="true" className="pointer-events-none absolute inset-0">
+        <span className="absolute -right-1 top-0 h-3 w-0.5 rotate-[35deg] rounded bg-brand-dark/45" />
+        <span className="absolute right-3 -top-1 h-3 w-0.5 rotate-[-20deg] rounded bg-brand-dark/45" />
+        <span className="absolute -left-1 bottom-0 h-3 w-0.5 rotate-[-35deg] rounded bg-brand-dark/45" />
+        <span className="absolute left-3 -bottom-1 h-3 w-0.5 rotate-[20deg] rounded bg-brand-dark/45" />
+      </span>
+      <a
+        href="/galeria/sobre"
+        className="relative inline-flex items-center gap-3 rounded-full bg-brand py-2 pl-2.5 pr-5 text-base font-bold text-white shadow-md shadow-brand/25 transition hover:-translate-y-0.5 hover:bg-brand-light"
+      >
+        <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15" aria-hidden="true">
+          <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
+            <path d="M9 18h6M10 21h4" />
+            <path d="M12 3a6 6 0 00-3.6 10.8c.6.5 1 1.2 1 2v.7h5.2v-.7c0-.8.4-1.5 1-2A6 6 0 0012 3z" />
+          </svg>
+        </span>
+        Conheça o projeto
+        <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={2.2} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+          <path d="M9 6l6 6-6 6" />
+        </svg>
+      </a>
+    </span>
+  );
+}
+
 function Numero({ icone, rotulo, valor }: { icone: string; rotulo: string; valor: number }) {
   return (
-    <div className="min-w-[150px] rounded-xl bg-[#e8f1e6] px-4 py-3">
-      <p className="text-xl" aria-hidden>{icone}</p>
-      <p className="mt-1 text-xs text-brand-dark/75">{rotulo}</p>
-      <p className="text-2xl font-bold">{valor.toLocaleString("pt-BR")}</p>
+    <div className="flex items-center gap-3 rounded-xl bg-[#e8f1e6] px-3 py-2">
+      <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/70 text-xl" aria-hidden>{icone}</span>
+      <span className="min-w-0">
+        <span className="block truncate text-xs text-brand-dark/75">{rotulo}</span>
+        <span className="block text-xl font-bold leading-tight">{valor.toLocaleString("pt-BR")}</span>
+      </span>
     </div>
   );
 }
@@ -571,6 +700,27 @@ function Contadores({ doc, curtido }: { doc: DocumentoGaleria; curtido: boolean 
       <span className={`inline-flex items-center gap-1 ${curtido ? "text-rose-600" : ""}`}>{curtido ? "❤️" : "🤍"} {formatarNumero(doc.curtidas)}</span>
       <span className="inline-flex items-center gap-1">👁️ {formatarNumero(doc.visualizacoes)}</span>
     </>
+  );
+}
+
+// Até 5 registros em mosaico (2 quadrados, 1 largo, 2 quadrados), como na vitrine de referência
+function Mosaico({ docs, onAbrir }: { docs: DocumentoGaleria[]; onAbrir: (doc: DocumentoGaleria) => void }) {
+  const n = docs.length;
+  const larga = (i: number) => n === 1 || (i === 2 && (n === 3 || n === 5));
+  return (
+    <div className="grid grid-cols-2 gap-1.5">
+      {docs.map((doc, i) => (
+        <button
+          key={doc.id}
+          type="button"
+          onClick={() => onAbrir(doc)}
+          aria-label={`Abrir ${tituloDe(doc)}`}
+          className={`block overflow-hidden rounded-lg focus:outline-none focus-visible:ring-2 focus-visible:ring-brand-light ${larga(i) ? "col-span-2" : ""}`}
+        >
+          <Thumb doc={doc} semSelo className={`w-full ${larga(i) ? "aspect-[2/1]" : "aspect-square"}`} />
+        </button>
+      ))}
+    </div>
   );
 }
 

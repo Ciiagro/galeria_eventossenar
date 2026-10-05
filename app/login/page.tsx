@@ -1,10 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowserClient";
 import { FaixaValores } from "@/components/Sol";
 import { FundoLogin } from "@/components/FundoLogin";
+import { esquecerPerfilSalvo } from "@/lib/usePerfil";
+import { apiGetCache } from "@/lib/api";
 
 const CAMPO =
   "w-full border border-black/10 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light";
@@ -21,6 +24,7 @@ export default function LoginPage() {
     setErro(null);
     setCarregando(true);
 
+    esquecerPerfilSalvo();
     const { error } = await supabaseBrowser.auth.signInWithPassword({ email, password: senha });
 
     setCarregando(false);
@@ -28,7 +32,16 @@ export default function LoginPage() {
       setErro(error.message);
       return;
     }
-    router.push("/");
+    // Vai direto para a tela de cada perfil (antes passava pelo Início só para ser redirecionado: uma volta a mais)
+    let destino = "/";
+    try {
+      const perfil = await apiGetCache("/api/perfil");
+      if (perfil?.role === "municipio" && !perfil.municipio_id) destino = "/adesao/ficha";
+      else if (perfil?.role === "apoiador_relatorios") destino = "/analise";
+    } catch {
+      // sem perfil agora: o Início resolve
+    }
+    router.push(destino);
   }
 
   return (
@@ -86,6 +99,9 @@ export default function LoginPage() {
           >
             {carregando ? "Entrando..." : "Entrar"}
           </button>
+          <p className="mt-3 text-center text-sm text-brand-dark/80">
+            Primeiro acesso? <Link href="/adesao" className="font-semibold text-brand-light underline">Cadastre-se como coordenador(a)</Link>
+          </p>
           <FaixaValores className="mt-4" />
         </form>
 

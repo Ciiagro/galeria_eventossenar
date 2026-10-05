@@ -1,32 +1,16 @@
 "use client";
 
+import { useEffect, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowserClient";
-import { usePerfil } from "@/lib/usePerfil";
-import { HomeIcon, AlertIcon, LogoutIcon, UserIcon, CalendarIcon, CheckIcon, ImageIcon, BuildingIcon, FileTextIcon, HeartIcon, ClipboardListIcon, BookOpenIcon } from "@/components/icons";
-import { ROTULO_PAPEL } from "@/lib/api";
+import { esquecerPerfilSalvo, usePerfil } from "@/lib/usePerfil";
+import { LogoutIcon, ImageIcon, MapPinIcon } from "@/components/icons";
+import { montarLinks, linkAtivo } from "@/lib/menu";
+import { apiGet, ROTULO_PAPEL } from "@/lib/api";
 import { FaixaValores, LogoValores } from "@/components/Sol";
 import { CORES_ALEGRES, CriancasPulando, Estrela, Grama } from "@/components/Desenhos";
 import { useCiclos } from "@/lib/ciclos";
-
-type LinkMenu = { href: string; label: string; Icon: (p: { className?: string }) => JSX.Element; prefixo?: string };
-
-const linksBase: LinkMenu[] = [
-  { href: "/", label: "Início", Icon: HomeIcon },
-  { href: "/escolas", label: "Escolas", Icon: BuildingIcon },
-];
-
-const linksAdmin: LinkMenu[] = [
-  { href: "/admin/pendencias", label: "Documentos", Icon: AlertIcon },
-  { href: "/admin/responsaveis", label: "Coordenadores", Icon: UserIcon },
-  { href: "/admin/equipe", label: "Equipe de apoio", Icon: HeartIcon },
-  { href: "/admin/escolas-programa", label: "Escolas do programa", Icon: CheckIcon },
-  { href: "/admin/ciclos", label: "Ciclos", Icon: CalendarIcon },
-];
-
-// Material Instrucional (apresentações, formações, cartilha...) — todos os perfis
-const linkMaterial: LinkMenu = { href: "/material-instrucional", label: "Material Instrucional", Icon: BookOpenIcon };
 
 // "Maria de Jesus" -> "MJ" · "maria@gmail.com" -> "M"
 function iniciais(texto?: string | null) {
@@ -40,25 +24,29 @@ function iniciais(texto?: string | null) {
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { perfil } = usePerfil();
+  const { perfil, carregando: carregandoPerfil } = usePerfil();
   const { ativo: cicloAtivo } = useCiclos();
-  // Responsável municipal: "Documentos" leva à lista de documentos do próprio município
-  // (o admin tem o "Documentos" do Painel de Aprovação, em linksAdmin).
-  const linkDocumentosMunicipio: LinkMenu[] =
-    perfil?.role === "municipio" && perfil.municipio_id
-      ? [{ href: `/municipios/${perfil.municipio_id}`, label: "Documentos", Icon: FileTextIcon, prefixo: "/municipios/" }]
-      : [];
-  // Apoiador de Relatórios: fila de análise dos documentos (o admin valida depois)
-  const linkAnalise: LinkMenu[] =
-    perfil?.role === "apoiador_relatorios"
-      ? [{ href: "/analise", label: "Análise de documentos", Icon: ClipboardListIcon }]
-      : [];
-  const links: LinkMenu[] =
-    perfil?.role === "admin"
-      ? [...linksBase, ...linksAdmin, linkMaterial]
-      : [linksBase[0], ...linkDocumentosMunicipio, ...linkAnalise, ...linksBase.slice(1), linkMaterial];
+  // Apoiador de Relatórios: contador de documentos esperando análise ao lado do item do menu
+  const [paraAnalisar, setParaAnalisar] = useState(0);
+  const ehApoioRelatorios = perfil?.role === "apoiador_relatorios";
+  useEffect(() => {
+    if (!ehApoioRelatorios) { setParaAnalisar(0); return; }
+    let montado = true;
+    function atualizar() {
+      if (document.hidden) return;
+      apiGet("/api/analise/pendentes").then((r) => { if (montado) setParaAnalisar(r.para_analisar ?? 0); }).catch(() => null);
+    }
+    atualizar();
+    const intervalo = window.setInterval(atualizar, 60000);
+    window.addEventListener("focus", atualizar);
+    return () => { montado = false; window.clearInterval(intervalo); window.removeEventListener("focus", atualizar); };
+  }, [ehApoioRelatorios, pathname]);
+
+  const aguardandoPerfil = carregandoPerfil && !perfil; // ainda não sabemos quem é: não mostra um menu que pode estar errado
+  const links = aguardandoPerfil ? [] : montarLinks(perfil);
 
   async function sair() {
+    esquecerPerfilSalvo();
     await supabaseBrowser.auth.signOut();
     router.push("/login");
   }
@@ -105,14 +93,25 @@ export function Sidebar() {
                 <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2678C4]" aria-hidden />
                 {papel}
               </p>
+              {perfil.municipio_nome && (
+                <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-semibold leading-tight text-brand-dark/75" title={perfil.municipio_pendente ? "Município escolhido no cadastro (liberado após a aprovação da adesão)" : undefined}>
+                  <MapPinIcon className="h-3 w-3 shrink-0" />
+                  {perfil.municipio_nome}
+                </p>
+              )}
             </div>
           </div>
         )}
 
         {/* menu: cada item com uma cor do programa */}
         <nav className="mt-3 space-y-0.5" aria-label="Menu principal">
+          {aguardandoPerfil && (
+            <div aria-hidden="true" className="space-y-1.5 pt-1">
+              {[0, 1, 2, 3, 4].map((n) => <div key={n} className="h-9 animate-pulse rounded-xl bg-black/[0.06]" />)}
+            </div>
+          )}
           {links.map(({ href, label, Icon, prefixo }, i) => {
-            const active = pathname === href || Boolean(prefixo && pathname?.startsWith(prefixo));
+            const active = linkAtivo({ href, label, Icon, prefixo }, pathname);
             const cor = CORES_ALEGRES[i % CORES_ALEGRES.length];
             return (
               <Link
@@ -126,22 +125,30 @@ export function Sidebar() {
                   <Icon className="h-4 w-4" />
                 </span>
                 {label}
+                {href === "/analise" && paraAnalisar > 0 && (
+                  <span className="ml-auto rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white" title={`${paraAnalisar} para analisar`}>
+                    {paraAnalisar}
+                  </span>
+                )}
               </Link>
             );
           })}
-          {/* Galeria pública abre em outra aba (é a página que o público vê, sem login) */}
-          <a
-            href="/galeria"
-            target="_blank"
-            rel="noreferrer"
-            className="flex items-center gap-2.5 rounded-xl border-2 border-transparent px-2 py-1.5 text-sm font-semibold leading-tight text-brand-dark transition-colors hover:shadow-sm"
-          >
-            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F49AC1] text-[#4B1528]">
-              <ImageIcon className="h-4 w-4" />
-            </span>
-            Ver galeria pública
-            <span className="ml-auto text-xs text-brand-dark/60" aria-hidden>↗</span>
-          </a>
+          {/* Galeria pública abre em outra aba (é a página que o público vê, sem login).
+              O coordenador do município não vê este atalho. */}
+          {perfil?.role !== "municipio" && (
+            <a
+              href="/galeria"
+              target="_blank"
+              rel="noreferrer"
+              className="flex items-center gap-2.5 rounded-xl border-2 border-transparent px-2 py-1.5 text-sm font-semibold leading-tight text-brand-dark transition-colors hover:shadow-sm"
+            >
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F49AC1] text-[#4B1528]">
+                <ImageIcon className="h-4 w-4" />
+              </span>
+              Ver galeria pública
+              <span className="ml-auto text-xs text-brand-dark/60" aria-hidden>↗</span>
+            </a>
+          )}
         </nav>
 
         <button

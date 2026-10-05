@@ -12,9 +12,27 @@ function dataHora(texto: string) {
 }
 
 // Mostra a análise prévia feita pelo Apoiador de Relatórios (e a origem do envio).
-export function AnaliseBadge({ doc }: { doc: Pick<Documento, "analise_status" | "analise_obs" | "analise_por_nome" | "analise_em" | "origem"> }) {
+export function AnaliseBadge({ doc, compacto }: { doc: Pick<Documento, "analise_status" | "analise_obs" | "analise_por_nome" | "analise_em" | "origem">; compacto?: boolean }) {
   const origem = doc.origem ? ORIGEM[doc.origem] : null;
   if (!doc.analise_status && !origem) return null;
+
+  // Versão em uma linha, para listas compactas (o texto completo aparece ao expandir)
+  if (compacto) {
+    return (
+      <>
+        {origem && <span className="inline-flex items-center rounded-full bg-[#E4D7F0] px-2 py-0.5 text-[11px] font-semibold text-[#5B3485]">{origem}</span>}
+        {doc.analise_status && (
+          <span
+            title={doc.analise_obs ?? undefined}
+            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${doc.analise_status === "recomendado" ? "bg-[#E3F4EA] text-[#17613B]" : "bg-[#FFF3CC] text-[#6E4B00]"}`}
+          >
+            {doc.analise_status === "recomendado" ? <CheckIcon className="h-3 w-3" /> : <AlertIcon className="h-3 w-3" />}
+            {doc.analise_status === "recomendado" ? "Recomendado" : "Pede ajustes"}
+          </span>
+        )}
+      </>
+    );
+  }
 
   return (
     <div className="mt-2.5 space-y-2">

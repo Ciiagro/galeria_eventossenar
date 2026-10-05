@@ -1,0 +1,11 @@
+Coloque aqui as capas dos vídeos do projeto (imagens JPG, de preferência 1280x720), com estes nomes:
+
+  quixada.jpg
+  russas.jpg
+  ubajara.jpg
+  visita-tecnica.jpg
+  capacitacao.jpg
+
+Dica: abra cada vídeo, pause num quadro bonito e tire um print. Se algum arquivo faltar, o site tenta a
+miniatura do Google Drive e, se não houver, mostra um cartão colorido com o título.
+A lista dos vídeos fica em src/lib/videosProjeto.ts.

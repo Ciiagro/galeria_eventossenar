@@ -30,7 +30,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
     };
   }, []);
 
-  const publica = pathname === "/login" || pathname.startsWith("/galeria");
+  const publica = pathname === "/login" || pathname === "/adesao" || pathname === "/assinar" || pathname.startsWith("/galeria");
 
   useEffect(() => {
     if (carregando) return;

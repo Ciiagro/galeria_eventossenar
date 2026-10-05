@@ -1,14 +1,17 @@
 "use client";
 
+import { TituloPagina, Indicador } from "@/components/TituloPagina";
+
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { AnaliseBadge } from "@/components/AnaliseBadge";
-import { apiGet, apiPost, Documento, Municipio, TipoDocumento } from "@/lib/api";
+import { apiGet, apiPost, Documento, ehDocumentoPdf, Municipio, TipoDocumento } from "@/lib/api";
 import { AdminGuard } from "@/components/AdminGuard";
 import PreviewLink from "@/components/PreviewLink";
 import { normalizarLink } from "@/lib/linkIncorporavel";
 import { MESES } from "@/lib/periodo";
 import { noCicloEMes, useFiltroCiclo } from "@/lib/ciclos";
 import { urlsMiniatura } from "@/lib/miniatura";
+import { Abas, BarraFiltros, CampoBusca, CLASSE_SELECT, SeletorOrdem } from "@/components/Filtros";
 import {
   CalendarIcon,
   CheckIcon,
@@ -17,8 +20,7 @@ import {
   ImageIcon,
   LinkIcon,
   MapPinIcon,
-  SearchIcon,
-  UserIcon,
+    UserIcon,
   VideoIcon,
   XIcon,
 } from "@/components/icons";
@@ -30,6 +32,8 @@ export default function PendenciasPageGuarded() {
     </AdminGuard>
   );
 }
+
+const POR_PAGINA = 30;
 
 type Aba = "pendente" | "aprovado" | "arquivado" | "";
 type Ordem = "recentes" | "antigos" | "data_acao";
@@ -53,6 +57,17 @@ function PainelAprovacao() {
 
   // Interação
   const [selecionado, setSelecionado] = useState(0);
+  // Lista compacta (padrão) cabe muito mais documentos na tela; "Detalhado" mostra os cartões completos
+  const [compacto, setCompacto] = useState(true);
+  const [limite, setLimite] = useState(POR_PAGINA); // mostra aos poucos, para não virar uma rolagem sem fim
+  useEffect(() => {
+    try { if (window.localStorage.getItem("painel_visual") === "detalhado") setCompacto(false); } catch { /* sem armazenamento: usa o padrão */ }
+  }, []);
+  function mudarVisual(valor: boolean) {
+    setCompacto(valor);
+    try { window.localStorage.setItem("painel_visual", valor ? "compacto" : "detalhado"); } catch { /* ignora */ }
+  }
+  useEffect(() => { setLimite(POR_PAGINA); }, [aba, filtroMes, filtroMunicipio, filtroTipo, filtroCiclo, busca, ordem]);
   const [visualizando, setVisualizando] = useState<Documento | null>(null);
   const [documentoParaAprovar, setDocumentoParaAprovar] = useState<Documento | null>(null);
   const [publicarNaGaleria, setPublicarNaGaleria] = useState<boolean | null>(null);
@@ -113,7 +128,7 @@ function PainelAprovacao() {
 
   const contagem = useMemo(
     () => ({
-      pendente: doFiltro.filter((d) => d.status === "pendente").length,
+      pendente: doFiltro.filter((d) => d.status === "pendente" && !d.arquivado).length,
       aprovado: doFiltro.filter((d) => d.status === "aprovado" && !d.arquivado).length,
       arquivado: doFiltro.filter((d) => d.arquivado).length,
       "": doFiltro.filter((d) => !d.arquivado).length,
@@ -130,7 +145,7 @@ function PainelAprovacao() {
     return [...itens].sort((a, b) => (ordem === "antigos" ? chave(a).localeCompare(chave(b)) : chave(b).localeCompare(chave(a))));
   }, [doFiltro, aba, ordem]);
 
-  const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente").length;
+  const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado).length;
   const pendentesForaDoPeriodo = (documentos ?? []).filter(
     (d) => d.status === "pendente" && !noCicloEMes(d, filtroCiclo, ciclos, filtroMes)
   ).length;
@@ -190,7 +205,7 @@ function PainelAprovacao() {
       const doc = lista[selecionado];
       if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
-        setSelecionado((i) => Math.min(i + 1, lista.length - 1));
+        setSelecionado((i) => Math.min(i + 1, Math.min(lista.length, limite) - 1));
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
         setSelecionado((i) => Math.max(i - 1, 0));
@@ -213,83 +228,71 @@ function PainelAprovacao() {
     <div className="p-4 sm:p-8 max-w-6xl" {...(ocupado ? { "data-painel-ocupado": "" } : {})}>
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
         {/* Cabeçalho */}
-        <div className="flex items-start justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-dark">Painel de Aprovação</h1>
-            <p className="text-sm text-brand-dark/80 mt-1">
-              Veja os documentos enviados pelos municípios e aprove. Ao aprovar, decida se vai para a galeria. Arquive o que não precisa ficar na lista.
-            </p>
-          </div>
-          <div className="shrink-0 rounded-xl bg-brand-light/[0.06] border border-brand-light/10 px-5 py-3 text-center">
-            <p className={`text-3xl font-bold leading-none ${pendentesTotal ? "text-status-pendente" : "text-brand-dark"}`}>{pendentesTotal}</p>
-            <p className="text-xs text-brand-dark/75 mt-1">{pendentesTotal === 1 ? "para revisar" : "para revisar"}</p>
-          </div>
-        </div>
+        <TituloPagina
+          descricao="Veja os documentos enviados pelos municípios e aprove. Ao aprovar, decida se vai para a galeria. Arquive o que não precisa ficar na lista."
+          acao={<Indicador valor={pendentesTotal} rotulo="para revisar" alerta={pendentesTotal > 0} />}
+        >Painel de Aprovação</TituloPagina>
 
         {/* Abas + ordenação */}
-        <div className="mt-6 flex flex-col-reverse sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-black/10">
-          <nav className="flex gap-1 overflow-x-auto -mb-px">
-            {([
-              ["pendente", "Para revisar"],
-              ["aprovado", "Aprovados"],
-              ["arquivado", "Arquivados"],
-              ["", "Todos"],
-            ] as [Aba, string][]).map(([valor, rotulo]) => (
-              <button
-                key={rotulo}
-                onClick={() => { setAba(valor); setSelecionado(0); }}
-                className={`whitespace-nowrap px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
-                  aba === valor ? "border-brand-light text-brand-light" : "border-transparent text-brand-dark/75 hover:text-brand-dark"
-                }`}
-              >
-                {rotulo} ({contagem[valor]})
-              </button>
-            ))}
-          </nav>
-          <select
-            value={ordem}
-            onChange={(e) => setOrdem(e.target.value as Ordem)}
-            className="mb-2 self-start sm:self-auto border border-black/10 rounded-lg px-3 py-2 text-sm bg-white"
-            aria-label="Ordenar"
-          >
-            <option value="recentes">⇅ Enviados mais recentes</option>
-            <option value="antigos">⇅ Enviados mais antigos</option>
-            <option value="data_acao">⇅ Data da ação</option>
-          </select>
-        </div>
+        <Abas<Aba>
+          abas={[
+            { valor: "pendente", rotulo: "Para revisar", contagem: contagem.pendente },
+            { valor: "aprovado", rotulo: "Aprovados", contagem: contagem.aprovado },
+            { valor: "arquivado", rotulo: "Arquivados", contagem: contagem.arquivado },
+            { valor: "", rotulo: "Todos", contagem: contagem[""] },
+          ]}
+          valor={aba}
+          onChange={(v) => { setAba(v); setSelecionado(0); }}
+          direita={
+            <div className="flex items-end gap-2">
+              <div className="mb-2 inline-flex overflow-hidden rounded-lg border border-black/10 bg-white" role="group" aria-label="Visual da lista">
+                {([[true, "Lista compacta"], [false, "Cartões detalhados"]] as [boolean, string][]).map(([valor, rotulo]) => (
+                  <button
+                    key={rotulo}
+                    type="button"
+                    aria-pressed={compacto === valor}
+                    aria-label={rotulo}
+                    title={rotulo}
+                    onClick={() => mudarVisual(valor)}
+                    className={`flex h-[38px] w-10 items-center justify-center transition-colors ${compacto === valor ? "bg-brand-light text-white" : "text-brand-dark/70 hover:bg-black/5"}`}
+                  >
+                    {valor ? (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round"><path d="M4 6h16M4 10h16M4 14h16M4 18h16" /></svg>
+                    ) : (
+                      <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinejoin="round"><rect x="4" y="4" width="16" height="7" rx="1.5" /><rect x="4" y="13" width="16" height="7" rx="1.5" /></svg>
+                    )}
+                  </button>
+                ))}
+              </div>
+              <SeletorOrdem
+                valor={ordem}
+                onChange={(v) => setOrdem(v as Ordem)}
+                opcoes={[["recentes", "Enviados mais recentes"], ["antigos", "Enviados mais antigos"], ["data_acao", "Data da ação"]]}
+              />
+            </div>
+          }
+        />
 
         {/* Filtros */}
-        <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.3fr] gap-2">
-          <div className="relative">
-            <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-dark/60" />
-            <input
-              value={busca}
-              onChange={(e) => setBusca(e.target.value)}
-              placeholder="Buscar escola, ação pedagógica, município..."
-              className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30"
-            />
-          </div>
-          <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} className={SELECT}>
+        <BarraFiltros
+          colunas="grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.3fr]"
+          mostrarLimpar={temFiltro}
+          onLimpar={() => { setFiltroCiclo(null); setFiltroMes(""); setFiltroMunicipio(""); setFiltroTipo(""); setBusca(""); }}
+        >
+          <CampoBusca value={busca} onChange={setBusca} placeholder="Buscar escola, ação pedagógica, município..." />
+          <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} className={CLASSE_SELECT}>
             <option value="">Todos os meses</option>
             {MESES.map((mes, i) => <option key={mes} value={String(i + 1)}>{mes}</option>)}
           </select>
-          <select value={filtroMunicipio} onChange={(e) => setFiltroMunicipio(e.target.value)} className={SELECT}>
+          <select value={filtroMunicipio} onChange={(e) => setFiltroMunicipio(e.target.value)} className={CLASSE_SELECT}>
             <option value="">Todos os municípios</option>
             {municipios.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </select>
-          <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className={SELECT}>
+          <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className={CLASSE_SELECT}>
             <option value="">Todos os tipos</option>
             {tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
           </select>
-        </div>
-        {temFiltro && (
-          <button
-            onClick={() => { setFiltroCiclo(null); setFiltroMes(""); setFiltroMunicipio(""); setFiltroTipo(""); setBusca(""); }}
-            className="mt-2 text-sm font-medium text-brand-light hover:underline"
-          >
-            Limpar filtros
-          </button>
-        )}
+        </BarraFiltros>
 
         {pendentesForaDoPeriodo > 0 && (aba === "pendente" || aba === "") && (
           <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 px-4 py-2.5 text-sm flex flex-wrap items-center gap-2">
@@ -303,7 +306,7 @@ function PainelAprovacao() {
         {erro && <p className="mt-4 text-sm text-status-pendente">{erro}</p>}
 
         {/* Lista */}
-        <div className="mt-5 space-y-3">
+        <div className={`mt-5 ${compacto ? "space-y-1.5" : "space-y-3"}`}>
           {(!documentos || aba === null) && !erro && <p className="text-sm text-brand-dark/75">Carregando...</p>}
           {documentos && aba !== null && lista.length === 0 && (
             <div className="rounded-xl border border-dashed border-black/10 p-8 text-center text-sm text-brand-dark/75">
@@ -311,11 +314,12 @@ function PainelAprovacao() {
             </div>
           )}
 
-          {aba !== null && lista.map((doc, i) => (
+          {aba !== null && lista.slice(0, limite).map((doc, i) => (
             <CartaoDocumento
               key={doc.id}
               refFn={(el) => { cardsRef.current[i] = el; }}
               doc={doc}
+              compacto={compacto}
               selecionado={i === selecionado}
               municipio={nomeMunicipio(doc.municipio_id)}
               processando={processando === doc.id}
@@ -326,6 +330,15 @@ function PainelAprovacao() {
               onVisualizar={() => setVisualizando(doc)}
             />
           ))}
+          {aba !== null && lista.length > limite && (
+            <button
+              type="button"
+              onClick={() => setLimite((l) => l + POR_PAGINA)}
+              className="mt-2 w-full rounded-lg border border-black/10 bg-white py-2.5 text-sm font-semibold text-brand-dark hover:bg-black/5"
+            >
+              Mostrar mais ({lista.length - limite} restantes)
+            </button>
+          )}
         </div>
 
         {/* Atalhos */}
@@ -471,6 +484,7 @@ function PainelAprovacao() {
 // ================================================================
 type CartaoProps = {
   doc: Documento;
+  compacto: boolean;
   refFn: (el: HTMLElement | null) => void;
   selecionado: boolean;
   municipio: string;
@@ -486,32 +500,34 @@ function CartaoDocumento(p: CartaoProps) {
   const { doc } = p;
   const [expandido, setExpandido] = useState(false);
   const descricao = doc.descricao ?? "";
-  const longa = descricao.length > 180;
+  const { compacto } = p;
+  const longa = descricao.length > (compacto ? 90 : 180);
 
   return (
     <article
       ref={p.refFn}
       onClick={p.onSelecionar}
-      className={`relative rounded-xl border bg-white p-3 sm:p-4 transition-shadow ${
+      className={`relative rounded-xl border bg-white transition-shadow ${compacto ? "p-2.5" : "p-3 sm:p-4"} ${
         p.selecionado ? "border-brand-light/40 ring-2 ring-brand-light/20 shadow-md" : "border-black/5 hover:shadow-sm"
       }`}
     >
-      <div className="flex flex-col sm:flex-row gap-4">
-        <Miniatura doc={p.doc} onClick={p.onVisualizar} />
+      <div className={compacto ? "flex gap-3" : "flex flex-col sm:flex-row gap-4"}>
+        <Miniatura doc={p.doc} onClick={p.onVisualizar} pequena={compacto} />
 
         <div className="min-w-0 flex-1">
-          <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
+          <div className={`flex ${compacto ? "flex-row items-start justify-between gap-2" : "flex-col lg:flex-row lg:items-start lg:justify-between gap-3"}`}>
             <div className="min-w-0">
-              <h2 className="text-lg font-bold text-brand-dark leading-snug">
+              <h2 className={`${compacto ? "text-[15px]" : "text-lg"} font-bold text-brand-dark leading-snug`}>
                 {doc.tipos_documento?.nome ?? "Documento"}
                 {doc.acao_evento && <span className="font-semibold text-brand-dark/85"> — {doc.acao_evento}</span>}
               </h2>
-              <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-brand-dark/80">
+              <div className={`${compacto ? "mt-0.5 text-xs" : "mt-1.5 text-[13px]"} flex flex-wrap items-center gap-x-3 gap-y-1 text-brand-dark/80`}>
                 <Info icone={MapPinIcon} texto={p.municipio} forte />
                 {doc.escolas?.nome && <Info icone={HomeEscola} texto={doc.escolas.nome} />}
                 {doc.acoes_pedagogicas?.nome && <Info icone={FolderIcon} texto={`${doc.acoes_pedagogicas.nome}${doc.subtipo ? ` · ${doc.subtipo}` : ""}`} forte />}
                 <Info icone={CalendarIcon} texto={`Realizado em ${formatarData(doc.data_realizacao)}`} />
                 {doc.responsavel_nome && <Info icone={UserIcon} texto={`Enviado por ${doc.responsavel_nome}`} />}
+                {compacto && (doc.status === "pendente" || ehDocumentoPdf(doc)) && <AnaliseBadge doc={doc} compacto />}
               </div>
             </div>
 
@@ -520,7 +536,7 @@ function CartaoDocumento(p: CartaoProps) {
                 <button
                   onClick={(e) => { e.stopPropagation(); p.onSelecionar(); p.onAprovar(); }}
                   disabled={p.processando}
-                  className="inline-flex items-center gap-1.5 rounded-lg bg-status-completo px-4 py-2 text-sm font-semibold text-white shadow-sm hover:brightness-110 disabled:opacity-50"
+                  className={`inline-flex items-center gap-1.5 rounded-lg bg-status-completo font-semibold text-white shadow-sm hover:brightness-110 disabled:opacity-50 ${compacto ? "px-3 py-1.5 text-sm" : "px-4 py-2 text-sm"}`}
                 >
                   <CheckIcon className="w-4 h-4" /> Aprovar
                 </button>
@@ -528,10 +544,10 @@ function CartaoDocumento(p: CartaoProps) {
             )}
           </div>
 
-          {doc.status === "pendente" && <AnaliseBadge doc={doc} />}
+          {(doc.status === "pendente" || ehDocumentoPdf(doc)) && (!compacto || expandido) && <AnaliseBadge doc={doc} />}
 
           {descricao && (
-            <p className={`mt-2 text-sm text-brand-dark/85 whitespace-pre-line ${!expandido && longa ? "line-clamp-2" : ""}`}>
+            <p className={`${compacto ? "mt-1 text-[13px]" : "mt-2 text-sm"} text-brand-dark/85 whitespace-pre-line ${!expandido && longa ? (compacto ? "line-clamp-1" : "line-clamp-2") : ""}`}>
               {descricao}
             </p>
           )}
@@ -541,8 +557,36 @@ function CartaoDocumento(p: CartaoProps) {
             </button>
           )}
 
+          {/* Documento (PDF): não passa por aprovação, então só mostra arquivar/desarquivar */}
+          {ehDocumentoPdf(doc) && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
+              {doc.arquivado ? (
+                <>
+                  <span className="rounded-full bg-black/5 px-2.5 py-0.5 text-xs font-semibold text-brand-dark/75">📁 Arquivado</span>
+                  <button onClick={(e) => { e.stopPropagation(); p.onDesarquivar(); }} disabled={p.processando} className="text-xs font-semibold text-brand-light hover:underline disabled:opacity-50">Desarquivar</button>
+                </>
+              ) : (
+                <button onClick={(e) => { e.stopPropagation(); p.onArquivar(); }} disabled={p.processando} className="text-xs font-semibold text-brand-dark/70 hover:underline disabled:opacity-50">📁 Arquivar</button>
+              )}
+            </div>
+          )}
+
+          {/* Pendente que foi arquivado na análise: o admin pode devolver à fila */}
+          {doc.status === "pendente" && doc.arquivado && (
+            <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
+              <span className="rounded-full bg-black/5 px-2.5 py-0.5 text-xs font-semibold text-brand-dark/75">📁 Arquivado antes da aprovação</span>
+              <button
+                onClick={(e) => { e.stopPropagation(); p.onDesarquivar(); }}
+                disabled={p.processando}
+                className="text-xs font-semibold text-brand-light hover:underline disabled:opacity-50"
+              >
+                Desarquivar
+              </button>
+            </div>
+          )}
+
           {/* Situação */}
-          {doc.status === "aprovado" && (
+          {doc.status === "aprovado" && !ehDocumentoPdf(doc) && (
             <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
               <span className="inline-flex items-center gap-1.5 text-brand-dark/85">
                 <span className="w-5 h-5 rounded-full bg-status-completo text-white flex items-center justify-center"><CheckIcon className="w-3 h-3" /></span>
@@ -595,7 +639,7 @@ function CartaoDocumento(p: CartaoProps) {
 // ================================================================
 // Miniatura (imagem do Drive, capa do YouTube ou ícone)
 // ================================================================
-function Miniatura({ doc, onClick }: { doc: Documento; onClick: () => void }) {
+function Miniatura({ doc, onClick, pequena }: { doc: Documento; onClick: () => void; pequena?: boolean }) {
   // tenta cada endereço em ordem; se todos falharem, mostra o ícone
   const candidatos = urlsMiniatura(doc);
   const [tentativa, setTentativa] = useState(0);
@@ -608,7 +652,7 @@ function Miniatura({ doc, onClick }: { doc: Documento; onClick: () => void }) {
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className="group relative w-full sm:w-44 h-32 sm:h-28 shrink-0 overflow-hidden rounded-lg border border-black/10 bg-brand-light/[0.06]"
+      className={`group relative shrink-0 overflow-hidden rounded-lg border border-black/10 bg-brand-light/[0.06] ${pequena ? "h-16 w-20" : "w-full sm:w-44 h-32 sm:h-28"}`}
       title="Ver em tamanho grande"
     >
       {url && !falhou ? (
@@ -616,8 +660,8 @@ function Miniatura({ doc, onClick }: { doc: Documento; onClick: () => void }) {
         <img src={url} alt="" loading="lazy" referrerPolicy="no-referrer" onError={() => setTentativa((t) => t + 1)} className="w-full h-full object-cover" />
       ) : (
         <span className="flex h-full w-full flex-col items-center justify-center gap-1 text-brand-light">
-          <Icone className="w-8 h-8" />
-          <span className="text-xs font-medium">{doc.tipos_documento?.nome ?? "Arquivo"}</span>
+          <Icone className={pequena ? "w-6 h-6" : "w-8 h-8"} />
+          {!pequena && <span className="text-xs font-medium">{doc.tipos_documento?.nome ?? "Arquivo"}</span>}
         </span>
       )}
       {ehVideo && url && !falhou && (
@@ -625,9 +669,11 @@ function Miniatura({ doc, onClick }: { doc: Documento; onClick: () => void }) {
           <span className="w-10 h-10 rounded-full bg-black/55 text-white flex items-center justify-center text-lg">▶</span>
         </span>
       )}
-      <span className="absolute inset-x-0 bottom-0 bg-black/55 py-1 text-center text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
-        🔍 Ampliar
-      </span>
+      {!pequena && (
+        <span className="absolute inset-x-0 bottom-0 bg-black/55 py-1 text-center text-xs font-medium text-white opacity-0 transition-opacity group-hover:opacity-100">
+          🔍 Ampliar
+        </span>
+      )}
     </button>
   );
 }
@@ -635,8 +681,6 @@ function Miniatura({ doc, onClick }: { doc: Documento; onClick: () => void }) {
 // ================================================================
 // Pequenos auxiliares
 // ================================================================
-const SELECT = "w-full border border-black/10 rounded-lg px-3 py-2 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-light/30";
-
 function HomeEscola({ className = "w-4 h-4" }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">

@@ -1,15 +1,15 @@
 "use client";
 
+import { TituloPagina, Indicador } from "@/components/TituloPagina";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import { apiGet, apiPost, Escola, Municipio } from "@/lib/api";
 import { AdminGuard } from "@/components/AdminGuard";
-import { SearchIcon } from "@/components/icons";
 import { normalizarTexto } from "@/components/DocumentoUI";
 import { useCiclos } from "@/lib/ciclos";
 import { CriancasPulando, Estrela } from "@/components/Desenhos";
+import { Abas, BarraFiltros, CampoBusca, CLASSE_SELECT } from "@/components/Filtros";
 
-const SELECT =
-  "min-w-0 flex-1 border border-black/10 rounded-lg px-2 py-1.5 text-sm bg-white focus:outline-none focus:ring-2 focus:ring-brand-light/30";
 const POR_PAGINA = 40; // dá para ver ~40 escolas por vez (20 linhas em 2 colunas)
 
 type Visao = "todas" | "no_programa" | "fora";
@@ -219,60 +219,16 @@ function Conteudo() {
 
   return (
     <>
-      <div className="relative p-3 sm:p-5 max-w-6xl">
-        {/* ============ topo compacto ============ */}
-        <header className="relative overflow-hidden rounded-2xl border border-black/5 bg-white shadow-sm">
-          <div className="h-1 bg-brand-light" aria-hidden="true" />
-          <div className="relative px-4 py-2.5 sm:px-6 sm:pr-32 lg:pr-36">
-            <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-              <h1 className="text-2xl font-bold text-brand-dark">Escolas do programa</h1>
-              <span className="inline-flex items-center gap-1.5 rounded-full border border-brand-light/20 bg-[#EAF3EE] px-3 py-1 text-xs font-bold text-brand-light">
-                <Estrela className="h-4 w-4" cor="#2F6B4F" />
-                {totalCiclo.toLocaleString("pt-BR")} {totalCiclo === 1 ? "escola" : "escolas"} em {municipiosNoCiclo} {municipiosNoCiclo === 1 ? "município" : "municípios"}
-              </span>
-            </div>
-            <p className="mt-0.5 text-sm text-brand-dark/85">
-              Marque as escolas que participam deste ciclo. Só as marcadas aparecem para o envio de documentos.
-            </p>
-          </div>
-
-          <div aria-hidden="true" className="pointer-events-none absolute inset-y-0 right-0 hidden w-32 sm:block lg:w-36">
-            {/* eslint-disable-next-line @next/next/no-img-element */}
-            <img
-              src="/sol-valores.png"
-              alt=""
-              width={900}
-              height={545}
-              className="absolute bottom-1/2 right-4 h-auto w-16 translate-y-1/2 opacity-90 lg:w-20"
-            />
-          </div>
-        </header>
+      <div className="relative p-4 sm:p-8 max-w-6xl">
+       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-7">
+        {/* ============ topo (mesmo padrão das outras páginas) ============ */}
+        <TituloPagina
+          descricao="Marque as escolas que participam deste ciclo. Só as marcadas aparecem para o envio de documentos."
+          acao={<Indicador valor={totalCiclo.toLocaleString("pt-BR")} rotulo={`${totalCiclo === 1 ? "escola" : "escolas"} em ${municipiosNoCiclo} ${municipiosNoCiclo === 1 ? "município" : "municípios"}`} />}
+        >Escolas do programa</TituloPagina>
 
         {/* ============ município e busca numa linha só ============ */}
-        <section className="mt-3 rounded-2xl border border-black/5 bg-white p-3 shadow-sm sm:p-4">
-          <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-            <div className="flex items-center gap-2 rounded-xl bg-black/[0.04] px-2.5 py-1.5">
-              <label htmlFor="municipio-escolas" className="shrink-0 text-xs font-bold text-brand-dark/80">Município</label>
-              <select id="municipio-escolas" value={municipioId} onChange={(e) => setMunicipioId(e.target.value)} className={SELECT}>
-                <option value="">Todos (só os do programa)</option>
-                {municipios.map((m) => (
-                  <option key={m.id} value={m.id}>
-                    {m.nome}{porMunicipio[String(m.id)] ? ` · ${porMunicipio[String(m.id)]} no programa` : ""}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="relative">
-              <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-dark/60" />
-              <input
-                value={busca}
-                onChange={(e) => { setBusca(e.target.value); setPagina(1); }}
-                placeholder="Buscar escola ou município..."
-                className="h-full w-full rounded-xl border-2 border-black/10 py-1.5 pl-9 pr-3 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30"
-              />
-            </div>
-          </div>
-
+        <section className="mt-5">
           {!carregandoCiclos && ciclos.length === 0 && (
             <div className="mt-3 rounded-2xl border-2 border-dashed border-black/10 p-6 text-center text-sm text-brand-dark/80">
               Crie um ciclo em Admin → Ciclos antes de escolher as escolas.
@@ -284,48 +240,54 @@ function Conteudo() {
 
           {ciclos.length > 0 && (
             <>
-              {/* abas e ações em uma linha */}
-              <div className="mt-3 flex flex-col gap-2 lg:flex-row lg:items-center lg:justify-between">
-                <nav className="flex gap-2 overflow-x-auto" aria-label="Filtrar escolas">
-                  {(
-                    [
-                      ["no_programa", `No programa (${marcadas})`, "#2F6B4F"],
-                      ["todas", municipioId && escolas ? `Mostrar todas (${total})` : "Mostrar todas", "#2F6B4F"],
-                      ["fora", municipioId && escolas ? `Fora do programa (${total - marcadas})` : "Fora do programa", "#2F6B4F"],
-                    ] as [Visao, string, string][]
-                  ).map(([valor, rotulo, cor]) => (
+              {/* abas + ações de lista */}
+              <Abas<Visao>
+                className="mt-4"
+                abas={[
+                  { valor: "no_programa", rotulo: `No programa (${marcadas})` },
+                  { valor: "todas", rotulo: municipioId && escolas ? `Mostrar todas (${total})` : "Mostrar todas" },
+                  { valor: "fora", rotulo: municipioId && escolas ? `Fora do programa (${total - marcadas})` : "Fora do programa" },
+                ]}
+                valor={visao}
+                onChange={(v) => { setVisao(v); setPagina(1); }}
+                direita={
+                  <div className="mb-2 flex flex-wrap items-center gap-2">
+                    {salvando && <span className="text-xs text-brand-dark/60">Salvando...</span>}
                     <button
-                      key={valor}
                       type="button"
-                      aria-pressed={visao === valor}
-                      onClick={() => { setVisao(valor); setPagina(1); }}
-                      className="whitespace-nowrap rounded-full border-2 px-3.5 py-1 text-sm font-semibold transition-colors"
-                      style={visao === valor ? { background: cor, borderColor: cor, color: "#fff" } : { background: "#fff", borderColor: "rgba(0,0,0,0.1)", color: "#122E20" }}
+                      onClick={marcarLista}
+                      disabled={salvando || !lista.some((e) => !noPrograma.has(e.id))}
+                      className="rounded-lg bg-brand-light px-3 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent disabled:opacity-40"
                     >
-                      {rotulo}
+                      Marcar lista ({lista.length})
                     </button>
+                    <button
+                      type="button"
+                      onClick={desmarcarLista}
+                      disabled={salvando || !lista.some((e) => noPrograma.has(e.id))}
+                      className="rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold text-brand-dark hover:bg-black/[0.03] disabled:opacity-40"
+                    >
+                      Desmarcar lista ({lista.length})
+                    </button>
+                  </div>
+                }
+              />
+
+              {/* filtros */}
+              <BarraFiltros
+                mostrarLimpar={Boolean(municipioId || busca.trim())}
+                onLimpar={() => { setMunicipioId(""); setBusca(""); setPagina(1); }}
+              >
+                <CampoBusca value={busca} onChange={(v) => { setBusca(v); setPagina(1); }} placeholder="Buscar escola ou município..." />
+                <select id="municipio-escolas" value={municipioId} onChange={(e) => setMunicipioId(e.target.value)} className={CLASSE_SELECT} aria-label="Município">
+                  <option value="">Todos os municípios</option>
+                  {municipios.map((m) => (
+                    <option key={m.id} value={m.id}>
+                      {m.nome}{porMunicipio[String(m.id)] ? ` · ${porMunicipio[String(m.id)]} no programa` : ""}
+                    </option>
                   ))}
-                </nav>
-                <div className="flex flex-wrap items-center gap-2">
-                  {salvando && <span className="text-xs text-brand-dark/60">Salvando...</span>}
-                  <button
-                    type="button"
-                    onClick={marcarLista}
-                    disabled={salvando || !lista.some((e) => !noPrograma.has(e.id))}
-                    className="rounded-full bg-brand-light px-3.5 py-1 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent disabled:opacity-40"
-                  >
-                    Marcar lista ({lista.length})
-                  </button>
-                  <button
-                    type="button"
-                    onClick={desmarcarLista}
-                    disabled={salvando || !lista.some((e) => noPrograma.has(e.id))}
-                    className="rounded-full border-2 border-black/10 bg-white px-3.5 py-1 text-sm font-semibold text-brand-dark hover:bg-black/[0.03] disabled:opacity-40"
-                  >
-                    Desmarcar lista ({lista.length})
-                  </button>
-                </div>
-              </div>
+                </select>
+              </BarraFiltros>
               {/* barra fina de progresso (só quando há município escolhido) */}
               {municipioId && escolas && escolas.length > 0 && (
                 <div className="mt-2 h-1.5 overflow-hidden rounded-full bg-black/[0.06]" role="progressbar" aria-label="Escolas do município no programa" aria-valuenow={pct} aria-valuemin={0} aria-valuemax={100}>
@@ -445,6 +407,7 @@ function Conteudo() {
             </>
           )}
         </section>
+       </div>
       </div>
 
     </>

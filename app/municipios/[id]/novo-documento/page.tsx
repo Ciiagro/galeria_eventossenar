@@ -43,7 +43,7 @@ const INFO_TIPOS: Record<
     Icone: FileTextIcon,
     cor: "bg-emerald-50 text-emerald-600",
     badge: "bg-emerald-50 text-emerald-700",
-    finalidade: "Só para a ação Relatório: relatório, ficha de presença ou convite.",
+    finalidade: "Só para Documentos: relatórios, ficha de frequência e portfólio.",
   },
   "Vídeo": {
     Icone: VideoIcon,
@@ -62,7 +62,7 @@ const INFO_TIPOS: Record<
 const ehPdf = (arquivo: File) => /\.pdf$/i.test(arquivo.name) || arquivo.type === "application/pdf";
 
 const DICAS = [
-  "Escolha a ação pedagógica realizada. Só a ação Relatório (relatório, ficha de presença e convite) é enviada em PDF; as demais usam vídeo ou imagem.",
+  "Escolha primeiro o que vai enviar: o registro de uma ação (vídeo ou imagem) ou um documento (PDF: relatório, ficha de frequência ou portfólio).",
   "Use descrições claras e objetivas.",
   "Prefira salvar os arquivos em boa qualidade.",
   "Vídeo longo ou muito pesado? Em vez de enviar o arquivo, cole o link (YouTube, Google Drive ou Instagram) no campo de link, mais abaixo.",
@@ -86,6 +86,7 @@ export default function NovoDocumentoPage() {
   const [escolas, setEscolas] = useState<Escola[]>([]);
 
   const [tipoId, setTipoId] = useState("");
+  const [categoria, setCategoria] = useState<"" | "acao" | "documento">(""); // o que está sendo enviado
   const [acaoId, setAcaoId] = useState("");
   const [subtipo, setSubtipo] = useState("");
   const [acaoEvento, setAcaoEvento] = useState("");
@@ -141,12 +142,26 @@ export default function NovoDocumentoPage() {
   const acaoSelecionada = useMemo(() => acoes.find((a) => a.id === acaoId) ?? null, [acoes, acaoId]);
   const tipoPdf = useMemo(() => tipos.find((t) => t.nome === "PDF") ?? null, [tipos]);
   const exigePdf = Boolean(acaoSelecionada?.exige_pdf);
-  const apenasMidia = Boolean(acaoSelecionada && !acaoSelecionada.exige_pdf); // ação comum: vídeo ou imagem, sem PDF
+  const apenasMidia = categoria === "acao"; // registro de ação: vídeo ou imagem, sem PDF
+  const grupoDocumentos = useMemo(() => acoes.find((a) => a.exige_pdf) ?? null, [acoes]); // "Documentos" (PDF)
 
-  // Ação "Relatório": o arquivo é sempre PDF
+  // Documentos: o arquivo é sempre PDF
   useEffect(() => {
     if (exigePdf && tipoPdf) setTipoId(tipoPdf.id);
   }, [exigePdf, tipoPdf]);
+
+  function escolherCategoria(nova: "acao" | "documento") {
+    setCategoria(nova);
+    setSubtipo("");
+    setErro(null);
+    if (nova === "documento") {
+      if (grupoDocumentos) escolherAcao(grupoDocumentos.id);
+    } else {
+      setAcaoId("");
+      setArquivos((atual) => atual.filter((f) => !ehPdf(f)));
+      if (tipoId && tipoId === tipoPdf?.id) setTipoId("");
+    }
+  }
 
   function escolherAcao(id: string) {
     setAcaoId(id);
@@ -171,7 +186,7 @@ export default function NovoDocumentoPage() {
     if (fileInputRef.current) fileInputRef.current.value = "";
     const avisos = [
       foraDoTipo > 0
-        ? `${foraDoTipo} arquivo(s) ignorado(s): ${exigePdf ? "a ação Relatório aceita só PDF" : "esta ação aceita só vídeo ou imagem (PDF é para a ação Relatório)"}.`
+        ? `${foraDoTipo} arquivo(s) ignorado(s): ${exigePdf ? "documentos aceitam só PDF" : "o registro de ação aceita só vídeo ou imagem (PDF é para Documentos)"}.`
         : "",
       grandes > 0 ? `${grandes} arquivo(s) ignorado(s) por passar de ${MAX_FILE_MB}MB.` : "",
     ].filter(Boolean);
@@ -190,20 +205,28 @@ export default function NovoDocumentoPage() {
       setErro("Preencha os campos obrigatórios.");
       return;
     }
-    if (acoes.length > 0 && !acaoId) {
-      setErro("Escolha a ação pedagógica realizada.");
+    if (!categoria) {
+      setErro("Escolha o que vai enviar: o registro de uma ação ou um documento.");
+      return;
+    }
+    if (!escolaId) {
+      setErro("Escolha a escola do programa a que este envio se refere.");
+      return;
+    }
+    if (!acaoId) {
+      setErro(categoria === "documento" ? "Os documentos ainda não estão configurados. Fale com o administrador." : "Escolha a ação pedagógica realizada.");
       return;
     }
     if (acaoSelecionada?.subtipos?.length && !subtipo) {
-      setErro(`Escolha o tipo de ${acaoSelecionada.nome.toLowerCase()}: ${acaoSelecionada.subtipos.join(", ")}.`);
+      setErro(`Escolha o tipo de documento: ${acaoSelecionada.subtipos.join(", ")}.`);
       return;
     }
     if (exigePdf && (arquivos.some((f) => !ehPdf(f)) || (arquivos.length === 0 && linkExterno))) {
-      setErro("Para a ação Relatório, envie o arquivo em PDF.");
+      setErro("Documentos devem ser enviados em PDF.");
       return;
     }
     if (apenasMidia && (arquivos.some(ehPdf) || tipoId === tipoPdf?.id)) {
-      setErro("PDF é só para a ação Relatório. Nesta ação, envie vídeo ou imagem.");
+      setErro("PDF é só para Documentos. No registro de uma ação, envie vídeo ou imagem.");
       return;
     }
     if (arquivos.length === 0 && !linkExterno) {
@@ -221,7 +244,7 @@ export default function NovoDocumentoPage() {
         municipio_id: municipioId,
         tipo_id: tipoId,
         acao_evento: acaoEvento,
-        escola_id: escolaId || undefined,
+        escola_id: escolaId,
         acao_pedagogica_id: acaoId || undefined,
         subtipo: subtipo || undefined,
         descricao,
@@ -331,25 +354,48 @@ export default function NovoDocumentoPage() {
               <div className="rounded-md bg-status-pendente/10 text-status-pendente px-4 py-2 text-sm">{erro}</div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label htmlFor="acao-pedagogica" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Ação pedagógica * <span className="font-normal text-brand-dark/65">(a que ação esta imagem, vídeo ou PDF pertence)</span></label>
-                <select
-                  id="acao-pedagogica"
-                  className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
-                  value={acaoId}
-                  onChange={(e) => escolherAcao(e.target.value)}
-                >
-                  <option value="">Selecione</option>
-                  {acoes.map((a) => (
-                    <option key={a.id} value={a.id}>{a.nome}</option>
-                  ))}
-                </select>
+            <div>
+              <p className="block text-sm font-medium mb-1.5 text-brand-dark/90">O que você vai enviar? *</p>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {([
+                  ["acao", "Registro de uma ação", "Vídeo ou imagem de uma ação pedagógica realizada."],
+                  ["documento", "Documento", "PDF: relatório de formação, relatório de visita, ficha de frequência ou portfólio."],
+                ] as const).map(([valor, titulo, texto]) => (
+                  <button
+                    key={valor}
+                    type="button"
+                    aria-pressed={categoria === valor}
+                    onClick={() => escolherCategoria(valor)}
+                    className={`text-left rounded-lg border px-4 py-3 transition-colors ${categoria === valor ? "border-brand-light bg-brand-light/5 ring-2 ring-brand-light/20" : "border-black/10 hover:bg-black/[0.02]"}`}
+                  >
+                    <span className="block text-sm font-semibold text-brand-dark">{titulo}</span>
+                    <span className="block text-xs text-brand-dark/75">{texto}</span>
+                  </button>
+                ))}
               </div>
+            </div>
 
-              {acaoSelecionada?.subtipos?.length ? (
+            <div className="grid grid-cols-2 gap-4">
+              {categoria === "acao" && (
                 <div>
-                  <label htmlFor="subtipo-acao" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Tipo de {acaoSelecionada.nome.toLowerCase()} *</label>
+                  <label htmlFor="acao-pedagogica" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Ação pedagógica * <span className="font-normal text-brand-dark/65">(a que ação esta imagem ou vídeo pertence)</span></label>
+                  <select
+                    id="acao-pedagogica"
+                    className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
+                    value={acaoId}
+                    onChange={(e) => escolherAcao(e.target.value)}
+                  >
+                    <option value="">Selecione</option>
+                    {acoes.filter((a) => !a.exige_pdf).map((a) => (
+                      <option key={a.id} value={a.id}>{a.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {categoria === "documento" && acaoSelecionada?.subtipos?.length ? (
+                <div>
+                  <label htmlFor="subtipo-acao" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Tipo de documento *</label>
                   <select
                     id="subtipo-acao"
                     className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
@@ -370,8 +416,8 @@ export default function NovoDocumentoPage() {
                   className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light disabled:bg-black/[0.03]"
                   value={tipoId}
                   onChange={(e) => setTipoId(e.target.value)}
-                  disabled={exigePdf}
-                  title={exigePdf ? "Relatório, ficha de presença e convite são sempre PDF" : undefined}
+                  disabled={exigePdf || !categoria}
+                  title={exigePdf ? "Documentos são sempre PDF" : undefined}
                   required
                 >
                   <option value="">Selecione</option>
@@ -411,13 +457,15 @@ export default function NovoDocumentoPage() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Escola do programa (opcional)</label>
+                <label htmlFor="escola-programa" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Escola do programa *</label>
                 <select
+                  id="escola-programa"
+                  required
                   className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
                   value={escolaId}
                   onChange={(e) => setEscolaId(e.target.value)}
                 >
-                  <option value="">Nenhuma / não se aplica</option>
+                  <option value="">Selecione a escola</option>
                   {escolas.map((esc) => (
                     <option key={esc.id} value={esc.id}>
                       {esc.nome}
@@ -426,7 +474,7 @@ export default function NovoDocumentoPage() {
                 </select>
                 {escolas.length === 0 && (
                   <p className="mt-1.5 text-xs text-brand-dark/70">
-                    Nenhuma escola deste município foi incluída no programa neste ciclo. Peça ao administrador para incluí-las.
+                    Nenhuma escola deste município foi incluída no programa neste ciclo, então ainda não dá para enviar. Peça ao administrador para incluí-las.
                   </p>
                 )}
               </div>

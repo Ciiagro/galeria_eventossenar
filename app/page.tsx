@@ -1,5 +1,7 @@
 "use client";
 
+import { TituloPagina } from "@/components/TituloPagina";
+
 import { useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
@@ -62,6 +64,8 @@ export default function HomePage() {
   useEffect(() => {
     // o painel do administrador não usa essa lista (vem no resumo): só carrega para os outros perfis
     if (carregandoPerfil || perfil?.role === "admin") return;
+    // quem será redirecionado (coordenador aguardando liberação, apoiador de relatórios) não usa esta lista
+    if ((perfil?.role === "municipio" && !perfil.municipio_id) || perfil?.role === "apoiador_relatorios") return;
     apiGet("/api/municipios")
       .then((lista: Municipio[]) => {
         setMunicipios(lista);
@@ -70,12 +74,24 @@ export default function HomePage() {
       .catch((e) => setErro(e.message));
   }, [carregandoPerfil, perfil?.role]);
 
+  // Coordenador recém-cadastrado (ainda sem município liberado) começa pela ficha de adesão
+  const aguardandoAdesao = !carregandoPerfil && perfil?.role === "municipio" && !perfil.municipio_id;
+  useEffect(() => {
+    if (aguardandoAdesao) router.replace("/adesao/ficha");
+  }, [aguardandoAdesao, router]);
+
+  // Apoiador de Relatórios só analisa os documentos (não envia): a página dele é a Análise
+  const ehApoioRelatorios = !carregandoPerfil && perfil?.role === "apoiador_relatorios";
+  useEffect(() => {
+    if (ehApoioRelatorios) router.replace("/analise");
+  }, [ehApoioRelatorios, router]);
+
   function irParaEnvio(e: React.FormEvent) {
     e.preventDefault();
     if (municipioId) router.push(`/municipios/${municipioId}/novo-documento`);
   }
 
-  if (carregandoPerfil) return null;
+  if (carregandoPerfil || aguardandoAdesao || ehApoioRelatorios) return null;
 
   if (perfil?.role === "admin") {
     if (erroResumo) {
@@ -256,35 +272,29 @@ function Dashboard({ resumo, acoes, ciclos, cicloEfetivo, filtros, onFiltrosChan
 
   return (
     <div className="p-5 sm:p-8 max-w-[1500px]">
-      <header className="flex flex-col sm:flex-row sm:items-end sm:justify-between gap-3 mb-5">
-        <div className="flex items-center gap-4">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/sol-valores.png" alt="" width={900} height={545} className="h-auto w-16 shrink-0" />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-semibold text-brand-dark">Painel geral</h1>
-            <p className="text-sm text-brand-dark/80 mt-1">
-              Projeto Valores Humanos · {descricaoPeriodo}. Acompanhe a participação dos municípios e as ações pedagógicas realizadas.
-            </p>
-          </div>
-        </div>
-        <Link
-          href="/admin/pendencias"
-          className="inline-flex items-center gap-2 self-start sm:self-auto rounded-lg border border-brand-light/30 bg-white px-4 py-2 text-sm font-semibold text-brand-light shadow-sm hover:bg-brand-light/5"
+      <TituloPagina
+        className="mb-5"
+        descricao={<>Projeto Valores Humanos · {descricaoPeriodo}. Acompanhe a participação dos municípios e as ações pedagógicas realizadas.</>}
+        acao={
+          <Link
+            href="/admin/pendencias"
+            className="inline-flex items-center gap-2 self-start sm:self-auto rounded-lg border border-brand-light/30 bg-white px-4 py-2 text-sm font-semibold text-brand-light shadow-sm hover:bg-brand-light/5"
         >
-          Revisar documentos
-          {indicadores.documentos_pendentes > 0 && (
-            <span className="rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white">{indicadores.documentos_pendentes}</span>
-          )}
-          <span aria-hidden>→</span>
+            Revisar documentos
+            {indicadores.documentos_pendentes > 0 && (
+              <span className="rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white">{indicadores.documentos_pendentes}</span>
+            )}
+            <span aria-hidden>→</span>
         </Link>
-      </header>
+        }
+      >Painel geral</TituloPagina>
 
       <section className="bg-white rounded-xl border border-black/5 shadow-sm px-4 py-4 sm:px-5 mb-6">
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-[1.3fr_1fr_1.3fr_auto] gap-3 items-end">
           <CampoFiltro rotulo="Ação pedagógica" id="acao-dashboard">
             <select id="acao-dashboard" value={filtros.acao} onChange={(e) => onFiltrosChange({ ...filtros, acao: e.target.value })} className={CLASSE_SELECT}>
               <option value="">Todas as ações</option>
-              {acoes.map((acao) => <option key={acao.id} value={acao.id}>{acao.nome}</option>)}
+              {acoes.filter((acao) => !acao.exige_pdf).map((acao) => <option key={acao.id} value={acao.id}>{acao.nome}</option>)}
               <option value="sem">Sem ação pedagógica</option>
             </select>
           </CampoFiltro>
@@ -320,6 +330,8 @@ function Dashboard({ resumo, acoes, ciclos, cicloEfetivo, filtros, onFiltrosChan
         selecionada={filtros.acao}
         onSelecionar={(acao) => onFiltrosChange({ ...filtros, acao })}
       />
+
+      <DocumentosDoCiclo documentos={resumo.por_documento ?? []} />
 
       <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <MetricCard label="Municípios participantes" value={indicadores.municipios_participantes} detail={`${percentualParticipacao}% dos municípios`} tone="green" />
@@ -427,7 +439,7 @@ function AcoesPedagogicasDoCiclo({
       <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 mb-4">
         <div>
           <h2 className="font-semibold text-brand-dark">Ações pedagógicas</h2>
-          <p className="text-xs text-brand-dark/75 mt-1">Imagens, vídeos e relatórios enviados por ação. Clique em uma ação para filtrar o painel.</p>
+          <p className="text-xs text-brand-dark/75 mt-1">Imagens e vídeos enviados por ação. Clique em uma ação para filtrar o painel.</p>
         </div>
         <span className="text-sm text-brand-dark/80">{total.toLocaleString("pt-BR")} {total === 1 ? "documento" : "documentos"}</span>
       </div>
@@ -462,6 +474,34 @@ function AcoesPedagogicasDoCiclo({
           {semAcao} {semAcao === 1 ? "documento" : "documentos"} sem ação pedagógica (enviados antes desta etapa).
         </p>
       )}
+    </section>
+  );
+}
+
+// Documentos em PDF (não são ações pedagógicas): relatórios, ficha de frequência e portfólio
+function DocumentosDoCiclo({ documentos }: { documentos: { nome: string; total: number; aprovados?: number }[] }) {
+  if (!documentos.length) return null;
+  const total = documentos.reduce((soma, d) => soma + d.total, 0);
+  return (
+    <section className="bg-white rounded-xl border border-black/5 shadow-sm p-4 sm:p-5 mb-6">
+      <div className="flex flex-col sm:flex-row sm:items-baseline sm:justify-between gap-1 mb-4">
+        <div>
+          <h2 className="font-semibold text-brand-dark">Documentos</h2>
+          <p className="text-xs text-brand-dark/75 mt-1">Relatórios, fichas de frequência e portfólios enviados em PDF.</p>
+        </div>
+        <span className="text-sm text-brand-dark/80">{total.toLocaleString("pt-BR")} {total === 1 ? "documento" : "documentos"}</span>
+      </div>
+      <ul className="grid grid-cols-2 xl:grid-cols-4 gap-3">
+        {documentos.map((d) => (
+          <li key={d.nome} className="rounded-xl border border-black/10 p-3">
+            <div className="flex items-center gap-2.5">
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-emerald-50 text-emerald-600"><FileTextIcon className="h-5 w-5" /></span>
+              <p className="text-sm font-semibold text-brand-dark leading-snug">{d.nome}</p>
+            </div>
+            <p className="mt-2 text-2xl font-semibold leading-tight text-brand-dark">{d.total.toLocaleString("pt-BR")}</p>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

@@ -3,7 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
-import { apiDelete, apiGet, Documento, Municipio } from "@/lib/api";
+import { apiDelete, apiGet, Documento, ehDocumentoPdf, Municipio } from "@/lib/api";
 import { CalendarIcon, CheckIcon, FolderIcon, SearchIcon, UserIcon, XIcon } from "@/components/icons";
 import { EscolaIcon, Info, Miniatura, formatarData, formatarDataHora, normalizarTexto } from "@/components/DocumentoUI";
 import PreviewLink from "@/components/PreviewLink";
@@ -12,6 +12,8 @@ import { noCicloEMes, useFiltroCiclo } from "@/lib/ciclos";
 import { SeletorCiclo } from "@/components/SeletorCiclo";
 import { normalizarLink } from "@/lib/linkIncorporavel";
 import { BotaoExcluir } from "@/components/BotoesIcone";
+import { AnaliseBadge } from "@/components/AnaliseBadge";
+import { usePerfil } from "@/lib/usePerfil";
 
 type Aba = "" | "pendente" | "aprovado" | "arquivado";
 type Ordem = "recentes" | "antigos" | "data_acao";
@@ -21,6 +23,9 @@ const SELECT =
 
 export default function MunicipioDetalhePage() {
   const { id } = useParams<{ id: string }>();
+  // Coordenador do município vê só "Todos" e "Novos" e não escolhe ciclo (fica sempre no ciclo ativo)
+  const { perfil } = usePerfil();
+  const ehCoordenador = perfil?.role === "municipio";
   const [documentos, setDocumentos] = useState<Documento[] | null>(null);
   const [municipio, setMunicipio] = useState<Municipio | null>(null);
   const [erro, setErro] = useState<string | null>(null);
@@ -203,7 +208,7 @@ export default function MunicipioDetalhePage() {
                     ["aprovado", "Aprovados"],
                     ["arquivado", "Arquivados"],
                   ] as [Aba, string][]
-                ).map(([valor, rotulo]) => (
+                ).filter(([valor]) => !ehCoordenador || valor === "" || valor === "pendente").map(([valor, rotulo]) => (
                   <button
                     key={rotulo}
                     onClick={() => setAba(valor)}
@@ -229,7 +234,7 @@ export default function MunicipioDetalhePage() {
 
             {/* Filtros */}
             <div className="mt-4 grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-12 gap-2">
-              <div className="relative lg:col-span-4">
+              <div className={`relative ${ehCoordenador ? "lg:col-span-5" : "lg:col-span-4"}`}>
                 <SearchIcon className="w-4 h-4 absolute left-3 top-1/2 -translate-y-1/2 text-brand-dark/60" />
                 <input
                   value={busca}
@@ -238,11 +243,11 @@ export default function MunicipioDetalhePage() {
                   className="w-full border border-black/10 rounded-lg pl-9 pr-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30"
                 />
               </div>
-              <SeletorCiclo ciclos={ciclos} valor={filtroCiclo} onChange={setFiltroCiclo} className={`${SELECT} lg:col-span-2`} />
+              {!ehCoordenador && <SeletorCiclo ciclos={ciclos} valor={filtroCiclo} onChange={setFiltroCiclo} className={`${SELECT} lg:col-span-2`} />}
               <select
                 value={filtroMes}
                 onChange={(e) => setFiltroMes(e.target.value)}
-                className={`${SELECT} lg:col-span-2`}
+                className={`${SELECT} ${ehCoordenador ? "lg:col-span-3" : "lg:col-span-2"}`}
               >
                 <option value="">Todos os meses</option>
                 {MESES.map((mes, i) => (
@@ -274,7 +279,7 @@ export default function MunicipioDetalhePage() {
               </button>
             )}
 
-            {pendentesForaDoPeriodo > 0 && (aba === "pendente" || aba === "") && (
+            {!ehCoordenador && pendentesForaDoPeriodo > 0 && (aba === "pendente" || aba === "") && (
               <div className="mt-4 rounded-lg bg-amber-50 border border-amber-200 text-amber-900 px-4 py-2.5 text-sm flex flex-wrap items-center gap-2">
                 ⚠️ Há {pendentesForaDoPeriodo} {pendentesForaDoPeriodo === 1 ? "pendência" : "pendências"} fora do período escolhido.
                 <button
@@ -381,6 +386,7 @@ function CartaoDocumento({
   const descricao = doc.descricao ?? "";
   const longa = descricao.length > 180;
   const temArquivo = Boolean(doc.drive_file_link || doc.link_externo);
+  const ehDoc = ehDocumentoPdf(doc); // Documento (PDF): não passa por aprovação
 
   return (
     <article className="rounded-xl border border-black/5 bg-white p-3 sm:p-4 transition-shadow hover:shadow-sm">
@@ -402,7 +408,7 @@ function CartaoDocumento({
               </div>
             </div>
 
-            {doc.status === "pendente" && (
+            {(doc.status === "pendente" || ehDoc) && (
               <div className="flex items-center gap-2 shrink-0">
                 <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-900">
                   ✓ Enviado
@@ -423,8 +429,11 @@ function CartaoDocumento({
             </button>
           )}
 
+          {/* Documento com ajustes pedidos pelo apoio: o coordenador precisa saber */}
+          {ehDoc && doc.analise_status === "ajustes" && <AnaliseBadge doc={{ ...doc, origem: null }} />}
+
           {/* Situação */}
-          {doc.status === "aprovado" && (
+          {doc.status === "aprovado" && !ehDoc && (
             <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
               <span className="inline-flex items-center gap-1.5 text-brand-dark/85">
                 <span className="w-5 h-5 rounded-full bg-status-completo text-white flex items-center justify-center">

@@ -37,6 +37,11 @@ export function apiGetCache(path: string, ttlMs = 60_000): Promise<any> {
   return promessa;
 }
 
+/** Esquece só as respostas guardadas cujo caminho começa com `prefixo` (ex.: "/api/galeria"). */
+export function esquecerCacheApiPor(prefixo: string) {
+  Array.from(_cacheGet.keys()).forEach((k) => { if (k.startsWith(prefixo)) _cacheGet.delete(k); });
+}
+
 /** Esquece o que foi guardado (use ao trocar de conta). */
 export function limparCacheApi() {
   _cacheGet.clear();
@@ -72,6 +77,31 @@ export async function apiPut(path: string, body: unknown) {
   });
   if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Erro ${res.status}`);
   return res.json();
+}
+
+// Envia um formulário com arquivo para qualquer rota (ex.: termo assinado em PDF)
+export async function apiPostForm(path: string, formData: FormData) {
+  const headers = await authHeader();
+  const res = await fetch(API_BASE + path, { method: "POST", headers, body: formData });
+  if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Erro ${res.status}`);
+  return res.json();
+}
+
+// Abre numa nova aba um arquivo protegido (precisa do login, então não dá para usar um link comum).
+// Passe `janela` aberta no clique (window.open("", "_blank")) para o navegador não bloquear.
+export async function apiAbrirArquivo(path: string, janela?: Window | null) {
+  const aba = janela ?? window.open("", "_blank");
+  try {
+    const headers = await authHeader();
+    const res = await fetch(API_BASE + path, { headers });
+    if (!res.ok) throw new Error((await res.json().catch(() => null))?.error ?? `Erro ${res.status}`);
+    const url = URL.createObjectURL(await res.blob());
+    if (aba) aba.location.href = url;
+    else window.location.href = url;
+  } catch (e) {
+    aba?.close();
+    throw e;
+  }
 }
 
 export async function apiUpload(formData: FormData) {
@@ -176,6 +206,8 @@ export const ROTULO_PAPEL: Record<Papel, string> = {
 export type Perfil = {
   role: Papel | null;
   municipio_id?: number | null;
+  municipio_nome?: string | null; // nome do município (já liberado ou escolhido no cadastro)
+  municipio_pendente?: boolean; // coordenador cujo município só será liberado após a aprovação da adesão
   municipio_ids?: number[] | null; // municípios em que atua (null = todos)
   nome?: string | null;
   email?: string | null;
@@ -198,8 +230,11 @@ export type TipoDocumento = { id: string; nome: string };
 // "Projeto" no banco = "Valor" na tela (Paz, Amor, Verdade, Ação correta, Não violência)
 export type Projeto = { id: string; nome: string; descricao?: string; cor?: string | null; ordem?: number | null };
 
-// Ação pedagógica (Acolhimento, Meditação, Hora do Conto, Relatório...)
+// Ação pedagógica (Acolhimento, Meditação, Hora do Conto...). A linha com exige_pdf = true é o grupo
+// "Documentos" (relatórios, ficha de frequência, portfólio): não é uma ação pedagógica.
 export type AcaoPedagogica = { id: string; nome: string; ordem?: number | null; exige_pdf?: boolean; subtipos?: string[] | null };
+
+export type DocumentoResumo = { nome: string; total: number; aprovados?: number };
 
 export type AcaoResumo = { id: string; nome: string; ordem?: number | null; total: number; aprovados?: number };
 
@@ -244,6 +279,7 @@ export type ResumoDashboard = {
   tipos_por_municipio: Record<string, Record<string, number>>;
   anos_disponiveis?: number[];
   por_acao?: AcaoResumo[];
+  por_documento?: DocumentoResumo[];
   sem_acao?: number;
   escolas_participantes_lista: EscolaParticipante[];
 };
@@ -280,6 +316,9 @@ export type DocumentoGaleria = {
   projetos?: { nome: string; cor?: string | null };
   acoes_pedagogicas?: { nome: string } | null;
 };
+
+// Documentos (PDF: relatórios, ficha de frequência, portfólio) não passam por aprovação do administrador
+export const ehDocumentoPdf = (d: { acoes_pedagogicas?: { exige_pdf?: boolean } | null }) => Boolean(d.acoes_pedagogicas?.exige_pdf);
 
 export type Documento = {
   id: string;
@@ -318,5 +357,5 @@ export type Documento = {
   tipos_documento?: { nome: string };
   escolas?: { nome: string; endereco?: string };
   projetos?: { nome: string; cor?: string | null };
-  acoes_pedagogicas?: { nome: string } | null;
+  acoes_pedagogicas?: { nome: string; exige_pdf?: boolean } | null;
 };

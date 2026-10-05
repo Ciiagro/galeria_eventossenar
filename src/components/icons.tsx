@@ -32,6 +32,17 @@ export function FileTextIcon({ className = base }: IconProps) {
   );
 }
 
+// Documento com a sigla PDF (abre o termo em PDF)
+export function PdfIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M14 2H6a2 2 0 00-2 2v16a2 2 0 002 2h12a2 2 0 002-2V8z" />
+      <path d="M14 2v6h6" />
+      <text x="12" y="18" textAnchor="middle" fontSize="6.4" fontWeight="800" fill="currentColor" stroke="none" fontFamily="Inter, Arial, sans-serif">PDF</text>
+    </svg>
+  );
+}
+
 export function ClipboardListIcon({ className = base }: IconProps) {
   return (
     <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className}>

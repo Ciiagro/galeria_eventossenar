@@ -1,7 +1,7 @@
 {
   "functions": {
     "api/index.py": {
-      "includeFiles": "{app.py,lib/**,templates/**}",
+      "includeFiles": "{app.py,lib/**,templates/**,public/logo-senar-termo.png,public/logo-valores-termo.png}",
       "maxDuration": 60
     }
   },

@@ -1,10 +1,13 @@
 "use client";
 
+import { TituloPagina, Indicador } from "@/components/TituloPagina";
+
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, MembroEquipe, Municipio, ROTULO_PAPEL } from "@/lib/api";
 import { AdminGuard } from "@/components/AdminGuard";
 import { LockIcon, MailIcon, MapPinIcon, SearchIcon, UserIcon, XIcon } from "@/components/icons";
 import { BotaoEditar, BotaoExcluir } from "@/components/BotoesIcone";
+import { BarraFiltros, CampoBusca } from "@/components/Filtros";
 
 type PapelApoio = MembroEquipe["role"];
 
@@ -176,25 +179,24 @@ function EquipePage() {
   }
 
   return (
-    <div className="max-w-5xl p-4 sm:p-8">
+    <div className="max-w-6xl p-4 sm:p-8">
       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-7">
-        <div className="flex flex-col gap-3 sm:flex-row sm:items-start sm:justify-between">
-          <div>
-            <h1 className="text-2xl font-bold text-brand-dark sm:text-3xl">Equipe de apoio</h1>
-            <p className="mt-1 max-w-2xl text-sm text-brand-dark/80">
-              Cadastre o Apoiador de Visitas (escolha os municípios em que ele atua) e o Apoiador de Relatórios (analisa os
-              documentos antes da sua validação). Os Coordenadores Gerais por Município ficam em &quot;Coordenadores&quot;.
-            </p>
-          </div>
-          {!formAberto && (
+        <TituloPagina
+          descricao="Cadastre o Apoiador de Visitas (escolha os municípios em que ele atua) e o Apoiador de Relatórios (analisa os documentos antes da sua validação)."
+          acao={
+            <div className="flex items-center gap-3">
+              <Indicador valor={equipe?.length ?? 0} rotulo="na equipe" />
+              {!formAberto && (
             <button
               onClick={novo}
               className="shrink-0 rounded-xl bg-[#2678C4] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-[#2678C4]/25 transition hover:-translate-y-0.5 hover:bg-[#1F67AA]"
             >
               + Novo apoiador
             </button>
-          )}
-        </div>
+              )}
+            </div>
+          }
+        >Equipe de apoio</TituloPagina>
 
         {erro && <div className="mt-4 rounded-lg bg-status-pendente/10 px-4 py-3 text-sm text-status-pendente" role="alert">{erro}</div>}
         {mensagem && <div className="mt-4 rounded-lg bg-status-completo/10 px-4 py-3 text-sm font-medium text-status-completo">{mensagem}</div>}
@@ -291,21 +293,15 @@ function EquipePage() {
         )}
 
         {equipe && equipe.length > 0 && (
-          <div className="mt-6 flex items-center gap-3">
-            <div className="relative max-w-md flex-1">
-              <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-dark/60" />
-              <input
-                value={buscaEquipe}
-                onChange={(e) => setBuscaEquipe(e.target.value)}
-                placeholder="Pesquisar por nome, e-mail, função ou município..."
-                aria-label="Pesquisar na equipe de apoio"
-                className={`${CAMPO} pl-9`}
-              />
-            </div>
-            <span className="shrink-0 text-sm text-brand-dark/75">
-              {buscaEquipe.trim() ? `${equipeFiltrada?.length ?? 0} de ${equipe.length}` : `${equipe.length} ${equipe.length === 1 ? "pessoa" : "pessoas"}`}
-            </span>
-          </div>
+          <BarraFiltros
+            className="mt-6"
+            colunas="grid-cols-1 sm:max-w-md"
+            mostrarLimpar={Boolean(buscaEquipe.trim())}
+            onLimpar={() => setBuscaEquipe("")}
+            resumo={buscaEquipe.trim() ? `${equipeFiltrada?.length ?? 0} de ${equipe.length}` : `${equipe.length} ${equipe.length === 1 ? "pessoa" : "pessoas"}`}
+          >
+            <CampoBusca value={buscaEquipe} onChange={setBuscaEquipe} placeholder="Pesquisar por nome, e-mail, função ou município..." ariaLabel="Pesquisar na equipe de apoio" />
+          </BarraFiltros>
         )}
 
         <div className="mt-4 space-y-3">

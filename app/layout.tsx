@@ -8,7 +8,7 @@ import { FundoSistema } from "@/components/FundoSistema";
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const semSidebar = pathname?.startsWith("/galeria") || pathname === "/login";
+  const semSidebar = pathname?.startsWith("/galeria") || pathname === "/login" || pathname === "/adesao" || pathname === "/adesao/termo" || pathname === "/assinar" || pathname?.startsWith("/admin/termo-adesao/");
 
   return (
     <html lang="pt-BR">

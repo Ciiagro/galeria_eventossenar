@@ -1,9 +1,10 @@
 "use client";
 
+import { TituloPagina, Indicador } from "@/components/TituloPagina";
+
 import { useCallback, useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { AdminGuard } from "@/components/AdminGuard";
-import { Sol } from "@/components/Sol";
 import type { Ciclo } from "@/lib/ciclos";
 import { formatarData } from "@/components/DocumentoUI";
 import { BotaoEditar, BotaoExcluir } from "@/components/BotoesIcone";
@@ -75,26 +76,23 @@ function CiclosPage() {
   const proximoAno = Math.max(new Date().getFullYear(), ...ciclos.map((c) => Number(c.data_fim.slice(0, 4)))) + (ciclos.length ? 1 : 0);
 
   return (
-    <div className="p-4 sm:p-8 max-w-4xl">
+    <div className="p-4 sm:p-8 max-w-5xl">
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
-        <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div className="flex items-start gap-3">
-            <Sol className="w-12 h-12 shrink-0" />
-            <div>
-              <h1 className="text-2xl sm:text-3xl font-bold text-brand-dark">Ciclos</h1>
-              <p className="text-sm text-brand-dark/80 mt-1 max-w-2xl">
-                Cada ano é um ciclo do projeto. Ao ativar um ciclo novo, os números do painel recomeçam do zero e os ciclos anteriores continuam guardados para consulta.
-              </p>
+        <TituloPagina
+          descricao="Cada ano é um ciclo do projeto. Ao ativar um ciclo novo, os números do painel recomeçam do zero e os anteriores ficam guardados."
+          acao={
+            <div className="flex items-center gap-3">
+            <Indicador valor={ciclos.length} rotulo={ciclos.length === 1 ? "ciclo" : "ciclos"} />
+  <button
+    type="button"
+    onClick={() => { setEditandoId("novo"); setMensagem(null); setErro(null); }}
+    className="whitespace-nowrap bg-brand-light text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-sm hover:bg-brand-accent transition-colors"
+  >
+    + Novo ciclo
+  </button>
             </div>
-          </div>
-          <button
-            type="button"
-            onClick={() => { setEditandoId("novo"); setMensagem(null); setErro(null); }}
-            className="whitespace-nowrap self-start bg-brand-light text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-sm hover:bg-brand-accent transition-colors"
-          >
-            + Novo ciclo
-          </button>
-        </div>
+          }
+        >Ciclos</TituloPagina>
 
         {erro && <div className="mt-5 rounded-lg bg-status-pendente/10 text-status-pendente px-4 py-3 text-sm">{erro}</div>}
         {mensagem && <div className="mt-5 rounded-lg bg-status-completo/10 text-status-completo px-4 py-3 text-sm">{mensagem}</div>}

@@ -2,18 +2,22 @@
 // então ações novas sem ícone próprio usam a pasta como padrão.
 type Props = { nome: string; className?: string; tileClassName?: string };
 
-type Estilo = { fundo: string; cor: string; desenho: React.ReactNode };
+// fundo/cor: ladrilho do ícone (tom claro + traço). solido/texto: a cor "de verdade" da ação, como nas etiquetas da
+// apresentação do projeto (use em chips, cartões e destaques da galeria).
+type Estilo = { fundo: string; cor: string; desenho: React.ReactNode; solido?: string; texto?: string };
 
 const normalizar = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 
 function estiloDaAcao(nome: string): Estilo {
   const n = normalizar(nome);
-  if (n.includes("acolhimento"))
-    return { fundo: "#FDE8E8", cor: "#D9363E", desenho: <path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21.3l7.8-7.8 1-1.1a5.5 5.5 0 000-7.8z" /> };
+  if (n.includes("acolhimento") || n.includes("acolhida"))
+    return { fundo: "#FEE3E3", cor: "#C62F31", solido: "#FB5556", texto: "#1A1A1A", desenho: <path d="M20.8 4.6a5.5 5.5 0 00-7.8 0L12 5.7l-1-1.1a5.5 5.5 0 00-7.8 7.8l1 1.1L12 21.3l7.8-7.8 1-1.1a5.5 5.5 0 000-7.8z" /> };
   if (n.includes("meditacao"))
     return {
-      fundo: "#E3F4EA",
-      cor: "#2F9E62",
+      fundo: "#F1E7F7",
+      cor: "#7C4A96",
+      solido: "#B886CC",
+      texto: "#1A1A1A",
       desenho: (
         <>
           <circle cx="12" cy="5.5" r="2.2" />
@@ -23,8 +27,10 @@ function estiloDaAcao(nome: string): Estilo {
     };
   if (n.includes("pratica") || n.includes("compartilhada"))
     return {
-      fundo: "#EFE8F8",
-      cor: "#7B4BA8",
+      fundo: "#E6F1FD",
+      cor: "#2D6FB0",
+      solido: "#B7D7F9",
+      texto: "#1A1A1A",
       desenho: (
         <>
           <circle cx="9" cy="12" r="5.5" />
@@ -34,8 +40,10 @@ function estiloDaAcao(nome: string): Estilo {
     };
   if (n.includes("circulo") || n.includes("amor"))
     return {
-      fundo: "#FFF3CC",
-      cor: "#C8860A",
+      fundo: "#FFE2E3",
+      cor: "#C41F26",
+      solido: "#FC4348",
+      texto: "#1A1A1A",
       desenho: (
         <>
           <circle cx="12" cy="12" r="9.5" />
@@ -45,8 +53,10 @@ function estiloDaAcao(nome: string): Estilo {
     };
   if (n.includes("familia"))
     return {
-      fundo: "#E2EFFB",
-      cor: "#2678C4",
+      fundo: "#FFF9CC",
+      cor: "#9A7D00",
+      solido: "#FCEA09",
+      texto: "#1A1A1A",
       desenho: (
         <>
           <circle cx="7.5" cy="6.5" r="2.2" />
@@ -58,8 +68,10 @@ function estiloDaAcao(nome: string): Estilo {
     };
   if (n.includes("conto"))
     return {
-      fundo: "#DDF3F1",
-      cor: "#188F89",
+      fundo: "#F0E6F7",
+      cor: "#7A4B99",
+      solido: "#B587D1",
+      texto: "#1A1A1A",
       desenho: (
         <>
           <path d="M12 6.5C10.3 5 7.5 4.5 4 4.5V18c3.5 0 6.3.5 8 2 1.7-1.5 4.5-2 8-2V4.5c-3.5 0-6.3.5-8 2z" />
@@ -69,12 +81,28 @@ function estiloDaAcao(nome: string): Estilo {
     };
   if (n.includes("civico"))
     return {
-      fundo: "#EAE8FA",
-      cor: "#5B4BC4",
+      fundo: "#DDF1E8",
+      cor: "#116549",
+      solido: "#116549",
+      texto: "#FFFFFF",
       desenho: (
         <>
           <path d="M5 21V3" />
           <path d="M5 4h13l-2.5 4 2.5 4H5" />
+        </>
+      ),
+    };
+  if (n.includes("cultura") || n.includes("meio ambiente"))
+    return {
+      fundo: "#DCF3EA",
+      cor: "#0E7857",
+      solido: "#0E7857",
+      texto: "#FFFFFF",
+      desenho: (
+        <>
+          <path d="M12 21v-9" />
+          <path d="M12 12c0-3.5-2.5-6-6.5-6 0 3.8 2.6 6 6.5 6z" />
+          <path d="M12 14c0-3 2.2-5.2 6-5.2 0 3.4-2.4 5.2-6 5.2z" />
         </>
       ),
     };
@@ -112,6 +140,23 @@ function estiloDaAcao(nome: string): Estilo {
       ),
     };
   return { fundo: "#EAF3EE", cor: "#2F6B4F", desenho: <path d="M3 7a2 2 0 012-2h4l2 2h8a2 2 0 012 2v9a2 2 0 01-2 2H5a2 2 0 01-2-2z" /> };
+}
+
+// Cor de uma ação como na apresentação do projeto: { fundo: cor da etiqueta, texto: cor da letra sobre ela }
+export function corDaAcao(nome: string): { fundo: string; texto: string; escuro: string } {
+  const e = estiloDaAcao(nome);
+  // escuro: tom mais fechado da mesma cor, para texto e traços sobre fundo claro
+  return { fundo: e.solido ?? e.cor, texto: e.texto ?? "#FFFFFF", escuro: e.cor };
+}
+
+// Só o desenho da ação (sem ladrilho), na cor do texto atual: para etiquetas e cabeçalhos coloridos
+export function SimboloAcao({ nome, className = "h-5 w-5" }: { nome: string; className?: string }) {
+  const e = estiloDaAcao(nome);
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+      {e.desenho}
+    </svg>
+  );
 }
 
 export function IconeAcao({ nome, className = "h-5 w-5", tileClassName = "h-9 w-9 rounded-lg" }: Props) {

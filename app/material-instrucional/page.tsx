@@ -1,6 +1,7 @@
 "use client";
 
-import { Sol } from "@/components/Sol";
+import { TituloPagina, Indicador } from "@/components/TituloPagina";
+
 import { CORES_ALEGRES } from "@/components/Desenhos";
 import { BookOpenIcon, ClipboardListIcon, LightbulbIcon, UserIcon } from "@/components/icons";
 import { MATERIAL_INSTRUCIONAL } from "@/lib/materialInstrucional";
@@ -14,17 +15,12 @@ const ICONES: Record<string, (p: { className?: string }) => JSX.Element> = {
 
 export default function MaterialInstrucionalPage() {
   return (
-    <div className="p-4 sm:p-8 max-w-4xl">
+    <div className="p-4 sm:p-8 max-w-5xl">
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
-        <div className="flex items-start gap-3">
-          <Sol className="w-12 h-12 shrink-0" />
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-dark">Material Instrucional</h1>
-            <p className="text-sm text-brand-dark/80 mt-1 max-w-2xl">
-              Apresentações, formações, cartilha e documento norteador do projeto. Cada material abre em uma nova aba.
-            </p>
-          </div>
-        </div>
+        <TituloPagina
+          descricao="Apresentações, formações, cartilha e documento norteador do projeto. Cada material abre em uma nova aba."
+          acao={<Indicador valor={MATERIAL_INSTRUCIONAL.reduce((t, c) => t + c.links.length, 0)} rotulo="materiais" />}
+        >Material Instrucional</TituloPagina>
 
         <div className="mt-6 space-y-4">
           {MATERIAL_INSTRUCIONAL.map((cat, i) => {

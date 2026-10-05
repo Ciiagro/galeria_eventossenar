@@ -23,6 +23,8 @@ script criar_pasta_raiz_teste.py, e não à mão no Drive.
 
 import os
 import io
+import time
+import threading
 import json
 import base64
 
@@ -61,6 +63,10 @@ def get_drive_service():
     return build("drive", "v3", credentials=creds, cache_discovery=False)
 
 
+_token_guardado: dict = {"token": None, "expira": 0.0}
+_trava_token = threading.Lock()
+
+
 def get_access_token() -> str:
     """
     Devolve um token de acesso (OAuth) de curta duração (~1h), usado só
@@ -68,10 +74,23 @@ def get_access_token() -> str:
     sem passar pela função do Vercel (que tem limite de ~4.5MB por
     requisição). Nunca expõe a chave/segredo em si, só esse token
     temporário — se vazar, expira sozinho em pouco tempo.
+
+    O token fica guardado até perto de vencer: antes, CADA miniatura da galeria pedia um token
+    novo ao Google, o que deixava a página lenta.
     """
-    creds = _get_credentials()
-    creds.refresh(GoogleAuthRequest())
-    return creds.token
+    with _trava_token:
+        if _token_guardado["token"] and _token_guardado["expira"] - 120 > time.time():
+            return _token_guardado["token"]
+        creds = _get_credentials()
+        creds.refresh(GoogleAuthRequest())
+        try:
+            from datetime import timezone
+
+            expira = creds.expiry.replace(tzinfo=timezone.utc).timestamp()
+        except Exception:  # noqa: BLE001
+            expira = time.time() + 3000
+        _token_guardado["token"], _token_guardado["expira"] = creds.token, expira
+        return creds.token
 
 
 def iniciar_upload_resumavel(folder_id: str, filename: str, mime_type: str) -> str:
@@ -221,25 +240,47 @@ def liberar_link_publico(file_id: str) -> bool:
 def baixar_miniatura(file_id: str, largura: int = 480):
     """Busca a miniatura do arquivo pela API do Drive (com a nossa credencial,
     então funciona mesmo se o arquivo não estiver público).
-    Devolve (bytes, content_type) ou None se o Drive ainda não gerou miniatura."""
+    Devolve (bytes, content_type) ou None se o Drive ainda não gerou miniatura.
+
+    Chama a API por HTTP direto, com o token em cache: sem montar o serviço do Google
+    nem pedir token novo a cada imagem."""
     import re
 
-    info = (
-        get_drive_service()
-        .files()
-        .get(fileId=file_id, fields="thumbnailLink, mimeType", supportsAllDrives=True)
-        .execute()
+    cabecalho = {"Authorization": f"Bearer {get_access_token()}"}
+    info = httpx.get(
+        f"https://www.googleapis.com/drive/v3/files/{file_id}",
+        params={"fields": "thumbnailLink,mimeType", "supportsAllDrives": "true"},
+        headers=cabecalho,
+        timeout=20,
     )
-    link = info.get("thumbnailLink")
+    if info.status_code != 200:
+        return None
+    link = info.json().get("thumbnailLink")
     if not link:
         return None
     link = re.sub(r"=s\d+$", f"=w{largura}", link)
-    resposta = httpx.get(
-        link,
-        headers={"Authorization": f"Bearer {get_access_token()}"},
-        timeout=20,
-        follow_redirects=True,
-    )
+    resposta = httpx.get(link, headers=cabecalho, timeout=20, follow_redirects=True)
     if resposta.status_code != 200:
         return None
     return resposta.content, resposta.headers.get("content-type", "image/jpeg")
+
+
+def upload_arquivo_privado(service, pasta_id: str, filename: str, file_bytes: bytes, mime_type: str) -> str:
+    """Sobe um arquivo para a pasta indicada SEM liberar link público (documentos com dados pessoais).
+    Devolve o id do arquivo."""
+    media = MediaIoBaseUpload(io.BytesIO(file_bytes), mimetype=mime_type, resumable=False)
+    criado = (
+        service.files()
+        .create(body={"name": filename, "parents": [pasta_id]}, media_body=media, fields="id", supportsAllDrives=True)
+        .execute()
+    )
+    return criado["id"]
+
+
+def baixar_arquivo(service, file_id: str) -> bytes:
+    """Baixa o conteúdo de um arquivo do Drive com a credencial do sistema."""
+    return service.files().get_media(fileId=file_id, supportsAllDrives=True).execute()
+
+
+def apagar_arquivo(service, file_id: str) -> None:
+    service.files().delete(fileId=file_id, supportsAllDrives=True).execute()
