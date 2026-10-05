@@ -86,7 +86,7 @@ def _caixa(titulo: str, corpo_html: str, botao_texto: str | None = None, botao_l
 def montar_convite(nome: str, papel_rotulo: str, municipio: str, ciclo: str, link: str, quem_enviou: str):
     """Retorna (assunto, texto, html) do convite para assinar."""
     ciclo = rotulo_edicao(ciclo)  # "Edição 2026"
-    assunto = f"Assinatura do Termo de Adesão — Projeto Valores — {municipio}"
+    assunto = f"Assinatura do Termo de Adesão — Projeto Valores — {municipio} ({papel_rotulo})"
     e = _html.escape
     nome_h, papel_h, mun_h, ciclo_h, quem_h = e(nome), e(papel_rotulo), e(municipio), e(ciclo), e(quem_enviou)
     texto = (
@@ -109,15 +109,19 @@ def montar_convite(nome: str, papel_rotulo: str, municipio: str, ciclo: str, lin
     return assunto, texto, html
 
 
-def montar_codigo(nome: str, codigo: str):
-    assunto = f"Seu código para assinar o termo: {codigo}"
+def montar_codigo(nome: str, codigo: str, contexto: str = ""):
+    """`contexto` = "Município - Papel": ajuda quando a mesma caixa de e-mail recebe códigos de vários termos."""
+    assunto = f"Seu código para assinar o termo: {codigo}" + (f" ({contexto})" if contexto else "")
     texto = (
         f"Olá, {nome}.\n\nSeu código de confirmação é: {codigo}\n"
-        "Ele vale por 15 minutos. Se não foi você, ignore esta mensagem.\n"
+        + (f"Termo: {contexto}\n" if contexto else "")
+        + "Ele vale por 15 minutos. Se não foi você, ignore esta mensagem.\n"
     )
     html = _caixa(
         "Código de confirmação",
         f"<p>Olá, <strong>{_html.escape(nome)}</strong>.</p><p>Seu código para assinar o termo é:</p>"
+        + (f"<p style=\"color:#6E6555;margin:0\">Termo: <strong>{_html.escape(contexto)}</strong></p>" if contexto else "")
+        +
         f'<p style="font-size:32px;letter-spacing:8px;font-weight:bold;color:#1E4632;margin:12px 0">{codigo}</p>'
         "<p>Ele vale por 15 minutos. Se não foi você quem pediu, ignore esta mensagem.</p>",
     )

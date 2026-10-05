@@ -3400,8 +3400,9 @@ def assinatura_enviar():
             if not _cpf_valido(cpf):
                 return jsonify({"error": f"O CPF de {rotulo} está vazio ou inválido (ele precisa constar no termo). {onde_corrigir[papel]}"}), 400
         emails = [(e or "").lower() for _, _, e, _ in previstos]
+        # dentro do mesmo termo (município) o e-mail não pode repetir; o mesmo e-mail pode ser usado em OUTRO município
         if len(set(emails)) != len(emails):
-            return jsonify({"error": "Cada pessoa precisa de um e-mail diferente (o link e o código vão para o e-mail de quem assina)."}), 400
+            return jsonify({"error": "Cada pessoa deste termo precisa de um e-mail diferente (o link e o código vão para o e-mail de quem assina). O mesmo e-mail pode ser usado em outro município."}), 400
 
         db.table("assinatura_pedidos").update({"status": "cancelado"}).eq("adesao_id", adesao["id"]).eq("status", "pendente").execute()
         pedido = db.table("assinatura_pedidos").insert({
@@ -3634,7 +3635,8 @@ def assinar_pedir_codigo():
             "codigo_tentativas": 0,
             "codigo_enviado_em": agora.isoformat(),
         }).eq("id", sig["id"]).execute()
-        assunto, texto, html = montar_codigo(sig["nome"], codigo)
+        contexto = f"{(pedido.get('snapshot') or {}).get('municipio_nome') or ''} - {PAPEIS_ASSINATURA.get(sig['papel'], '')}".strip(" -")
+        assunto, texto, html = montar_codigo(sig["nome"], codigo, contexto)
         try:
             enviar_email(sig["email"], assunto, texto, html)
         except Exception as erro:  # noqa: BLE001

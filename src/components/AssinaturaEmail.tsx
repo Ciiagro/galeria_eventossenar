@@ -368,7 +368,7 @@ export function AssinaturaEmail({
                 <p className="text-xs text-brand-dark/70 sm:col-span-2">
                   {sosCoordenador ? "O link será enviado para " : "Coordenador(a): "}<strong>{coordenadorNome || "você"}</strong>
                   {sosCoordenador ? " no e-mail do seu cadastro" : ", no e-mail do seu cadastro"}{coordenadorEmail ? ` (${coordenadorEmail})` : ""}.
-                  {!sosCoordenador && " Cada pessoa precisa de um e-mail diferente."}
+                  {!sosCoordenador && " Cada pessoa deste termo precisa de um e-mail diferente (o mesmo e-mail pode ser usado em outro município)."}
                   {" "}O CPF de cada assinante consta no termo: o do(a) prefeito(a) e o do(a) secretário(a) vêm da ficha, e o seu, do cadastro.
                 </p>
               </div>
