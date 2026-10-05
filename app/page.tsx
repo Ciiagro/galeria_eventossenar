@@ -217,8 +217,8 @@ function Dashboard({ resumo, acoes, ciclos, cicloEfetivo, filtros, onFiltrosChan
   const cicloAtual = ciclos.find((c) => c.id === cicloEfetivo);
   const filtrosNaUrl = cicloEfetivo ? `?ciclo=${cicloEfetivo}${filtros.mes ? `&mes=${filtros.mes}` : ""}` : "?ciclo=todos";
   const descricaoPeriodo = cicloEfetivo
-    ? `${cicloAtual?.nome ?? "Ciclo"}${filtros.mes ? ` · ${MESES[Number(filtros.mes) - 1]}` : ""}`
-    : "Todos os ciclos";
+    ? `${cicloAtual?.nome ?? "Edição"}${filtros.mes ? ` · ${MESES[Number(filtros.mes) - 1]}` : ""}`
+    : "Todas as edições";
   const filtrosPadrao = !filtros.acao && filtros.ciclo === null && !filtros.mes;
   const municipios = useMemo(
     () => resumo.municipios.filter((municipio) =>

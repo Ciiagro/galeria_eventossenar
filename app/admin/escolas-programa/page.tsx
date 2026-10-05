@@ -190,7 +190,7 @@ function Conteudo() {
       const r = await apiPost("/api/escolas-participantes", { ciclo_id: cicloId, escola_ids: ids, participa });
       if (!participa && r.com_documentos > 0) {
         setAviso(
-          `${r.com_documentos} ${r.com_documentos === 1 ? "escola já tinha" : "escolas já tinham"} documentos neste ciclo. Os documentos continuam salvos, mas ${r.com_documentos === 1 ? "ela deixa" : "elas deixam"} de contar como participante.`
+          `${r.com_documentos} ${r.com_documentos === 1 ? "escola já tinha" : "escolas já tinham"} documentos nesta edição. Os documentos continuam salvos, mas ${r.com_documentos === 1 ? "ela deixa" : "elas deixam"} de contar como participante.`
         );
       }
       carregarResumo();
@@ -209,7 +209,7 @@ function Conteudo() {
   }
   function desmarcarLista() {
     const ids = lista.filter((e) => noPrograma.has(e.id)).map((e) => e.id);
-    if (ids.length > 1 && !window.confirm(`Tirar ${ids.length} escolas do programa neste ciclo?`)) return;
+    if (ids.length > 1 && !window.confirm(`Tirar ${ids.length} escolas do programa nesta edição?`)) return;
     aplicar(ids, false);
   }
 
@@ -223,7 +223,7 @@ function Conteudo() {
        <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-7">
         {/* ============ topo (mesmo padrão das outras páginas) ============ */}
         <TituloPagina
-          descricao="Marque as escolas que participam deste ciclo. Só as marcadas aparecem para o envio de documentos."
+          descricao="Marque as escolas que participam desta edição. Só as marcadas aparecem para o envio de documentos."
           acao={<Indicador valor={totalCiclo.toLocaleString("pt-BR")} rotulo={`${totalCiclo === 1 ? "escola" : "escolas"} em ${municipiosNoCiclo} ${municipiosNoCiclo === 1 ? "município" : "municípios"}`} />}
         >Escolas do programa</TituloPagina>
 
@@ -320,7 +320,7 @@ function Conteudo() {
                         {visao === "no_programa" && marcadas === 0 && !busca.trim()
                           ? municipioId
                             ? "Nenhuma escola deste município está no programa ainda."
-                            : "Nenhuma escola está no programa neste ciclo ainda."
+                            : "Nenhuma escola está no programa nesta edição ainda."
                           : "Nenhuma escola encontrada com esses filtros."}
                         {visao !== "todas" && (
                           <button

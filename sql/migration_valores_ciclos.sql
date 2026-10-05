@@ -77,7 +77,7 @@ create index if not exists idx_documentos_ciclo on trab_divulgados.documentos(ci
 -- Datas absurdas (ex.: ano 20206) são ignoradas.
 insert into trab_divulgados.ciclos (nome, data_inicio, data_fim)
 select
-  'Ciclo ' || ano,
+  'Edição ' || ano,
   make_date(ano, 1, 1),
   make_date(ano, 12, 31)
 from (
@@ -87,13 +87,13 @@ from (
     and extract(year from data_realizacao) between 2000 and 2100
 ) anos
 where not exists (
-  select 1 from trab_divulgados.ciclos c where c.nome = 'Ciclo ' || anos.ano
+  select 1 from trab_divulgados.ciclos c where c.nome in ('Ciclo ' || anos.ano, 'Edição ' || anos.ano)
 );
 
 -- Garante o ciclo do ano atual (mesmo que ainda não tenha documentos)
 insert into trab_divulgados.ciclos (nome, data_inicio, data_fim)
 select
-  'Ciclo ' || extract(year from current_date)::int,
+  'Edição ' || extract(year from current_date)::int,
   make_date(extract(year from current_date)::int, 1, 1),
   make_date(extract(year from current_date)::int, 12, 31)
 where not exists (

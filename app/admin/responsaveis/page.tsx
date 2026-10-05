@@ -229,7 +229,7 @@ function ResponsaveisPage() {
                 <span className="mt-1 block text-xs font-normal text-brand-dark/70">
                   {contemplados !== null && opcoesMunicipio.length === 0
                     ? "Nenhum município tem escolas no programa ainda. Marque as escolas em Escolas do programa."
-                    : "Só aparecem os municípios que já têm escolas no programa do ciclo ativo."}
+                    : "Só aparecem os municípios que já têm escolas no programa da edição ativa."}
                 </span>
               </label>
 

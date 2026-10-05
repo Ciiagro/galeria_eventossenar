@@ -55,6 +55,12 @@ export function useCiclos(publico = false) {
   return { ciclos, ativo, carregando };
 }
 
+/** "Ciclo 2026" / "Edição 2026" / "2026" -> "Edição 2026" (para textos, mesmo que o nome gravado ainda comece com "Ciclo"). */
+export function rotuloEdicao(nome?: string | null): string {
+  const resto = (nome ?? "").replace(/^\s*(ciclo|edi[cç][aã]o)(?![\p{L}\d])[\s\-:]*/iu, "").trim();
+  return resto ? `Edição ${resto}` : "";
+}
+
 /**
  * Ciclo escolhido numa tela. Começa no ciclo ativo; "" significa "todos os ciclos";
  * setCicloId(null) volta para o ciclo ativo.

@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import Link from "next/link";
 import { apiGet } from "@/lib/api";
 import { mascaraCpf } from "@/lib/mascaras";
+import { rotuloEdicao } from "@/lib/ciclos";
 
 type EscolaTermo = {
   escola_id: string; nome: string; tipo?: string | null; endereco?: string | null; quantidade_professores: number;
@@ -62,7 +63,7 @@ export function TermoConteudo({ a, assinaturas }: { a: Adesao; assinaturas?: Ass
   const somaSerie = (k: "matricula_infantil_3" | "matricula_infantil_4" | "matricula_infantil_5") => a.escolas.reduce((t, e) => t + (e[k] || 0), 0);
   const t3 = somaSerie("matricula_infantil_3"), t4 = somaSerie("matricula_infantil_4"), t5 = somaSerie("matricula_infantil_5");
   const totalProf = a.escolas.reduce((t, e) => t + (e.quantidade_professores || 0), 0);
-  const ano = a.ciclo_nome ?? "";
+  const ano = rotuloEdicao(a.ciclo_nome); // ex.: "Edição 2026"
   const aprovada = a.status === "aprovada" ? dataBr(a.aprovada_em) : null;
 
   const quando = (papel: string) => assinaturas?.find((x) => x.papel === papel)?.assinado_em ?? null;
@@ -71,8 +72,8 @@ export function TermoConteudo({ a, assinaturas }: { a: Adesao; assinaturas?: Ass
     <article className="mx-auto w-full max-w-[210mm] bg-white px-[14mm] py-[12mm] text-[#2A2620] shadow-lg print:max-w-none print:p-0 print:shadow-none">
       <header className="mb-4 border-b-[3px] pb-3" style={{ borderColor: VERDE }}>
         <div className="mb-3 flex items-center justify-between">
+          <img src="/logo-valores-termo.png" alt="Projeto Valores — Brincando e cultivando os valores humanos" width={298} height={136} className="h-9 w-auto" />
           <img src="/logo-senar-termo.png" alt="SENAR" width={370} height={140} className="h-11 w-auto" />
-          <img src="/logo-valores-termo.png" alt="Projeto Valores — Brincando e cultivando os valores humanos" width={298} height={136} className="h-11 w-auto" />
         </div>
         <span className="mb-2 inline-block rounded px-2.5 py-0.5 text-[10px] font-bold tracking-wide text-white" style={{ background: VERDE }}>FAEC · SENAR CEARÁ</span>
         <h1 className="text-[20px] font-bold leading-tight" style={{ color: VERDE_ESCURO }}>Termo de Adesão · Projeto Valores {ano && `· ${ano}`}</h1>
@@ -162,7 +163,7 @@ export function TermoConteudo({ a, assinaturas }: { a: Adesao; assinaturas?: Ass
         <Secao n={6} titulo="Termo de Adesão e Compromisso" />
         <div className="rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-[12px] leading-relaxed">
           Pelo presente termo, o município de <strong>{a.municipio_nome}</strong>, por meio de seus representantes abaixo assinados, formaliza
-          sua adesão ao <strong>Projeto Valores</strong>{ano && <> para o ciclo <strong>{ano}</strong></>}, comprometendo-se a viabilizar a execução do
+          sua adesão ao <strong>Projeto Valores</strong>{ano && <> para a <strong>{ano.charAt(0).toLowerCase() + ano.slice(1)}</strong></>}, comprometendo-se a viabilizar a execução do
           programa junto às escolas listadas neste documento, garantindo a participação de gestores, professores e alunos nas atividades previstas,
           bem como o correto envio das informações de acompanhamento solicitadas pela coordenação do projeto.
         </div>

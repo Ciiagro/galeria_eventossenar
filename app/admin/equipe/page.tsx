@@ -252,7 +252,7 @@ function EquipePage() {
                     <button type="button" onClick={() => setEscolhidos(new Set())} className="text-xs font-semibold text-brand-light hover:underline">Limpar</button>
                   )}
                 </div>
-                <p className="mb-2 text-xs text-brand-dark/70">Só aparecem os municípios que têm escolas no programa do ciclo ativo.</p>
+                <p className="mb-2 text-xs text-brand-dark/70">Só aparecem os municípios que têm escolas no programa da edição ativa.</p>
                 <div className="relative mb-2">
                   <SearchIcon className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-brand-dark/60" />
                   <input value={buscaMunicipio} onChange={(e) => setBuscaMunicipio(e.target.value)} placeholder="Buscar município..." className={`${CAMPO} pl-9`} />

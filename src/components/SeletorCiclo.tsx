@@ -19,9 +19,9 @@ export function SeletorCiclo({
       value={valor}
       onChange={(e) => onChange(e.target.value)}
       className={className}
-      title="Cada ano é um ciclo do projeto"
+      title="Cada ano é uma edição do projeto"
     >
-      <option value="">Todos os ciclos</option>
+      <option value="">Todas as edições</option>
       {ciclos.map((c) => (
         <option key={c.id} value={c.id}>
           {c.nome}{c.ativo ? " (ativo)" : ""}

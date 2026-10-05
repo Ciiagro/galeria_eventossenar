@@ -16,7 +16,7 @@ const linksAdmin: LinkMenu[] = [
   { href: "/admin/responsaveis", label: "Coordenadores", Icon: UserIcon },
   { href: "/admin/equipe", label: "Equipe de apoio", Icon: HeartIcon },
   { href: "/admin/escolas-programa", label: "Escolas do programa", Icon: CheckIcon },
-  { href: "/admin/ciclos", label: "Ciclos", Icon: CalendarIcon },
+  { href: "/admin/ciclos", label: "Edições", Icon: CalendarIcon },
 ];
 
 // Material Instrucional (apresentações, formações, cartilha...) — todos os perfis

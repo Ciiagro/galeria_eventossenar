@@ -18,6 +18,8 @@ import ssl
 from email.message import EmailMessage
 from email.utils import formataddr
 
+from lib.edicao import rotulo_edicao
+
 
 def email_configurado() -> bool:
     return bool(os.environ.get("SMTP_USER") and os.environ.get("SMTP_PASSWORD"))
@@ -83,12 +85,13 @@ def _caixa(titulo: str, corpo_html: str, botao_texto: str | None = None, botao_l
 
 def montar_convite(nome: str, papel_rotulo: str, municipio: str, ciclo: str, link: str, quem_enviou: str):
     """Retorna (assunto, texto, html) do convite para assinar."""
+    ciclo = rotulo_edicao(ciclo)  # "Edição 2026"
     assunto = f"Assinatura do Termo de Adesão — Projeto Valores — {municipio}"
     e = _html.escape
     nome_h, papel_h, mun_h, ciclo_h, quem_h = e(nome), e(papel_rotulo), e(municipio), e(ciclo), e(quem_enviou)
     texto = (
         f"Olá, {nome}.\n\n"
-        f"{quem_enviou} enviou o Termo de Adesão ao Projeto Valores{(' ' + ciclo) if ciclo else ''} "
+        f"{quem_enviou} enviou o Termo de Adesão ao Projeto Valores{(' (' + ciclo + ')') if ciclo else ''} "
         f"do município de {municipio} para a sua assinatura, como {papel_rotulo}.\n\n"
         f"Para ler o termo e assinar, abra o link abaixo (ele é pessoal, não encaminhe):\n{link}\n\n"
         "Ao abrir, você receberá um código de 6 dígitos neste mesmo e-mail para confirmar a assinatura.\n"
@@ -96,7 +99,7 @@ def montar_convite(nome: str, papel_rotulo: str, municipio: str, ciclo: str, lin
     html = _caixa(
         "Termo de Adesão — Projeto Valores",
         f"<p>Olá, <strong>{nome_h}</strong>.</p>"
-        f"<p>{quem_h} enviou o Termo de Adesão ao Projeto Valores{(' ' + ciclo_h) if ciclo else ''} "
+        f"<p>{quem_h} enviou o Termo de Adesão ao Projeto Valores{(' (' + ciclo_h + ')') if ciclo else ''} "
         f"do município de <strong>{mun_h}</strong> para a sua assinatura, como <strong>{papel_h}</strong>.</p>"
         "<p>O link é pessoal — não o encaminhe. Ao abrir, você receberá um código de 6 dígitos "
         "neste mesmo e-mail para confirmar a assinatura.</p>",

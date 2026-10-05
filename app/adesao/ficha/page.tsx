@@ -455,7 +455,7 @@ export default function AdesaoPage() {
         >Ficha de adesão — Projeto Valores</TituloPagina>
 
         {resp && !resp.ciclo && (
-          <div className="mt-5 rounded-lg bg-[#FFF3CC] text-[#6E4B00] px-4 py-3 text-sm">Não há um ciclo ativo no momento. Fale com o administrador.</div>
+          <div className="mt-5 rounded-lg bg-[#FFF3CC] text-[#6E4B00] px-4 py-3 text-sm">Não há uma edição ativa no momento. Fale com o administrador.</div>
         )}
 
         <div className="mt-5 rounded-lg px-4 py-3 text-sm font-semibold" style={{ background: faixa.fundo, color: faixa.cor }}>

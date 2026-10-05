@@ -289,7 +289,7 @@ export default function GaleriaPublica() {
         <div className="flex flex-wrap items-center gap-2">
           {ciclos.length > 0 && (
             <Filtro icone="☀️" valor={cicloId} onChange={setCicloId}>
-              <option value="">Todos os ciclos</option>
+              <option value="">Todas as edições</option>
               {ciclos.map((c) => <option key={c.id} value={c.id}>{c.nome}{c.ativo ? " (atual)" : ""}</option>)}
             </Filtro>
           )}

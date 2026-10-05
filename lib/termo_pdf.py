@@ -11,6 +11,8 @@ from datetime import datetime, timedelta, timezone
 
 from fpdf import FPDF
 
+from lib.edicao import rotulo_edicao
+
 RAIZ = os.path.abspath(os.path.join(os.path.dirname(__file__), ".."))
 VERDE = (47, 107, 79)
 VERDE_ESCURO = (30, 70, 50)
@@ -245,7 +247,7 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
     a = snapshot
     c = a.get("coordenador") or {}
     escolas = a.get("escolas") or []
-    ano = a.get("ciclo_nome") or ""
+    ano = rotulo_edicao(a.get("ciclo_nome"))  # ex.: "Edição 2026"
 
     pdf = _Pdf(format="A4", unit="mm")
     pdf.alias_nb_pages()
@@ -253,12 +255,20 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
     pdf.set_auto_page_break(auto=True, margin=16)
     pdf.add_page()
 
-    # logos (se os arquivos estiverem presentes no deploy)
-    for arquivo, x, w in (("logo-senar-termo.png", 15, 34), ("logo-valores-termo.png", 144, 48)):
+    # logos (se os arquivos estiverem presentes no deploy): Projeto Valores à esquerda (menor) e SENAR à
+    # direita, os dois acima da linha verde (que fica a 27 mm do topo). (arquivo, altura em mm, proporção, lado)
+    logos = (
+        ("logo-valores-termo.png", 14.0, 298 / 136, "esquerda"),
+        ("logo-senar-termo.png", 12.9, 370 / 140, "direita"),
+    )
+    for arquivo, altura, proporcao, lado in logos:
         caminho = os.path.join(RAIZ, "public", arquivo)
         if os.path.exists(caminho):
             try:
-                pdf.image(caminho, x=x, y=11, w=w)
+                largura = altura * proporcao
+                x = 15 if lado == "esquerda" else 195 - largura   # margens do texto: 15 mm e 195 mm
+                y = 10 + (14.0 - altura) / 2                      # centraliza os dois na faixa de 10 a 24 mm
+                pdf.image(caminho, x=x, y=y, w=largura, h=altura)
             except Exception:  # noqa: BLE001 - o logo faltando não pode impedir o termo
                 pass
     pdf.set_y(27)
@@ -330,7 +340,7 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
     pdf.set_draw_color(*BORDA)
     texto1 = (
         f"Pelo presente termo, o município de {a.get('municipio_nome')}, por meio de seus representantes abaixo assinados, "
-        f"formaliza sua adesão ao Projeto Valores{(' para o ciclo ' + ano) if ano else ''}, comprometendo-se a viabilizar a execução do "
+        f"formaliza sua adesão ao Projeto Valores{(' para a ' + ano[:1].lower() + ano[1:]) if ano else ''}, comprometendo-se a viabilizar a execução do "
         "programa junto às escolas listadas neste documento, garantindo a participação de gestores, professores e alunos nas atividades "
         "previstas, bem como o correto envio das informações de acompanhamento solicitadas pela coordenação do projeto."
     )

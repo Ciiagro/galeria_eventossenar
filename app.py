@@ -924,7 +924,7 @@ def salvar_ciclo():
         return jsonify({"error": "Não autenticado"}), 401
     user, jwt = auth
     if not require_admin(jwt, user):
-        return jsonify({"error": "Apenas administradores podem editar ciclos."}), 403
+        return jsonify({"error": "Apenas administradores podem editar edições."}), 403
 
     body = request.get_json(force=True, silent=True) or {}
     ciclo_id = body.get("id")
@@ -934,7 +934,7 @@ def salvar_ciclo():
     ativo = bool(body.get("ativo"))
 
     if not nome or not inicio or not fim:
-        return jsonify({"error": "Informe o nome, a data de início e a data de fim do ciclo."}), 400
+        return jsonify({"error": "Informe o nome, a data de início e a data de fim da edição."}), 400
     if not data_realizacao_valida(inicio) or not data_realizacao_valida(fim):
         return jsonify({"error": "Data inválida. Confira o ano (ex.: 2027)."}), 400
     if fim < inicio:
@@ -959,7 +959,7 @@ def salvar_ciclo():
     except Exception as e:
         mensagem = str(e)
         if "uq_ciclos_um_ativo" in mensagem:
-            mensagem = "Já existe um ciclo ativo. Tente de novo."
+            mensagem = "Já existe uma edição ativa. Tente de novo."
         return jsonify({"error": mensagem}), 500
 
 
@@ -971,7 +971,7 @@ def excluir_ciclo():
         return jsonify({"error": "Não autenticado"}), 401
     user, jwt = auth
     if not require_admin(jwt, user):
-        return jsonify({"error": "Apenas administradores podem excluir ciclos."}), 403
+        return jsonify({"error": "Apenas administradores podem excluir edições."}), 403
 
     ciclo_id = request.args.get("id")
     if not ciclo_id:
@@ -980,7 +980,7 @@ def excluir_ciclo():
         db = get_client()
         usados = db.table("documentos").select("id", count="exact").eq("ciclo_id", ciclo_id).limit(1).execute()
         if (usados.count or 0) > 0:
-            return jsonify({"error": "Este ciclo já tem documentos e não pode ser excluído."}), 400
+            return jsonify({"error": "Esta edição já tem documentos e não pode ser excluída."}), 400
         db.table("ciclos").delete().eq("id", ciclo_id).execute()
         return jsonify({"ok": True})
     except Exception as e:
@@ -1117,7 +1117,7 @@ def salvar_escolas_participantes():
     escola_ids = [i for i in (body.get("escola_ids") or []) if i]
     participa = bool(body.get("participa"))
     if not ciclo_id:
-        return jsonify({"error": "Escolha o ciclo."}), 400
+        return jsonify({"error": "Escolha a edição."}), 400
     if not escola_ids:
         return jsonify({"error": "Nenhuma escola informada."}), 400
     if len(escola_ids) > 3000:
@@ -1126,7 +1126,7 @@ def salvar_escolas_participantes():
     try:
         db = get_client()
         if not (db.table("ciclos").select("id").eq("id", ciclo_id).limit(1).execute().data or []):
-            return jsonify({"error": "Ciclo não encontrado."}), 400
+            return jsonify({"error": "Edição não encontrada."}), 400
 
         com_documentos = set()
         for i in range(0, len(escola_ids), 100):
@@ -1529,7 +1529,7 @@ def criar_documento():
             if ciclo_do_envio:
                 participa = db.table("escolas_ciclos").select("escola_id").eq("escola_id", body["escola_id"]).eq("ciclo_id", ciclo_do_envio).limit(1).execute().data
                 if not participa:
-                    return jsonify({"error": "Esta escola não faz parte do programa neste ciclo. Peça ao administrador para incluí-la."}), 400
+                    return jsonify({"error": "Esta escola não faz parte do programa nesta edição. Peça ao administrador para incluí-la."}), 400
         perfil = db.table("perfis").select("nome").eq("id", user.id).single().execute().data or {}
         responsavel_nome = perfil.get("nome") or (getattr(user, "user_metadata", {}) or {}).get("nome") or user.email
         payload = {
@@ -3083,7 +3083,7 @@ def salvar_adesao():
 
         ciclo_id = _ciclo_ativo_id(db)
         if not ciclo_id:
-            return jsonify({"error": "Não há ciclo ativo no momento. Fale com o administrador."}), 400
+            return jsonify({"error": "Não há edição ativa no momento. Fale com o administrador."}), 400
 
         existente = (
             db.table("adesoes").select("id, status, termo_assinado_drive_id, termo_assinado_nome, termo_assinado_em, termo_assinado_hash").eq("ciclo_id", ciclo_id).eq("coordenador_id", user.id)
