@@ -33,7 +33,6 @@ export default function AssinarPage() {
   const [aviso, setAviso] = useState<string | null>(null);
   const [codigoEnviado, setCodigoEnviado] = useState(false);
   const [codigo, setCodigo] = useState("");
-  const [nome, setNome] = useState("");
   const [aceito, setAceito] = useState(false);
   const [ocupado, setOcupado] = useState(false);
   const [feito, setFeito] = useState<{ concluido: boolean } | null>(null);
@@ -64,7 +63,7 @@ export default function AssinarPage() {
     if (!token) return;
     setErro(null); setAviso(null); setOcupado(true);
     try {
-      const r = await chamar("/api/assinar/confirmar", { t: token, codigo, nome, aceito });
+      const r = await chamar("/api/assinar/confirmar", { t: token, codigo, aceito });
       setFeito({ concluido: Boolean(r.concluido) });
       const atual = await chamar(`/api/assinar/info?t=${encodeURIComponent(token)}`);
       setInfo(atual);
@@ -91,7 +90,7 @@ export default function AssinarPage() {
 
   const jaAssinou = Boolean(info.assinado_em);
   const faltam = info.assinaturas.filter((x) => !x.assinado_em).length;
-  const podeAssinar = codigo.length === 6 && nome.trim().split(/\s+/).length >= 2 && aceito && !ocupado;
+  const podeAssinar = codigo.length === 6 && aceito && !ocupado;
 
   return (
     <div className="min-h-screen bg-[#EDEAE0] py-4 print:bg-white print:py-0">
@@ -155,13 +154,9 @@ export default function AssinarPage() {
                       onChange={(e) => setCodigo(e.target.value.replace(/\D/g, "").slice(0, 6))}
                       className={`${CAMPO} max-w-[12rem] text-center font-mono text-xl tracking-[0.4em]`} placeholder="000000" />
                   </label>
-                  <label className="block">
-                    <span className="mb-1 block text-sm font-semibold text-[#2A2620]">Seu nome completo</span>
-                    <input value={nome} onChange={(e) => setNome(e.target.value)} className={CAMPO} placeholder="Como no documento de identidade" autoComplete="name" />
-                  </label>
                   <label className="flex items-start gap-2 text-sm text-[#2A2620]">
                     <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={aceito} onChange={(e) => setAceito(e.target.checked)} />
-                    <span>Li o Termo de Adesão acima, concordo com o seu conteúdo e assino eletronicamente como <strong>{info.papel_rotulo}</strong>.</span>
+                    <span>Eu, <strong>{info.nome}</strong>, li o Termo de Adesão acima, concordo com o seu conteúdo e assino eletronicamente como <strong>{info.papel_rotulo}</strong>.</span>
                   </label>
                   <button type="button" onClick={assinar} disabled={!podeAssinar}
                     className="rounded-lg bg-[#2F6B4F] px-6 py-2.5 text-base font-semibold text-white shadow-sm hover:bg-[#1E4632] disabled:opacity-50">

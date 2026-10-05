@@ -300,7 +300,6 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
         pdf.set_font("Helvetica", "", 8.5)
         pdf.set_text_color(42, 38, 32)
         pdf.cell(0, 4.5, _t(f"E-mail: {s['email']}"), new_x="LMARGIN", new_y="NEXT")
-        pdf.cell(0, 4.5, _t(f"Nome digitado na assinatura: {s.get('assinado_nome_digitado') or '-'}"), new_x="LMARGIN", new_y="NEXT")
         pdf.cell(0, 4.5, _t(f"Data e hora: {data_hora_br(s.get('assinado_em'))}"), new_x="LMARGIN", new_y="NEXT")
         pdf.cell(0, 4.5, _t(f"IP: {s.get('ip') or '-'}"), new_x="LMARGIN", new_y="NEXT")
         pdf.multi_cell(0, 4.5, _t(f"Navegador: {(s.get('user_agent') or '-')[:180]}"), new_x="LMARGIN", new_y="NEXT")

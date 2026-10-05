@@ -3634,7 +3634,6 @@ def assinar_pedir_codigo():
 def assinar_confirmar():
     """Confere o código e registra a assinatura (data, hora, IP e navegador)."""
     body = request.get_json(force=True, silent=True) or {}
-    nome_digitado = _texto(body.get("nome"), 150)
     codigo = _so_digitos(body.get("codigo"))
     try:
         db = get_client()
@@ -3647,8 +3646,6 @@ def assinar_confirmar():
             return jsonify({"error": "Você já assinou este termo."}), 409
         if body.get("aceito") is not True:
             return jsonify({"error": "Marque a declaração de que leu e concorda com o termo."}), 400
-        if not nome_digitado or len(nome_digitado.split()) < 2:
-            return jsonify({"error": "Digite o seu nome completo."}), 400
         if not sig.get("codigo_hash"):
             return jsonify({"error": "Peça o código de confirmação primeiro."}), 400
         if int(sig.get("codigo_tentativas") or 0) >= CODIGO_MAX_TENTATIVAS:
@@ -3664,7 +3661,7 @@ def assinar_confirmar():
 
         gravado = db.table("assinatura_signatarios").update({
             "assinado_em": _agora().isoformat(),
-            "assinado_nome_digitado": nome_digitado,
+            "assinado_nome_digitado": sig["nome"],  # o nome já cadastrado para este signatário
             "ip": _ip_da_requisicao(),
             "user_agent": (request.headers.get("User-Agent") or "")[:300],
             "codigo_hash": None, "codigo_expira_em": None,

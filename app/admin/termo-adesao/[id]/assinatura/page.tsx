@@ -92,7 +92,7 @@ function Conteudo({ id }: { id: string }) {
                   <p className="truncate text-xs text-brand-dark/70">{s.email}</p>
                   {s.assinado_em && (
                     <p className="text-[11px] text-brand-dark/60">
-                      Assinou como “{s.assinado_nome_digitado ?? s.nome}” · IP {s.ip ?? "—"}
+                      IP {s.ip ?? "—"}
                     </p>
                   )}
                 </div>
