@@ -1,9 +1,0 @@
-TROCAR "CICLO" POR "EDIÇÃO"
-
-1) Copie os arquivos desta pasta para o projeto, mantendo as subpastas, substituindo os existentes.
-2) Rode UMA VEZ no Supabase (SQL Editor) o arquivo:
-       sql/migration_renomear_ciclo_para_edicao.sql
-   (ele troca o nome gravado "Ciclo 2026" por "Edição 2026"; sem isso, o nome da edição continua
-   aparecendo como "Ciclo 2026" nas telas, no painel e na lista de edições).
-3) Reinicie o backend (Ctrl+C e npm run dev:all) e recarregue a página com Ctrl+F5.
-4) Para publicar: git add . / git commit / git push (e o Redeploy no Vercel, se não for automático).
