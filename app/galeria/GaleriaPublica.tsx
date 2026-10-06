@@ -248,16 +248,16 @@ export default function GaleriaPublica() {
       {/* ================= Topo ================= */}
       <CabecalhoPublico ativo="galeria" busca={busca} onBusca={setBusca} />
 
-      <main className="max-w-[1400px] mx-auto px-4 sm:px-8 py-4 space-y-4">
+      <main className="max-w-[1400px] mx-auto px-4 sm:px-8 py-3 space-y-3">
         {/* ================= Topo compacto: logo, texto, valores, botão e o sol (sem cortar nada) ================= */}
         <FundoFestivo className="rounded-2xl border border-black/5" mostrarSol={false}>
-          <section className="p-4 sm:px-6 sm:py-5">
+          <section className="p-3 sm:px-6 sm:py-3">
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <LogoValores className="order-1 w-36 shrink-0 sm:w-44" />
+              <LogoValores className="order-1 w-32 shrink-0 sm:w-40" />
 
               {/* o sol fica no fluxo da página (e não solto no fundo), então nunca é cortado */}
               {/* eslint-disable-next-line @next/next/no-img-element */}
-              <img src="/sol-valores.png" alt="" width={900} height={545} className="order-2 ml-auto h-auto w-28 shrink-0 sm:order-3 sm:w-40 lg:w-52" />
+              <img src="/sol-valores.png" alt="" width={900} height={545} className="order-2 ml-auto h-auto w-24 shrink-0 sm:order-3 sm:w-32 lg:w-40" />
 
               <div className="order-3 w-full sm:order-2 sm:w-auto sm:min-w-[280px] sm:flex-1">
                 {municipioId && nomeMunicipio(Number(municipioId)) ? (
@@ -268,7 +268,7 @@ export default function GaleriaPublica() {
                 <p className="max-w-2xl text-sm leading-relaxed text-brand-dark/90 sm:text-base">
                   Colabore com a formação do caráter na <strong>educação infantil</strong>, proporcionando à sociedade um ser integral dotado dos valores humanos universais.
                 </p>
-                <ul className="mt-3 flex flex-wrap gap-2" aria-label="Valores humanos do projeto">
+                <ul className="mt-2 flex flex-wrap gap-2" aria-label="Valores humanos do projeto">
                   {VALORES.map((v) => (
                     <li key={v.nome} className="inline-flex items-center gap-2 rounded-full border border-black/10 bg-white/90 px-3 py-1 text-sm font-semibold text-brand-dark">
                       <span className="h-2.5 w-2.5 rounded-full" style={{ background: v.cor }} aria-hidden="true" />
@@ -354,14 +354,14 @@ export default function GaleriaPublica() {
                 escolas={escolasMapa}
                 onClicarMunicipio={(id) => { setDestaqueId(id); setZoomMapaId(id); }}
                 onClicarEscola={verAcoesDaEscola}
-                className="h-[320px]"
+                className="h-[250px]"
               />
               {infoPainel && (
                 <div className="rounded-xl bg-[#f4f8f3] p-4 flex flex-col">
                   <div className="flex flex-wrap items-center justify-between gap-2">
                     <p className="text-lg font-bold">📍 {infoPainel.nome} (CE)</p>
                   </div>
-                  <dl className="mt-4 space-y-3 text-sm">
+                  <dl className="mt-2 space-y-2 text-sm">
                     <Dado icone="🏫" rotulo="Escolas participantes" valor={infoPainel.escolas} />
                     <Dado icone="📄" rotulo="Publicações" valor={infoPainel.publicacoes} />
                     <Dado icone="🕒" rotulo="Última ação" valor={infoPainel.ultima ? formatarData(infoPainel.ultima) : "—"} />
@@ -478,6 +478,21 @@ export default function GaleriaPublica() {
                   </article>
                 );
               })}
+              {/* Banner: ocupa as colunas que sobram na última linha (só no desktop, onde são 4 colunas) */}
+              {(() => {
+                const sobra = (4 - (cartoesAcoes.length % 4)) % 4;
+                if (sobra === 0) return null;
+                const span = { 1: "xl:col-span-1", 2: "xl:col-span-2", 3: "xl:col-span-3" }[sobra as 1 | 2 | 3];
+                return (
+                  <div className={`hidden xl:block ${span} overflow-hidden rounded-2xl border border-black/5 shadow-sm`}>
+                    <img
+                      src="/banner-galeria.png"
+                      alt="Educação é construída com afeto, respeito e boas experiências. Juntos, fazemos a diferença!"
+                      className="h-full w-full object-cover"
+                    />
+                  </div>
+                );
+              })()}
             </div>
           </section>
         )}
@@ -644,7 +659,7 @@ function Filtro({ icone, valor, onChange, children, desativado, dica }: { icone:
 // Botão "Conheça o projeto": verde escuro, lâmpada num círculo à esquerda, seta à direita e faíscas em volta
 function BotaoConheca() {
   return (
-    <span className="relative mt-4 inline-block px-3 py-1.5">
+    <span className="relative mt-2 inline-block px-3 py-1">
       <span aria-hidden="true" className="pointer-events-none absolute inset-0">
         <span className="absolute -right-1 top-0 h-3 w-0.5 rotate-[35deg] rounded bg-brand-dark/45" />
         <span className="absolute right-3 -top-1 h-3 w-0.5 rotate-[-20deg] rounded bg-brand-dark/45" />
@@ -653,7 +668,7 @@ function BotaoConheca() {
       </span>
       <a
         href="/galeria/sobre"
-        className="relative inline-flex items-center gap-3 rounded-full bg-brand py-2 pl-2.5 pr-5 text-base font-bold text-white shadow-md shadow-brand/25 transition hover:-translate-y-0.5 hover:bg-brand-light"
+        className="relative inline-flex items-center gap-3 rounded-full bg-brand py-1.5 pl-2 pr-5 text-base font-bold text-white shadow-md shadow-brand/25 transition hover:-translate-y-0.5 hover:bg-brand-light"
       >
         <span className="flex h-9 w-9 items-center justify-center rounded-full bg-white/15" aria-hidden="true">
           <svg viewBox="0 0 24 24" className="h-5 w-5" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round">
@@ -672,7 +687,7 @@ function BotaoConheca() {
 
 function Numero({ icone, rotulo, valor }: { icone: string; rotulo: string; valor: number }) {
   return (
-    <div className="flex items-center gap-3 rounded-xl bg-[#e8f1e6] px-3 py-2">
+    <div className="flex items-center gap-3 rounded-xl bg-[#e8f1e6] px-3 py-1.5">
       <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-white/70 text-xl" aria-hidden>{icone}</span>
       <span className="min-w-0">
         <span className="block truncate text-xs text-brand-dark/75">{rotulo}</span>

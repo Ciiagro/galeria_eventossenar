@@ -1427,8 +1427,12 @@ def listar_documentos():
                 query = query.eq("municipio_id", municipio_id)
             if ciclo_id:
                 query = query.eq("ciclo_id", ciclo_id)
-            if status or fila_analise:
-                query = query.eq("status", status or "pendente")
+            if status:
+                query = query.eq("status", status)
+            elif fila_analise:
+                # pendentes + os que o Apoiador de Relatórios já analisou: estes continuam na aba "Analisados"
+                # mesmo depois de o administrador aprovar (antes sumiam da lista ao sair de "pendente")
+                query = query.or_("status.eq.pendente,analise_status.not.is.null")
             if tipo_id:
                 query = query.eq("tipo_id", tipo_id)
             return query.order("created_at", desc=True).order("id")

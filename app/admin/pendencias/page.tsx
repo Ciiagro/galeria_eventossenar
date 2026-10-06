@@ -11,6 +11,7 @@ import { normalizarLink } from "@/lib/linkIncorporavel";
 import { MESES } from "@/lib/periodo";
 import { noCicloEMes, useFiltroCiclo } from "@/lib/ciclos";
 import { urlsMiniatura } from "@/lib/miniatura";
+import { Paginacao } from "@/components/Paginacao";
 import { Abas, BarraFiltros, CampoBusca, CLASSE_SELECT, SeletorOrdem } from "@/components/Filtros";
 import {
   CalendarIcon,
@@ -33,7 +34,7 @@ export default function PendenciasPageGuarded() {
   );
 }
 
-const POR_PAGINA = 30;
+const POR_PAGINA_PADRAO = 10;
 
 type Aba = "pendente" | "aprovado" | "arquivado" | "";
 type Ordem = "recentes" | "antigos" | "data_acao";
@@ -59,20 +60,37 @@ function PainelAprovacao() {
   const [selecionado, setSelecionado] = useState(0);
   // Lista compacta (padrão) cabe muito mais documentos na tela; "Detalhado" mostra os cartões completos
   const [compacto, setCompacto] = useState(true);
-  const [limite, setLimite] = useState(POR_PAGINA); // mostra aos poucos, para não virar uma rolagem sem fim
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(POR_PAGINA_PADRAO);
   useEffect(() => {
-    try { if (window.localStorage.getItem("painel_visual") === "detalhado") setCompacto(false); } catch { /* sem armazenamento: usa o padrão */ }
+    try {
+      if (window.localStorage.getItem("painel_visual") === "detalhado") setCompacto(false);
+      const salvo = Number(window.localStorage.getItem("painel_por_pagina"));
+      if ([10, 20, 50].includes(salvo)) setPorPagina(salvo);
+    } catch { /* sem armazenamento: usa o padrão */ }
   }, []);
+  function mudarPorPagina(valor: number) {
+    setPorPagina(valor);
+    setPagina(1);
+    setSelecionado(0);
+    try { window.localStorage.setItem("painel_por_pagina", String(valor)); } catch { /* ignora */ }
+  }
+  function irParaPagina(n: number) {
+    setPagina(n);
+    setSelecionado(0);
+    cabecalhoListaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" });
+  }
   function mudarVisual(valor: boolean) {
     setCompacto(valor);
     try { window.localStorage.setItem("painel_visual", valor ? "compacto" : "detalhado"); } catch { /* ignora */ }
   }
-  useEffect(() => { setLimite(POR_PAGINA); }, [aba, filtroMes, filtroMunicipio, filtroTipo, filtroCiclo, busca, ordem]);
+  useEffect(() => { setPagina(1); }, [aba, filtroMes, filtroMunicipio, filtroTipo, filtroCiclo, busca, ordem]);
   const [visualizando, setVisualizando] = useState<Documento | null>(null);
   const [documentoParaAprovar, setDocumentoParaAprovar] = useState<Documento | null>(null);
   const [publicarNaGaleria, setPublicarNaGaleria] = useState<boolean | null>(null);
   const [descricaoGaleria, setDescricaoGaleria] = useState("");
   const cardsRef = useRef<(HTMLElement | null)[]>([]);
+  const cabecalhoListaRef = useRef<HTMLDivElement | null>(null);
 
   // ---------- dados ----------
   const carregar = useCallback(() => {
@@ -145,6 +163,14 @@ function PainelAprovacao() {
     return [...itens].sort((a, b) => (ordem === "antigos" ? chave(a).localeCompare(chave(b)) : chave(b).localeCompare(chave(a))));
   }, [doFiltro, aba, ordem]);
 
+  // se a lista encolher (ex.: arquivou o último item da página), volta para a última página válida
+  const ultimaPagina = Math.max(1, Math.ceil(lista.length / porPagina));
+  useEffect(() => { if (pagina > ultimaPagina) setPagina(ultimaPagina); }, [pagina, ultimaPagina]);
+  const itensDaPagina = useMemo(
+    () => lista.slice((pagina - 1) * porPagina, pagina * porPagina),
+    [lista, pagina, porPagina]
+  );
+
   const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado).length;
   const pendentesForaDoPeriodo = (documentos ?? []).filter(
     (d) => d.status === "pendente" && !noCicloEMes(d, filtroCiclo, ciclos, filtroMes)
@@ -152,8 +178,8 @@ function PainelAprovacao() {
   const temFiltro = Boolean(!cicloPadrao || filtroMes || filtroMunicipio || filtroTipo || busca.trim());
 
   useEffect(() => {
-    setSelecionado((i) => Math.min(i, Math.max(0, lista.length - 1)));
-  }, [lista.length]);
+    setSelecionado((i) => Math.min(i, Math.max(0, itensDaPagina.length - 1)));
+  }, [itensDaPagina.length]);
 
   // ---------- ações ----------
   function abrirAprovacao(doc: Documento) {
@@ -202,10 +228,10 @@ function PainelAprovacao() {
       const alvo = e.target as HTMLElement;
       if (["INPUT", "TEXTAREA", "SELECT"].includes(alvo.tagName) || alvo.isContentEditable) return;
       if (documentoParaAprovar || visualizando || e.ctrlKey || e.metaKey || e.altKey) return;
-      const doc = lista[selecionado];
+      const doc = itensDaPagina[selecionado];
       if (e.key === "ArrowRight" || e.key === "ArrowDown") {
         e.preventDefault();
-        setSelecionado((i) => Math.min(i + 1, Math.min(lista.length, limite) - 1));
+        setSelecionado((i) => Math.min(i + 1, itensDaPagina.length - 1));
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
         setSelecionado((i) => Math.max(i - 1, 0));
@@ -306,7 +332,7 @@ function PainelAprovacao() {
         {erro && <p className="mt-4 text-sm text-status-pendente">{erro}</p>}
 
         {/* Lista */}
-        <div className={`mt-5 ${compacto ? "space-y-1.5" : "space-y-3"}`}>
+        <div ref={cabecalhoListaRef} className={`mt-5 scroll-mt-4 ${compacto ? "space-y-1.5" : "space-y-3"}`}>
           {(!documentos || aba === null) && !erro && <p className="text-sm text-brand-dark/75">Carregando...</p>}
           {documentos && aba !== null && lista.length === 0 && (
             <div className="rounded-xl border border-dashed border-black/10 p-8 text-center text-sm text-brand-dark/75">
@@ -314,7 +340,7 @@ function PainelAprovacao() {
             </div>
           )}
 
-          {aba !== null && lista.slice(0, limite).map((doc, i) => (
+          {aba !== null && itensDaPagina.map((doc, i) => (
             <CartaoDocumento
               key={doc.id}
               refFn={(el) => { cardsRef.current[i] = el; }}
@@ -330,16 +356,17 @@ function PainelAprovacao() {
               onVisualizar={() => setVisualizando(doc)}
             />
           ))}
-          {aba !== null && lista.length > limite && (
-            <button
-              type="button"
-              onClick={() => setLimite((l) => l + POR_PAGINA)}
-              className="mt-2 w-full rounded-lg border border-black/10 bg-white py-2.5 text-sm font-semibold text-brand-dark hover:bg-black/5"
-            >
-              Mostrar mais ({lista.length - limite} restantes)
-            </button>
-          )}
         </div>
+
+        {aba !== null && (
+          <Paginacao
+            pagina={pagina}
+            total={lista.length}
+            porPagina={porPagina}
+            onChange={irParaPagina}
+            onChangePorPagina={mudarPorPagina}
+          />
+        )}
 
         {/* Atalhos */}
         {lista.length > 0 && (
