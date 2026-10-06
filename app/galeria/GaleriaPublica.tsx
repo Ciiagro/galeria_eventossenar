@@ -478,17 +478,72 @@ export default function GaleriaPublica() {
                   </article>
                 );
               })}
-              {/* Banner: ocupa as colunas que sobram na última linha (só no desktop, onde são 4 colunas) */}
+              {/* Cartão do projeto: ocupa as colunas que sobram na última linha (só no desktop, onde são 4 colunas) */}
               {(() => {
                 const sobra = (4 - (cartoesAcoes.length % 4)) % 4;
                 if (sobra === 0) return null;
                 const span = { 1: "xl:col-span-1", 2: "xl:col-span-2", 3: "xl:col-span-3" }[sobra as 1 | 2 | 3];
                 return (
-                  <div className={`hidden xl:block ${span} overflow-hidden rounded-2xl border border-black/5 shadow-sm`}>
+                  <div
+                    className={`relative hidden xl:block ${span} min-h-[380px] overflow-hidden rounded-2xl border border-black/5 shadow-sm`}
+                    style={{ background: "linear-gradient(100deg, #e4f1e6 0%, #eaf4ea 55%, #f6faf5 100%)" }}
+                  >
+                    {/* conteúdo solto do fluxo (absolute): a altura da linha vem dos outros cartões, então este fica do mesmo tamanho deles */}
+                    <div className="absolute inset-0 z-10 flex items-center">
+                    <div className="max-w-[40rem] px-8 2xl:px-10">
+                      <p className="flex items-center gap-2 text-sm font-bold uppercase tracking-wide text-[#145a41]">
+                        <svg viewBox="0 0 24 24" className="h-6 w-6 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                          <path d="M5 19c0-8 5-13 14-14 0 9-5 14-13 14" /><path d="M5 19c2-4 5-7 9-9" />
+                        </svg>
+                        Projeto Valores nas escolas
+                      </p>
+                      <span className="mt-1 block h-0.5 w-28 rounded bg-[#145a41]/60" aria-hidden="true" />
+                      <h3 className="mt-2 text-3xl font-extrabold leading-[1.1] text-[#145a41] 2xl:text-4xl">
+                        Formar o caráter é<br />formar o futuro.
+                      </h3>
+                      <p className="mt-4 text-base leading-relaxed text-[#2a5a46] 2xl:text-lg">
+                        Veja como as escolas do Ceará vivem os valores humanos todos os dias, em cada roda, reflexão e momento em família.
+                      </p>
+                      <div className="mt-6 flex flex-wrap items-center gap-x-6 gap-y-3">
+                        <button
+                          type="button"
+                          onClick={() => { setAcaoPed(""); setEscola(""); irParaLista(); }}
+                          className="inline-flex items-center gap-3 rounded-full bg-[#145a41] px-5 py-2.5 text-base font-bold text-white shadow-md shadow-[#145a41]/25 transition hover:-translate-y-0.5 hover:bg-[#0f4a35]"
+                        >
+                          <svg viewBox="0 0 24 24" className="h-6 w-6" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                            <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5M9 13h6M9 17h6" />
+                          </svg>
+                          Ver todas as publicações <span aria-hidden="true">›</span>
+                        </button>
+                        {resumo && (
+                          <p className="flex flex-wrap items-center gap-x-3 text-sm text-[#2a5a46]">
+                            <svg viewBox="0 0 24 24" className="h-5 w-5 shrink-0" fill="none" stroke="currentColor" strokeWidth={1.8} strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+                              <path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" /><path d="M14 3v5h5" />
+                            </svg>
+                            <span>{resumo.publicacoes.toLocaleString("pt-BR")} {resumo.publicacoes === 1 ? "publicação" : "publicações"}</span>
+                            <span aria-hidden="true">•</span>
+                            <span>{resumo.escolas.toLocaleString("pt-BR")} {resumo.escolas === 1 ? "escola" : "escolas"}</span>
+                            <span aria-hidden="true">•</span>
+                            <span>{resumo.municipios.toLocaleString("pt-BR")} {resumo.municipios === 1 ? "município" : "municípios"}</span>
+                          </p>
+                        )}
+                      </div>
+                    </div>
+                    </div>
+                    {/* ilustração encostada no canto inferior direito; a borda esquerda some aos poucos no fundo do cartão */}
+                    {/* eslint-disable-next-line @next/next/no-img-element */}
                     <img
-                      src="/banner-galeria.png"
-                      alt="Educação é construída com afeto, respeito e boas experiências. Juntos, fazemos a diferença!"
-                      className="h-full w-full object-cover"
+                      src="/ilustracao-valores.jpg"
+                      alt="Flor do Projeto Valores com as crianças: Paz, Verdade, Ação correta, Amor e Não violência"
+                      width={523}
+                      height={456}
+                      className="pointer-events-none absolute bottom-0 right-0 h-[96%] w-auto max-w-[44%] object-contain object-right-bottom"
+                      style={{
+                        WebkitMaskImage: "linear-gradient(to right, transparent 0%, #000 22%), linear-gradient(to bottom, transparent 0%, #000 16%)",
+                        maskImage: "linear-gradient(to right, transparent 0%, #000 22%), linear-gradient(to bottom, transparent 0%, #000 16%)",
+                        WebkitMaskComposite: "source-in",
+                        maskComposite: "intersect",
+                      }}
                     />
                   </div>
                 );
