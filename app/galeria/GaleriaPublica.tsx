@@ -459,7 +459,7 @@ export default function GaleriaPublica() {
                       <SimboloAcao nome={nome} className="h-8 w-8 shrink-0" />
                       <h3 className="text-xl font-bold leading-tight">{nome}</h3>
                     </header>
-                    <p className="px-4 pt-4 pb-3 text-sm leading-snug" style={{ color: cor.escuro }}>{descricaoDaAcao(nome)}</p>
+                    <p className="px-4 pt-4 pb-3 text-sm leading-snug text-[#1a1a1a]">{descricaoDaAcao(nome)}</p>
                     {/* a caixa branca cresce para ocupar o espaço que sobra: o "Ver mais" fica sempre embaixo, alinhado com os outros cartões */}
                     <div className="mx-3 flex flex-1 items-center rounded-xl bg-white p-1.5 shadow-sm">
                       <div className="w-full">
@@ -469,8 +469,8 @@ export default function GaleriaPublica() {
                     <button
                       type="button"
                       onClick={() => { setAcaoPed(nome); setEscola(""); irParaLista(); }}
-                      className="mx-4 mb-4 mt-4 rounded-full border-2 bg-white/70 px-4 py-2 text-sm font-semibold transition-colors hover:bg-white"
-                      style={{ borderColor: cor.fundo, color: cor.escuro }}
+                      className="mx-4 mb-4 mt-4 rounded-full border-2 bg-white/70 px-4 py-2 text-sm font-semibold text-[#1a1a1a] transition-colors hover:bg-white"
+                      style={{ borderColor: cor.fundo }}
                     >
                       Ver mais <span aria-hidden="true">›</span>
                       <span className="sr-only"> registros de {nome} ({total})</span>

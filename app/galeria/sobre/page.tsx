@@ -3,6 +3,7 @@
 import { useEffect, useState, type ReactNode } from "react";
 import CabecalhoPublico from "@/components/CabecalhoPublico";
 import { FundoFestivo, LogoValores } from "@/components/Sol";
+import { Arvore, CriancasPulando, Escolinha, Flor, Grama, Nuvem } from "@/components/Desenhos";
 import PreviewLink from "@/components/PreviewLink";
 import { BookOpenIcon, BuildingIcon, HeartIcon, LightbulbIcon, UserIcon } from "@/components/icons";
 import { apiGetCache, DocumentoGaleria } from "@/lib/api";
@@ -127,6 +128,24 @@ export default function SobreProjetoPage() {
                 </li>
               ))}
             </ul>
+
+            {/* Cenário no fundo do cartão: ocupa o espaço que sobra ao lado do cartão "Quem participa" */}
+            <div className="relative -mx-5 -mb-5 mt-auto hidden pt-6 sm:-mx-6 sm:-mb-6 md:block" aria-hidden="true">
+              <Nuvem className="absolute right-10 top-2 w-20 opacity-90" />
+              <Nuvem className="absolute left-1/2 top-8 w-14 opacity-70" />
+              <div className="relative flex items-end justify-between px-6 sm:px-8">
+                <div className="flex items-end gap-2">
+                  <Arvore className="w-12" />
+                  <CriancasPulando tamanho="w-12 lg:w-14" />
+                  <Flor className="w-5" petala="#F49AC1" />
+                  <Flor className="w-5" petala="#A98BC9" />
+                </div>
+                <Escolinha className="w-32 lg:w-40" />
+              </div>
+              <div className="-mt-2">
+                <Grama className="!h-5 sm:!h-6" />
+              </div>
+            </div>
           </Painel>
 
           <Painel cor={FAIXAS.azul} titulo="Quem participa">
@@ -292,7 +311,7 @@ function Titulo({ id, cor, children }: { id?: string; cor: string; children: Rea
 // Painel em tom claro da cor do slide, com cartões brancos dentro
 function Painel({ id, cor, titulo, children }: { id?: string; cor: string; titulo: string; children: ReactNode }) {
   return (
-    <section id={id} aria-label={titulo} className="h-full scroll-mt-20 rounded-2xl border border-black/5 p-5 shadow-sm sm:p-6" style={{ background: tom(cor, 16) }}>
+    <section id={id} aria-label={titulo} className="flex h-full scroll-mt-20 flex-col overflow-hidden rounded-2xl border border-black/5 p-5 shadow-sm sm:p-6" style={{ background: tom(cor, 16) }}>
       <h2 className="text-xl font-extrabold leading-tight sm:text-2xl">{titulo}</h2>
       <span className="mb-4 mt-1 block h-1 w-10 rounded-full" style={{ background: cor }} aria-hidden="true" />
       {children}
