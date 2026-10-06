@@ -28,6 +28,10 @@ export function urlsMiniatura(doc: ComArquivo): string[] {
     const youtube = link.match(/(?:youtu\.be\/|[?&]v=|\/shorts\/|\/embed\/|\/live\/)([\w-]{6,})/);
     if (youtube && /youtu/.test(link)) urls.push(`https://img.youtube.com/vi/${youtube[1]}/hqdefault.jpg`);
     if (/\.(jpe?g|png|gif|webp|avif)(\?|$)/i.test(link)) urls.push(link);
+    // TikTok e Vimeo: a capa vem do nosso servidor (oEmbed), pois não há endereço previsível como no YouTube
+    if (/^https?:\/\/([\w-]+\.)*(tiktok\.com|vimeo\.com)\//i.test(link)) {
+      urls.push(`${API_BASE}/api/miniatura-link?url=${encodeURIComponent(link)}`);
+    }
   }
   return urls;
 }

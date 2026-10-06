@@ -2093,6 +2093,65 @@ def miniatura(file_id):
     return Response(conteudo, mimetype=tipo, headers={"Cache-Control": "public, max-age=86400"})
 
 
+# Capa de links externos (TikTok e Vimeo) via oEmbed: gratuito, sem chave de API.
+# Só consultamos os endereços fixos abaixo (o link da pessoa vai apenas como parâmetro), então não há risco de SSRF.
+_OEMBED = {
+    "tiktok.com": "https://www.tiktok.com/oembed?url=",
+    "vm.tiktok.com": "https://www.tiktok.com/oembed?url=",
+    "vt.tiktok.com": "https://www.tiktok.com/oembed?url=",
+    "vimeo.com": "https://vimeo.com/api/oembed.json?url=",
+}
+_CACHE_CAPAS_LINK: dict = {}  # link -> (url_da_capa ou None, expira_em)
+
+
+@app.get("/api/miniatura-link")
+def miniatura_link():
+    """Redireciona para a capa de um vídeo de TikTok/Vimeo (usado em <img src>).
+
+    A URL da capa do TikTok expira, por isso não é gravada no banco: buscamos
+    na hora e guardamos em memória por 1 hora.
+    """
+    from urllib.parse import urlparse, quote
+    from urllib.request import Request, urlopen
+
+    link = (request.args.get("url") or "").strip()
+    if len(link) > 500:
+        return Response(status=400)
+    try:
+        partes = urlparse(link)
+        host = (partes.hostname or "").lower()
+        host = host[4:] if host.startswith("www.") else host
+        host = host[2:] if host.startswith("m.") else host
+    except Exception:
+        return Response(status=400)
+    if partes.scheme not in ("http", "https") or host not in _OEMBED:
+        return Response(status=400)
+
+    agora = time.time()
+    em_cache = _CACHE_CAPAS_LINK.get(link)
+    if em_cache and em_cache[1] > agora:
+        capa = em_cache[0]
+    else:
+        capa = None
+        try:
+            req = Request(_OEMBED[host] + quote(link, safe=""), headers={"User-Agent": "Mozilla/5.0 (PainelDivulgacao)"})
+            with urlopen(req, timeout=6) as resp:
+                dados = json.loads(resp.read(200_000).decode("utf-8", "replace"))
+            capa = dados.get("thumbnail_url")
+            if capa and not str(capa).startswith("https://"):
+                capa = None
+        except Exception as e:
+            print(f"[miniatura-link] {link}: {e}")
+        if len(_CACHE_CAPAS_LINK) > 500:
+            _CACHE_CAPAS_LINK.clear()
+        # sucesso vale 1 hora; falha é lembrada por 5 minutos para não insistir a cada abertura da tela
+        _CACHE_CAPAS_LINK[link] = (capa, agora + (3600 if capa else 300))
+
+    if not capa:
+        return Response(status=404, headers={"Cache-Control": "public, max-age=300"})
+    return Response(status=302, headers={"Location": capa, "Cache-Control": "public, max-age=3600"})
+
+
 @app.post("/api/upload-iniciar")
 def upload_iniciar():
     auth = require_user()
