@@ -642,7 +642,7 @@ export default function GaleriaPublica() {
                   type="button"
                   onClick={() => { if (verTodasAsAcoes) irParaLista(); setVerTodasAsAcoes((v) => !v); }}
                   aria-expanded={verTodasAsAcoes}
-                  className={`${verTodasAsAcoes ? "" : classeBotaoUmaFileira(lista.length)} rounded-full border border-brand-light/40 bg-white px-6 py-2 text-sm font-semibold text-brand-light shadow-sm hover:bg-brand-light/5`}
+                  className={`${verTodasAsAcoes ? "" : classeBotaoUmaFileira(lista.length)} rounded-none border border-brand-light/40 bg-white px-6 py-2 text-sm font-semibold text-brand-light shadow-sm hover:bg-brand-light/5`}
                 >
                   {verTodasAsAcoes ? "Mostrar menos ↑" : `Ver todas as ações (${lista.length}) ↓`}
                 </button>
