@@ -15,8 +15,8 @@ type Props = {
   municipiosParticipantes: Set<number>;
   /** município mostrado no painel ao lado (fica destacado) */
   destaqueId: number | null;
-  /** (não usado para aproximar: o mapa mostra sempre o Ceará inteiro) */
-  zoomId?: string;
+  /** município escolhido pela pessoa: fica em destaque e os demais ficam mais claros (o mapa não muda de tamanho) */
+  focoId?: number | null;
   escolas: EscolaParticipanteGaleria[];
   onClicarMunicipio: (id: number) => void;
   onClicarEscola: (escola: EscolaParticipanteGaleria) => void;
@@ -24,14 +24,17 @@ type Props = {
 };
 
 export const COR_PARTICIPANTE = "#2E7D4F";
+const COR_PARTICIPANTE_CLARA = "#A9D3B8"; // participantes quando outro município está em foco
 const COR_DESTAQUE = "#123A26";
 const COR_NEUTRA = "#E4E9E5";
 const COR_DIVISA = "#9DAEA1"; // linhas de divisa entre os municípios
+// forma do pin: a ponta fica em (0,0) e a cabeça redonda em (0,-19)
+const PIN = "M0 0 C-5 -8 -10 -13 -10 -19 a10 10 0 1 1 20 0 C10 -13 5 -8 0 0 Z";
 
 export default function MapaCearaGaleria({
   municipiosParticipantes,
   destaqueId,
-
+  focoId = null,
   escolas,
   onClicarMunicipio,
   onClicarEscola,
@@ -45,12 +48,19 @@ export default function MapaCearaGaleria({
     fetch("/mapa-ceara.json").then((r) => r.json()).then(setMapa).catch(() => null);
   }, []);
 
-  // Escolas (com localização) do município em destaque
-  const escolasDoDestaque = useMemo(
-    () => (destaqueId ? escolas.filter((e) => e.municipio_id === destaqueId && e.latitude != null && e.longitude != null) : []),
-    [escolas, destaqueId]
+  // município em destaque: o escolhido (foco) ou, sem escolha, o do painel
+  const realceId = focoId ?? destaqueId;
+  const municipioRealce = mapa?.municipios.find((m) => m.id === realceId) ?? null;
+
+  // Todas as escolas participantes com localização.
+  // Ordem: do norte para o sul, para o pin mais ao sul ficar por cima; as do município em destaque por último (no topo).
+  const escolasComLocal = useMemo(
+    () =>
+      escolas
+        .filter((e) => e.latitude != null && e.longitude != null)
+        .sort((a, b) => Number(a.municipio_id === realceId) - Number(b.municipio_id === realceId) || b.latitude! - a.latitude!),
+    [escolas, realceId]
   );
-  const municipioDestaque = mapa?.municipios.find((m) => m.id === destaqueId) ?? null;
 
   function projetar(lat: number, lon: number) {
     const p = mapa!.projecao;
@@ -71,57 +81,59 @@ export default function MapaCearaGaleria({
           className={`w-full overflow-visible ${className}`}
           onMouseLeave={() => setDica(null)}
           role="img"
-          aria-label="Mapa do Ceará com os municípios participantes"
+          aria-label="Mapa do Ceará com os municípios e as escolas participantes"
         >
           {mapa.municipios.map((m) => {
             const participou = municipiosParticipantes.has(m.id);
-            const destaque = m.id === destaqueId;
+            const destaque = m.id === realceId;
+            const apagado = focoId != null && participou && !destaque; // outro município está em foco
             return (
               <path
                 key={m.id}
                 d={m.d}
-                fill={destaque ? COR_DESTAQUE : participou ? COR_PARTICIPANTE : COR_NEUTRA}
-                stroke={COR_DIVISA}
+                fill={destaque ? COR_DESTAQUE : apagado ? COR_PARTICIPANTE_CLARA : participou ? COR_PARTICIPANTE : COR_NEUTRA}
+                stroke={destaque ? COR_DESTAQUE : COR_DIVISA}
                 strokeWidth={destaque ? 1.6 : 0.9}
                 strokeLinejoin="round"
-                className={participou ? "cursor-pointer hover:brightness-110" : ""}
+                className={`transition-[fill] duration-300 ${participou ? "cursor-pointer hover:brightness-110" : ""}`}
                 onMouseMove={(e) => participou && setDica({ texto: m.nome, ...posicao(e) })}
                 onMouseLeave={() => setDica(null)}
                 onClick={() => participou && onClicarMunicipio(m.id)}
               />
             );
           })}
-          {/* Município em destaque: anel pulsando + nome, sem aproximar o mapa */}
-          {municipioDestaque && (
+          {/* Município em destaque: anel pulsando */}
+          {municipioRealce && (
             <g pointerEvents="none">
-              <circle cx={municipioDestaque.cx} cy={municipioDestaque.cy} r={24} fill="none" stroke="#FBBF24" strokeWidth={5}>
+              <circle cx={municipioRealce.cx} cy={municipioRealce.cy} r={24} fill="none" stroke="#FBBF24" strokeWidth={5}>
                 <animate attributeName="r" values="18;48;18" dur="2.4s" repeatCount="indefinite" />
                 <animate attributeName="opacity" values="0.9;0;0.9" dur="2.4s" repeatCount="indefinite" />
               </circle>
             </g>
           )}
-          {escolasDoDestaque.map((e) => {
+          {/* Pins das escolas participantes (ponta do pin = local da escola) */}
+          {escolasComLocal.map((e) => {
             const { x, y } = projetar(e.latitude!, e.longitude!);
+            const doRealce = e.municipio_id === realceId;
             return (
-              <circle
+              <g
                 key={e.id}
-                cx={x}
-                cy={y}
-                r={9}
-                fill="#FBBF24"
-                stroke="#fff"
-                strokeWidth={2.5}
+                transform={`translate(${x} ${y}) scale(${doRealce ? 1.5 : 0.95})`}
+                opacity={focoId != null && !doRealce ? 0.55 : 1}
                 className="cursor-pointer"
                 onMouseMove={(ev) => setDica({ texto: e.nome, ...posicao(ev) })}
                 onMouseLeave={() => setDica(null)}
                 onClick={() => onClicarEscola(e)}
-              />
+              >
+                <path d={PIN} fill="#FBBF24" stroke="#fff" strokeWidth={2.2} strokeLinejoin="round" />
+                <circle cx={0} cy={-19} r={4} fill="#123A26" />
+              </g>
             );
           })}
-          {municipioDestaque && (
+          {municipioRealce && (
             <text
-              x={municipioDestaque.cx}
-              y={municipioDestaque.cy - 34}
+              x={municipioRealce.cx}
+              y={municipioRealce.cy - 34}
               textAnchor="middle"
               fontSize={34}
               fontWeight={700}
@@ -131,7 +143,7 @@ export default function MapaCearaGaleria({
               paintOrder="stroke"
               pointerEvents="none"
             >
-              {municipioDestaque.nome}
+              {municipioRealce.nome}
             </text>
           )}
         </svg>

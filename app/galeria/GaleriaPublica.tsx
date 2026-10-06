@@ -72,6 +72,7 @@ export default function GaleriaPublica() {
 
   // interação
   const [destaqueId, setDestaqueId] = useState<number | null>(null);
+  const [zoomMapaId, setZoomMapaId] = useState<number | null>(null); // município escolhido (fica em foco no mapa)
   const [aberto, setAberto] = useState<DocumentoGaleria | null>(null);
   const [curtidos, setCurtidos] = useState<Set<string>>(new Set());
   const escolaPendente = useRef<string | null>(null);
@@ -95,10 +96,16 @@ export default function GaleriaPublica() {
       .then((lista: DocumentoGaleria[]) => setDocumentos(lista))
       .catch((e) => setErro(e.message));
     if (municipioId) setDestaqueId(Number(municipioId));
+    setZoomMapaId(municipioId ? Number(municipioId) : null);
   }, [municipioId, parametroCiclo]);
 
   function mudarMunicipio(novoId: string) {
     router.replace(novoId ? `/galeria?municipio_id=${novoId}` : "/galeria", { scroll: false });
+  }
+  function voltarAoCeara() {
+    mudarMunicipio("");
+    setDestaqueId(null);
+    setZoomMapaId(null);
   }
   function irParaLista() {
     setTimeout(() => listaRef.current?.scrollIntoView({ behavior: "smooth", block: "start" }), 350);
@@ -230,7 +237,7 @@ export default function GaleriaPublica() {
     irParaLista();
   }
   function limparFiltros() {
-    setBusca(""); setCategoria(""); setPeriodo(""); setAcaoPed(""); setEscola(""); setDestaqueId(null); setCicloId(null);
+    setBusca(""); setCategoria(""); setPeriodo(""); setAcaoPed(""); setEscola(""); setDestaqueId(null); setZoomMapaId(null); setCicloId(null);
     mudarMunicipio("");
   }
 
@@ -321,6 +328,83 @@ export default function GaleriaPublica() {
             <button onClick={limparFiltros} className="text-sm font-semibold text-brand-light hover:underline ml-1">Limpar filtros</button>
           )}
         </div>
+
+        {/* ================= Mapa + município + últimas ações ================= */}
+        {municipiosParticipantes.size > 0 && (
+          <section className="grid xl:grid-cols-[1.75fr_1fr] gap-5">
+            <div className={`${CARTAO} grid md:grid-cols-[0.6fr_1.7fr_1fr] gap-4 items-stretch`}>
+              <div className="flex flex-col">
+                <h2 className="text-base font-bold">🗺️ Municípios participantes</h2>
+                <div className="mt-3 space-y-1.5 text-xs text-brand-dark/75">
+                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: COR_PARTICIPANTE }} /> Participantes</p>
+                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full bg-[#123A26]" /> Em destaque</p>
+                  <p className="flex items-center gap-2"><svg viewBox="-12 -30 24 32" className="h-3.5 w-3 shrink-0" aria-hidden="true"><path d="M0 0 C-5 -8 -10 -13 -10 -19 a10 10 0 1 1 20 0 C10 -13 5 -8 0 0 Z" fill="#FBBF24" stroke="#fff" strokeWidth="2" /><circle cx="0" cy="-19" r="4" fill="#123A26" /></svg> Escolas participantes</p>
+                </div>
+                <button
+                  onClick={voltarAoCeara}
+                  className="mt-auto pt-0 w-full rounded-full border border-brand-light/40 px-3 py-2 text-xs font-semibold text-brand-light hover:bg-brand-light/5"
+                >
+                  Ver todos os municípios →
+                </button>
+              </div>
+              <MapaCearaGaleria
+                municipiosParticipantes={municipiosParticipantes}
+                destaqueId={idPainel}
+                focoId={zoomMapaId}
+                escolas={escolasMapa}
+                onClicarMunicipio={(id) => { setDestaqueId(id); setZoomMapaId(id); }}
+                onClicarEscola={verAcoesDaEscola}
+                className="h-[320px]"
+              />
+              {infoPainel && (
+                <div className="rounded-xl bg-[#f4f8f3] p-4 flex flex-col">
+                  <div className="flex flex-wrap items-center justify-between gap-2">
+                    <p className="text-lg font-bold">📍 {infoPainel.nome} (CE)</p>
+                  </div>
+                  <dl className="mt-4 space-y-3 text-sm">
+                    <Dado icone="🏫" rotulo="Escolas participantes" valor={infoPainel.escolas} />
+                    <Dado icone="📄" rotulo="Publicações" valor={infoPainel.publicacoes} />
+                    <Dado icone="🕒" rotulo="Última ação" valor={infoPainel.ultima ? formatarData(infoPainel.ultima) : "—"} />
+                  </dl>
+                  <button
+                    onClick={() => { mudarMunicipio(String(idPainel)); irParaLista(); }}
+                    className="mt-auto w-full rounded-full border border-brand-light/40 bg-white px-3 py-2 text-sm font-semibold text-brand-light hover:bg-brand-light/5"
+                  >
+                    Ver ações →
+                  </button>
+                </div>
+              )}
+            </div>
+
+            <div className={CARTAO}>
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="text-lg font-bold flex items-center gap-2">🕒 Últimas ações no município</h2>
+                {idPainel && (
+                  <button onClick={() => { mudarMunicipio(String(idPainel)); irParaLista(); }} className="text-sm font-semibold text-brand-light hover:underline">Ver todas →</button>
+                )}
+              </div>
+              <div className="space-y-2">
+                {acoesDoPainel.slice(0, 3).map((doc, i) => (
+                  <button key={doc.id} onClick={() => abrir(doc)} className="group flex w-full items-center gap-3 rounded-xl border border-black/5 bg-white p-2 text-left shadow-sm transition hover:border-brand-light/40 hover:shadow">
+                    <Thumb doc={doc} className="h-14 w-20 shrink-0 rounded-lg" semSelo />
+                    <div className="min-w-0 flex-1">
+                      <p className="font-semibold leading-snug line-clamp-1">{tituloDe(doc)}</p>
+                      {doc.escolas?.nome && <p className="text-xs text-brand-dark/70 line-clamp-1">{doc.escolas.nome}</p>}
+                      <p className="text-xs text-brand-dark/60">{formatarData(doc.data_realizacao)}</p>
+                    </div>
+                    {i === 0 ? (
+                      <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-bold text-amber-900">Mais recente</span>
+                    ) : (
+                      <span className="rounded-full bg-brand-light/10 px-2 py-0.5 text-[11px] font-semibold text-brand-light">{rotuloTipo(doc)}</span>
+                    )}
+                    <span className="text-lg text-brand-dark/40 group-hover:text-brand-light">›</span>
+                  </button>
+                ))}
+                {!acoesDoPainel.length && <p className="py-4 text-sm text-brand-dark/70">Clique num município do mapa para ver as últimas ações dele.</p>}
+              </div>
+            </div>
+          </section>
+        )}
 
         {/* ================= Galeria de fotos e vídeos, por ação pedagógica ================= */}
         {cartoesAcoes.length > 0 && (
@@ -441,80 +525,6 @@ export default function GaleriaPublica() {
                   </button>
                 )
               )}
-            </div>
-          </section>
-        )}
-
-        {/* ================= Mapa + município + últimas ações ================= */}
-        {municipiosParticipantes.size > 0 && (
-          <section className="grid xl:grid-cols-[1.75fr_1fr] gap-5">
-            <div className={`${CARTAO} grid md:grid-cols-[0.6fr_1.7fr_1fr] gap-4 items-stretch`}>
-              <div>
-                <h2 className="text-base font-bold">🗺️ Municípios participantes</h2>
-                <div className="mt-3 space-y-1.5 text-xs text-brand-dark/75">
-                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: COR_PARTICIPANTE }} /> Participantes</p>
-                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full bg-[#123A26]" /> Em destaque</p>
-                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full bg-amber-400" /> Escolas</p>
-                </div>
-                {municipioId && (
-                  <button onClick={() => mudarMunicipio("")} className="mt-4 text-left text-xs font-semibold text-brand-light hover:underline">← Todos os municípios</button>
-                )}
-              </div>
-              <MapaCearaGaleria
-                municipiosParticipantes={municipiosParticipantes}
-                destaqueId={idPainel}
-                zoomId={municipioId}
-                escolas={escolasMapa}
-                onClicarMunicipio={(id) => setDestaqueId(id)}
-                onClicarEscola={verAcoesDaEscola}
-                className="h-[360px]"
-              />
-              {infoPainel && (
-                <div className="rounded-xl bg-[#f4f8f3] p-4 flex flex-col">
-                  <div className="flex flex-wrap items-center justify-between gap-2">
-                    <p className="text-lg font-bold">📍 {infoPainel.nome} (CE)</p>
-                  </div>
-                  <dl className="mt-4 space-y-3 text-sm">
-                    <Dado icone="🏫" rotulo="Escolas participantes" valor={infoPainel.escolas} />
-                    <Dado icone="📄" rotulo="Publicações" valor={infoPainel.publicacoes} />
-                    <Dado icone="🕒" rotulo="Última ação" valor={infoPainel.ultima ? formatarData(infoPainel.ultima) : "—"} />
-                  </dl>
-                  <button
-                    onClick={() => { mudarMunicipio(String(idPainel)); irParaLista(); }}
-                    className="mt-auto pt-3 w-fit text-sm font-semibold text-brand-light hover:underline"
-                  >
-                    Ver ações →
-                  </button>
-                </div>
-              )}
-            </div>
-
-            <div className={CARTAO}>
-              <div className="flex items-center justify-between mb-3">
-                <h2 className="text-lg font-bold flex items-center gap-2">🕒 Últimas ações no município</h2>
-                {idPainel && (
-                  <button onClick={() => { mudarMunicipio(String(idPainel)); irParaLista(); }} className="text-sm font-semibold text-brand-light hover:underline">Ver todas →</button>
-                )}
-              </div>
-              <div className="divide-y divide-black/5">
-                {acoesDoPainel.slice(0, 3).map((doc, i) => (
-                  <button key={doc.id} onClick={() => abrir(doc)} className="group flex w-full items-center gap-3 py-2.5 text-left">
-                    <Thumb doc={doc} className="h-14 w-20 shrink-0 rounded-md" semSelo />
-                    <div className="min-w-0 flex-1">
-                      <p className="font-semibold leading-snug line-clamp-1">{tituloDe(doc)}</p>
-                      {doc.escolas?.nome && <p className="text-xs text-brand-dark/70 line-clamp-1">{doc.escolas.nome}</p>}
-                      <p className="text-xs text-brand-dark/60">{formatarData(doc.data_realizacao)}</p>
-                    </div>
-                    {i === 0 ? (
-                      <span className="rounded-full bg-amber-200 px-2 py-0.5 text-[11px] font-bold text-amber-900">Mais recente</span>
-                    ) : (
-                      <span className="rounded-full bg-brand-light/10 px-2 py-0.5 text-[11px] font-semibold text-brand-light">{rotuloTipo(doc)}</span>
-                    )}
-                    <span className="text-lg text-brand-dark/40 group-hover:text-brand-light">›</span>
-                  </button>
-                ))}
-                {!acoesDoPainel.length && <p className="py-4 text-sm text-brand-dark/70">Clique num município do mapa para ver as últimas ações dele.</p>}
-              </div>
             </div>
           </section>
         )}
