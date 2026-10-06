@@ -54,6 +54,7 @@ export default function GaleriaPublica() {
   const [municipios, setMunicipios] = useState<MunicipioGaleria[]>([]);
   const [escolasMapa, setEscolasMapa] = useState<EscolaParticipanteGaleria[]>([]);
   const [resumo, setResumo] = useState<Resumo | null>(null);
+  const [verTodasAsAcoes, setVerTodasAsAcoes] = useState(false);
   const [documentos, setDocumentos] = useState<DocumentoGaleria[] | null>(null);
   const [erro, setErro] = useState<string | null>(null);
 
@@ -242,6 +243,8 @@ export default function GaleriaPublica() {
   }
 
   const temFiltro = Boolean(municipioId || categoria || periodo || acaoPed || escola || busca || !cicloPadrao);
+  // sem filtro, a lista mostra só a primeira fileira; com filtro (ex.: "Ver mais" de uma ação) mostra tudo
+  const recolhida = !verTodasAsAcoes && !temFiltro;
 
   return (
     <div className="min-h-screen bg-[#f3f7f2] text-brand-dark">
@@ -618,8 +621,8 @@ export default function GaleriaPublica() {
               </div>
             )}
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 2xl:grid-cols-7 gap-3">
-              {lista.map((doc) => (
-                <button key={doc.id} onClick={() => abrir(doc)} className="group flex flex-col overflow-hidden rounded-xl border border-black/5 bg-white text-left shadow-sm hover:shadow-md hover:-translate-y-0.5 transition">
+              {lista.map((doc, i) => (
+                <button key={doc.id} onClick={() => abrir(doc)} className={`${recolhida ? classeUmaFileira(i) : "flex"} group flex-col overflow-hidden rounded-xl border border-black/5 bg-white text-left shadow-sm hover:shadow-md hover:-translate-y-0.5 transition`}>
                   <Thumb doc={doc} className="h-28" />
                   <div className="flex flex-1 flex-col p-2.5">
                     <Local doc={doc} municipio={nomeMunicipio(doc.municipio_id)} pequeno />
@@ -632,6 +635,19 @@ export default function GaleriaPublica() {
                 </button>
               ))}
             </div>
+            {/* Botão: some nas telas em que todas as ações já cabem na primeira fileira */}
+            {!temFiltro && lista.length > 2 && (
+              <div className="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  onClick={() => { if (verTodasAsAcoes) irParaLista(); setVerTodasAsAcoes((v) => !v); }}
+                  aria-expanded={verTodasAsAcoes}
+                  className={`${verTodasAsAcoes ? "" : classeBotaoUmaFileira(lista.length)} rounded-full border border-brand-light/40 bg-white px-6 py-2 text-sm font-semibold text-brand-light shadow-sm hover:bg-brand-light/5`}
+                >
+                  {verTodasAsAcoes ? "Mostrar menos ↑" : `Ver todas as ações (${lista.length}) ↓`}
+                </button>
+              </div>
+            )}
           </section>
         )}
       </main>
@@ -697,6 +713,26 @@ export default function GaleriaPublica() {
 // ================================================================
 // Peças pequenas
 // ================================================================
+// Colunas da grade "Todas as ações" em cada largura de tela: 2 (celular), 3 (sm), 4 (md), 5 (lg), 7 (2xl)
+const COLUNAS = [2, 3, 4, 5, 7];
+// classes escritas por extenso para o Tailwind enxergar
+const MOSTRA_A_PARTIR_DE = ["flex", "sm:flex", "md:flex", "lg:flex", "2xl:flex"];
+const ESCONDE_A_PARTIR_DE = ["hidden", "sm:hidden", "md:hidden", "lg:hidden", "2xl:hidden"];
+
+// Item i aparece só se couber na primeira fileira daquela largura de tela
+function classeUmaFileira(i: number) {
+  const primeiro = COLUNAS.findIndex((c) => c > i);
+  if (primeiro === 0) return "flex";
+  return primeiro === -1 ? "hidden" : `hidden ${MOSTRA_A_PARTIR_DE[primeiro]}`;
+}
+
+// O botão "Ver todas" some quando todos os itens já cabem na primeira fileira
+function classeBotaoUmaFileira(total: number) {
+  const primeiro = COLUNAS.findIndex((c) => c >= total);
+  if (primeiro === -1) return "";
+  return ESCONDE_A_PARTIR_DE[primeiro];
+}
+
 const CARTAO = "rounded-2xl bg-white border border-black/5 shadow-sm p-4 sm:p-5";
 
 function Filtro({ icone, valor, onChange, children, desativado, dica }: { icone: string; valor: string; onChange: (v: string) => void; children: React.ReactNode; desativado?: boolean; dica?: string }) {
