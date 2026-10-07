@@ -9,6 +9,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { mascaraCpf } from "@/lib/mascaras";
 import { PdfIcon } from "@/components/icons";
 import { Abas, BarraFiltros, CampoBusca, CLASSE_SELECT, SeletorOrdem } from "@/components/Filtros";
+import { Paginacao } from "@/components/Paginacao";
 
 type Status = "rascunho" | "enviada" | "aprovada";
 type ResumoAssinatura = {
@@ -33,8 +34,8 @@ type Detalhe = Record<string, any> & { escolas: EscolaDetalhe[]; coordenador?: R
 
 const ROTULO: Record<Status, { texto: string; cor: string; fundo: string }> = {
   rascunho: { texto: "Rascunho", cor: "#6E4B00", fundo: "#FFF3CC" },
-  enviada: { texto: "Aguardando aprovação", cor: "#0F4C85", fundo: "#E2EFFB" },
-  aprovada: { texto: "Aprovada", cor: "#17613B", fundo: "#E3F4EA" },
+  enviada: { texto: "Em análise", cor: "#0F4C85", fundo: "#E2EFFB" },
+  aprovada: { texto: "Válido", cor: "#17613B", fundo: "#E3F4EA" },
 };
 // Motivos mais comuns: um clique coloca o texto no recado (o admin pode completar)
 const MOTIVOS = [
@@ -50,13 +51,14 @@ const BOTAO_TERMO =
   "inline-flex h-9 w-9 items-center justify-center rounded-lg bg-brand-light text-white shadow-sm transition hover:bg-brand-accent";
 const FILTROS: { valor: Filtro; nome: string }[] = [
   { valor: "assinando", nome: "Em assinatura" },
-  { valor: "enviada", nome: "Aguardando aprovação" },
-  { valor: "aprovada", nome: "Aprovadas" },
+  { valor: "enviada", nome: "Em análise" },
+  { valor: "aprovada", nome: "Válidos" },
   { valor: "rascunho", nome: "Rascunhos" },
   { valor: "todas", nome: "Todas" },
 ];
 
 type Ordem = "recentes" | "antigos";
+const POR_PAGINA_PADRAO = 10;
 
 // "Em assinatura" = termo enviado por e-mail e ainda faltando assinaturas (inclui fichas ainda em rascunho)
 const PAPEIS_DO_TERMO = ["prefeito", "secretario", "sindicato", "coordenador"];
@@ -162,6 +164,27 @@ function TermoAdesao() {
 
   const temFiltro = Boolean(filtroMunicipio || busca.trim());
 
+  // Paginação (mesma preferência de "por página" da tela de Pendências)
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(POR_PAGINA_PADRAO);
+  useEffect(() => {
+    try {
+      const salvo = Number(window.localStorage.getItem("painel_por_pagina"));
+      if ([10, 20, 50].includes(salvo)) setPorPagina(salvo);
+    } catch { /* sem armazenamento: usa o padrão */ }
+  }, []);
+  // trocou aba, busca, município ou ordem: volta para a primeira página
+  useEffect(() => { setPagina(1); }, [filtro, filtroMunicipio, busca, ordem]);
+  // se a lista encolher (ex.: aprovou o último da página), volta para a última página válida
+  const ultimaPagina = Math.max(1, Math.ceil(visiveis.length / porPagina));
+  useEffect(() => { if (pagina > ultimaPagina) setPagina(ultimaPagina); }, [pagina, ultimaPagina]);
+  const daPagina = useMemo(() => visiveis.slice((pagina - 1) * porPagina, pagina * porPagina), [visiveis, pagina, porPagina]);
+  function mudarPorPagina(valor: number) {
+    setPorPagina(valor);
+    setPagina(1);
+    try { window.localStorage.setItem("painel_por_pagina", String(valor)); } catch { /* ignora */ }
+  }
+
   return (
     <div className="p-4 sm:p-8 max-w-6xl">
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
@@ -207,7 +230,7 @@ function TermoAdesao() {
               Nenhuma adesão encontrada com esses filtros.
             </div>
           )}
-          {visiveis.map((a) => {
+          {daPagina.map((a) => {
             const r = ROTULO[a.status];
             const aberto = abertoId === a.id;
             return (
@@ -236,6 +259,7 @@ function TermoAdesao() {
                   )}
                   {a.status !== "rascunho" && !(a.assinatura?.status === "pendente" && !a.termo_assinado_nome) && (
                     <span className={`${SELO} min-w-[7rem]`}
+                      title={a.termo_assinado_nome && a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0 ? `Parcial: assinaram por e-mail (${(a.assinatura.signatarios ?? []).map((sg) => PAPEL_ASSINATURA[sg.papel] ?? sg.papel).join(", ")}). Faltam: ${faltamPorEmail(a).map((p) => PAPEL_ASSINATURA[p]).join(", ")}.` : undefined}
                       style={a.termo_assinado_nome ? { background: "#E3F4EA", color: "#17613B" } : { background: "#EFEDE4", color: "#4A453A" }}>
                       {a.termo_assinado_nome ? (a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0 ? "✓ Parcial" : "✓ Assinado") : "Sem assinatura"}
                     </span>
@@ -401,6 +425,14 @@ function TermoAdesao() {
             );
           })}
         </div>
+
+        <Paginacao
+          pagina={pagina}
+          total={visiveis.length}
+          porPagina={porPagina}
+          onChange={(n) => { setPagina(n); setAbertoId(null); window.scrollTo({ top: 0, behavior: "smooth" }); }}
+          onChangePorPagina={mudarPorPagina}
+        />
       </div>
     </div>
   );
