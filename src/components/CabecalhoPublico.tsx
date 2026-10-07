@@ -23,12 +23,8 @@ export default function CabecalhoPublico({ ativo, busca = "", onBusca }: Props) 
   return (
     <header className="sticky top-0 z-30 bg-white/95 backdrop-blur border-b border-black/5 overflow-hidden">
       <div className="max-w-[1400px] mx-auto px-4 sm:px-8 h-16 flex items-center gap-4 sm:gap-8">
-        <a href="/galeria" className="flex items-center gap-2 shrink-0">
-          <LogoSenar />
-          <span className="leading-none">
-            <span className="block text-lg font-extrabold tracking-tight text-brand">SENAR</span>
-            <span className="block text-xs font-semibold text-brand-light">Ceará</span>
-          </span>
+        <a href="/galeria" className="flex items-center shrink-0" aria-label="Sistema FAEC SENAR Ceará — Sindicato Rural">
+          <img src="/logo-sistema-header.png" alt="Sistema FAEC SENAR Ceará — Sindicato Rural" width={800} height={294} className="h-12 w-auto" />
         </a>
         {aba("Galeria", "/galeria", "galeria")}
         {aba("O projeto", "/galeria/sobre", "projeto")}
@@ -57,15 +53,5 @@ export default function CabecalhoPublico({ ativo, busca = "", onBusca }: Props) 
         </div>
       </div>
     </header>
-  );
-}
-
-function LogoSenar() {
-  return (
-    <svg viewBox="0 0 40 40" className="w-10 h-10" aria-hidden>
-      {[0, 1, 2, 3, 4].map((i) => (
-        <path key={i} d={`M${8 + i * 6} 34 C ${6 + i * 6} 22, ${10 + i * 6} 12, ${16 + i * 5} 5`} stroke={i % 2 ? "#3F9B5E" : "#1E6B45"} strokeWidth="3.2" fill="none" strokeLinecap="round" />
-      ))}
-    </svg>
   );
 }
