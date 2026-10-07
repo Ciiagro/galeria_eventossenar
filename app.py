@@ -71,6 +71,8 @@ _CACHE_NOMES_PERFIS: dict[str, tuple[str, float]] = {}  # id -> (nome, expira_em
 _CACHE_ESCOLAS: dict[str, tuple[float, list]] = {}
 ESCOLAS_CACHE_TTL = 300
 COLUNAS_ESCOLA = "id, municipio_id, nome, tipo, endereco, latitude, longitude"
+# O sistema trabalha só com escolas da rede municipal (coluna escolas.tipo).
+TIPO_ESCOLA_PAINEL = "Municipal"
 
 
 def get_jwt():
@@ -586,7 +588,7 @@ def _resumo_lento(acao_id, ano, mes, ciclo_id=None):
         })
     sem_acao = sum(1 for d in do_periodo if not d.get("acao_pedagogica_id"))
     escolas = fetch_all(
-        lambda: db.table("escolas").select("id, municipio_id, nome, latitude, longitude").order("id")
+        lambda: db.table("escolas").select("id, municipio_id, nome, latitude, longitude").eq("tipo", TIPO_ESCOLA_PAINEL).order("id")
     )
     # "escolas_total" = escolas que participam do programa no ciclo
     if ciclo_id:
@@ -1012,7 +1014,7 @@ def _escolas_por_ids(db, ids, colunas="*", lote=100):
     lotes = [ids[i:i + lote] for i in range(0, len(ids), lote)]
 
     def buscar(parte):
-        return _com_tentativas(lambda: db.table("escolas").select(colunas).in_("id", parte).execute()).data or []
+        return _com_tentativas(lambda: db.table("escolas").select(colunas).eq("tipo", TIPO_ESCOLA_PAINEL).in_("id", parte).execute()).data or []
 
     linhas = []
     try:
@@ -1067,7 +1069,7 @@ def _ids_escolas_no_ciclo(db, ciclo_id, municipio_id=None):
         )
         return [l["escola_id"] for l in linhas]
     do_municipio = [
-        e["id"] for e in fetch_all(lambda: db.table("escolas").select("id").eq("municipio_id", municipio_id).order("id"))
+        e["id"] for e in fetch_all(lambda: db.table("escolas").select("id").eq("municipio_id", municipio_id).eq("tipo", TIPO_ESCOLA_PAINEL).order("id"))
     ]
     encontrados = []
     for i in range(0, len(do_municipio), 100):  # em lotes, para não estourar o tamanho da URL
@@ -1174,6 +1176,7 @@ def listar_escolas():
                 if com_total
                 else db.table("escolas").select(COLUNAS_ESCOLA)
             )
+            query = query.eq("tipo", TIPO_ESCOLA_PAINEL)
             if municipio_id:
                 query = query.eq("municipio_id", municipio_id)
             return query.order("nome").order("id")
@@ -2310,6 +2313,7 @@ def escolas_participantes_municipio(db, municipio_id=None, ciclo_id=None):
         escolas += (
             db.table("escolas")
             .select("id, nome, municipio_id, latitude, longitude")
+            .eq("tipo", TIPO_ESCOLA_PAINEL)
             .in_("id", ids[i:i + 150])
             .execute()
             .data
@@ -2883,7 +2887,7 @@ def adesao_escolas_do_municipio():
         escolas = _em_cache(
             f"adesao_escolas|{municipio_id}", 120,
             lambda: fetch_all(
-                lambda: db.table("escolas").select("id, nome, tipo, endereco, latitude, longitude").eq("municipio_id", municipio_id)
+                lambda: db.table("escolas").select("id, nome, tipo, endereco, latitude, longitude").eq("municipio_id", municipio_id).eq("tipo", TIPO_ESCOLA_PAINEL)
                 .order("nome").order("id")
             ),
         )
@@ -4035,7 +4039,7 @@ def _aquecer_escolas():
 
         def build_query(com_total=False):
             q = db.table("escolas").select(COLUNAS_ESCOLA, count="exact") if com_total else db.table("escolas").select(COLUNAS_ESCOLA)
-            return q.order("nome").order("id")
+            return q.eq("tipo", TIPO_ESCOLA_PAINEL).order("nome").order("id")
 
         _CACHE_ESCOLAS["|todos"] = (time.time(), fetch_all_paralelo(build_query))
         print(f"[escolas] lista pronta em memória ({len(_CACHE_ESCOLAS['|todos'][1])} escolas)")

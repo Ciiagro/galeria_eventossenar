@@ -68,7 +68,8 @@ escolas_total as (
   select e.municipio_id, count(distinct ec.escola_id) as n
   from escolas_ciclos ec
   join escolas e on e.id = ec.escola_id
-  where p_ciclo_id is null or ec.ciclo_id = p_ciclo_id
+  where e.tipo = 'Municipal'
+    and (p_ciclo_id is null or ec.ciclo_id = p_ciclo_id)
   group by e.municipio_id
 ),
 escolas_part as (
@@ -78,6 +79,7 @@ escolas_part as (
     array_agg(distinct d.programa order by d.programa) as programas
   from docs d
   join escolas e on e.id = d.escola_id
+  where e.tipo = 'Municipal'
   group by e.id
 ),
 docs_mun as (

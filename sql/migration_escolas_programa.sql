@@ -50,6 +50,7 @@ as $$
     from escolas_ciclos ec
     join escolas e on e.id = ec.escola_id
     where ec.ciclo_id = p_ciclo_id
+      and e.tipo = 'Municipal'
     group by e.municipio_id
   ) x;
 $$;
