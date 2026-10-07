@@ -161,24 +161,41 @@ export function TermoConteudo({ a, assinaturas }: { a: Adesao; assinaturas?: Ass
 
       <div className="break-before-page">
         <Secao n={6} titulo="Termo de Adesão e Compromisso" />
-        <div className="rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-[12px] leading-relaxed">
+        <div className="rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-justify text-[12px] leading-relaxed">
           Pelo presente termo, o município de <strong>{a.municipio_nome}</strong>, por meio de seus representantes abaixo assinados, formaliza
           sua adesão ao <strong>Projeto Valores</strong>{ano && <> para a <strong>{ano.charAt(0).toLowerCase() + ano.slice(1)}</strong></>}, comprometendo-se a viabilizar a execução do
           programa junto às escolas listadas neste documento, garantindo a participação de gestores, professores e alunos nas atividades previstas,
           bem como o correto envio das informações de acompanhamento solicitadas pela coordenação do projeto.
         </div>
 
-        <div className="mt-2.5 break-inside-avoid rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-[12px] leading-relaxed">
+        <div className="mt-2.5 break-inside-avoid rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-justify text-[12px] leading-relaxed">
           Declaramos, para os devidos fins, que os municípios participantes do Projeto Valores estão cientes de que, no decorrer das ações do projeto, serão realizadas visitas de acompanhamento pelos apoiadores às escolas participantes, com o objetivo de acompanhar as atividades desenvolvidas, fortalecer as orientações pedagógicas e conhecer as experiências vivenciadas pelas unidades escolares.
         </div>
 
-        <div className="mt-2.5 break-inside-avoid rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-[12px] leading-relaxed">
+        <div className="mt-2.5 break-inside-avoid rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-justify text-[12px] leading-relaxed">
           <strong>Da veracidade e do uso dos dados.</strong> O município declara que as informações prestadas neste Termo são verdadeiras e
           atualizadas, responsabilizando-se por sua exatidão e por comunicar eventuais alterações à coordenação do projeto. Os dados pessoais aqui
           informados serão tratados pela FAEC/SENAR exclusivamente para as finalidades do Projeto Valores, em conformidade com a Lei nº 13.709/2018
           (LGPD). A informação inverídica poderá ensejar a suspensão ou o cancelamento da adesão.
         </div>
 
+        <div className="mt-2.5 break-inside-avoid space-y-2 rounded-md border border-[#E1D8C0] bg-[#FBFAF3] px-4 py-3 text-justify text-[12px] leading-relaxed">
+          <p><strong>Da captação e do uso de imagem e voz.</strong></p>
+          <p>
+            O Município está ciente de que, durante as atividades do Projeto Valores, poderão ser feitos registros audiovisuais (fotografias, filmagens e gravações de voz) de gestores, professores e alunos, para documentar, acompanhar, divulgar e prestar contas das ações do projeto.
+          </p>
+          <p>
+            O Município compromete-se a assegurar que as autorizações necessárias sejam obtidas previamente, especialmente dos pais ou responsáveis legais dos alunos menores de idade, por meio dos instrumentos disponibilizados pela coordenação do projeto, observando a LGPD (Lei nº 13.709/2018), o Estatuto da Criança e do Adolescente (Lei nº 8.069/1990) e demais normas de proteção da imagem, voz e dados pessoais.
+          </p>
+          <p>
+            Os registros poderão ser usados pela FAEC/SENAR e pelo Projeto Valores para fins institucionais, educacionais, de comunicação, divulgação e prestação de contas, em relatórios, apresentações, publicações, sites, redes sociais e demais canais oficiais do projeto.
+          </p>
+          <p>
+            O uso deve se limitar às finalidades do Projeto Valores, sendo vedado qualquer uso que cause constrangimento, exposição indevida, discriminação ou prejuízo aos participantes.
+          </p>
+        </div>
+
+        <div className="break-inside-avoid">
         <p className="mb-1 mt-5 text-[11px] font-bold text-[#6E6555]">Assinaturas</p>
         <div className="grid grid-cols-2 gap-x-6">
           <Assinatura nome={a.prefeito_nome} cargo={`Prefeito(a) Municipal${a.prefeito_cpf ? ` — CPF ${mascaraCpf(a.prefeito_cpf)}` : ""}`} assinadoEm={quando("prefeito")} />
@@ -189,6 +206,7 @@ export function TermoConteudo({ a, assinaturas }: { a: Adesao; assinaturas?: Ass
             assinadoEm={quando("sindicato")}
           />
           <Assinatura nome={c?.nome} cargo={`Coordenador(a) do Projeto${c?.cpf ? ` — CPF ${mascaraCpf(c.cpf)}` : ""}`} assinadoEm={quando("coordenador")} />
+        </div>
         </div>
 
         <p className="mt-6 border-t border-[#D8D0B8] pt-2 text-[9.5px] text-[#6E6555]">

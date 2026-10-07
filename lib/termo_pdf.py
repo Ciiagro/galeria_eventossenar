@@ -78,6 +78,38 @@ class _Pdf(FPDF):
         self.cell(0, 6, _t(f"Termo de Adesão - Projeto Valores  |  página {self.page_no()}/{{nb}}"), align="C")
 
 
+def _caixa_paragrafos(pdf, titulo, paragrafos, tam=9.5, altura_linha=5, pad=2.5, espaco=2):
+    """Caixa do termo com título em negrito e vários parágrafos justificados (espaço curto entre eles)."""
+    larg = pdf.w - pdf.l_margin - pdf.r_margin
+    interna = larg - 2 * pad
+
+    def linhas(texto, estilo):
+        pdf.set_font("Helvetica", estilo, tam)
+        return len(pdf.multi_cell(interna, altura_linha, _t(texto), align="J", dry_run=True, output="LINES"))
+
+    altura = 2 * pad + linhas(titulo, "B") * altura_linha + espaco
+    altura += sum(linhas(p, "") * altura_linha for p in paragrafos) + espaco * (len(paragrafos) - 1)
+    if pdf.get_y() + altura > pdf.h - pdf.b_margin:
+        pdf.add_page()
+    x, y = pdf.l_margin, pdf.get_y()
+    pdf.set_fill_color(251, 250, 243)
+    pdf.set_draw_color(*BORDA)
+    pdf.rect(x, y, larg, altura, style="DF")
+    pdf.set_text_color(42, 38, 32)
+    pdf.set_xy(x + pad, y + pad)
+    pdf.set_font("Helvetica", "B", tam)
+    pdf.multi_cell(interna, altura_linha, _t(titulo), align="J", new_x="LEFT", new_y="NEXT")
+    pdf.ln(espaco)
+    pdf.set_x(x + pad)  # ln() volta o cursor para a margem; reposiciona dentro da caixa
+    pdf.set_font("Helvetica", "", tam)
+    for i, texto in enumerate(paragrafos):
+        pdf.multi_cell(interna, altura_linha, _t(texto), align="J", new_x="LEFT", new_y="NEXT")
+        if i < len(paragrafos) - 1:
+            pdf.ln(espaco)
+            pdf.set_x(x + pad)
+    pdf.set_xy(x, y + altura)
+
+
 def _secao(pdf: _Pdf, n: int, titulo: str):
     pdf.ln(2)
     pdf.set_fill_color(*FUNDO)
@@ -331,7 +363,7 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
         _tabela_escolas(pdf, escolas)
 
     # termo + assinaturas ficam juntos; só muda de página se não couberem no que sobrou
-    if pdf.get_y() > pdf.h - 16 - 153:
+    if pdf.get_y() > pdf.h - 16 - 235:
         pdf.add_page()
     _secao(pdf, 6, "Termo de Adesão e Compromisso")
     pdf.set_font("Helvetica", "", 9.5)
@@ -353,13 +385,27 @@ def gerar_pdf_termo(snapshot: dict, signatarios: list, hash_termo: str, pedido_i
         "informados serão tratados pela FAEC/SENAR exclusivamente para as finalidades do Projeto Valores, em conformidade com a Lei nº "
         "13.709/2018 (LGPD). A informação inverídica poderá ensejar a suspensão ou o cancelamento da adesão."
     )
-    pdf.multi_cell(0, 5, _t(texto1), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=2.5)
+    titulo_imagem = "Da captação e do uso de imagem e voz."
+    paragrafos_imagem = [
+        "O Município está ciente de que, durante as atividades do Projeto Valores, poderão ser feitos registros audiovisuais (fotografias, filmagens e gravações de voz) de gestores, professores e alunos, para documentar, acompanhar, divulgar e prestar contas das ações do projeto.",
+        "O Município compromete-se a assegurar que as autorizações necessárias sejam obtidas previamente, especialmente dos pais ou responsáveis legais dos alunos menores de idade, por meio dos instrumentos disponibilizados pela coordenação do projeto, observando a LGPD (Lei nº 13.709/2018), o Estatuto da Criança e do Adolescente (Lei nº 8.069/1990) e demais normas de proteção da imagem, voz e dados pessoais.",
+        "Os registros poderão ser usados pela FAEC/SENAR e pelo Projeto Valores para fins institucionais, educacionais, de comunicação, divulgação e prestação de contas, em relatórios, apresentações, publicações, sites, redes sociais e demais canais oficiais do projeto.",
+        "O uso deve se limitar às finalidades do Projeto Valores, sendo vedado qualquer uso que cause constrangimento, exposição indevida, discriminação ou prejuízo aos participantes.",
+    ]
+    # texto justificado (align="J") em todos os blocos do termo
+    pdf.multi_cell(0, 5, _t(texto1), border=1, fill=True, align="J", new_x="LMARGIN", new_y="NEXT", padding=2.5)
     pdf.ln(2)
-    pdf.multi_cell(0, 5, _t(texto_visitas), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=2.5)
+    pdf.multi_cell(0, 5, _t(texto_visitas), border=1, fill=True, align="J", new_x="LMARGIN", new_y="NEXT", padding=2.5)
     pdf.ln(2)
-    pdf.multi_cell(0, 5, _t(texto2), border=1, fill=True, new_x="LMARGIN", new_y="NEXT", padding=2.5)
+    pdf.multi_cell(0, 5, _t(texto2), border=1, fill=True, align="J", new_x="LMARGIN", new_y="NEXT", padding=2.5)
+    pdf.ln(2)
+    _caixa_paragrafos(pdf, titulo_imagem, paragrafos_imagem)
 
-    pdf.ln(4)
+    # as 4 assinaturas ficam juntas: se não couberem no que sobrou da página, vão todas para a próxima
+    if pdf.get_y() + 4 + 6 + 2 * 32 > pdf.h - pdf.b_margin:
+        pdf.add_page()
+    else:
+        pdf.ln(4)
     pdf.set_font("Helvetica", "B", 8.5)
     pdf.set_text_color(*CINZA)
     pdf.cell(0, 5, "Assinaturas", new_x="LMARGIN", new_y="NEXT")
