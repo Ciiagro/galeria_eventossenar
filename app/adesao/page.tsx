@@ -252,11 +252,9 @@ export default function AdesaoPublicaPage() {
           </form>
         </div>
 
-        {/* A logo da FAEC é branca, então fica sobre um bloco verde */}
-        <div className="rounded-lg bg-brand px-3 py-1.5">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img src="/logo-sistema.png" alt="Sistema FAEC SENAR Ceará — Sindicato Rural" width={800} height={294} className="h-auto w-24" />
-        </div>
+        {/* Logo colorida do Sistema FAEC/SENAR Ceará (fundo transparente, fica direto sobre o creme) */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src="/logo-sistema-colorida.png" alt="Sistema FAEC SENAR Ceará — Sindicato Rural" width={800} height={294} className="h-auto w-32" />
       </div>
     </FundoLogin>
   );

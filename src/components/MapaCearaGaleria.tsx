@@ -27,7 +27,7 @@ export const COR_PARTICIPANTE = "#2E7D4F";
 const COR_PARTICIPANTE_CLARA = "#A9D3B8"; // participantes quando outro município está em foco
 const COR_DESTAQUE = "#123A26";
 const COR_NEUTRA = "#E4E9E5";
-const COR_DIVISA = "#9DAEA1"; // linhas de divisa entre os municípios
+const COR_DIVISA = "#5E7364"; // linhas de divisa entre os municípios (mais escuras)
 // forma do pin: a ponta fica em (0,0) e a cabeça redonda em (0,-19)
 const PIN = "M0 0 C-5 -8 -10 -13 -10 -19 a10 10 0 1 1 20 0 C10 -13 5 -8 0 0 Z";
 
@@ -93,7 +93,7 @@ export default function MapaCearaGaleria({
                 d={m.d}
                 fill={destaque ? COR_DESTAQUE : apagado ? COR_PARTICIPANTE_CLARA : participou ? COR_PARTICIPANTE : COR_NEUTRA}
                 stroke={destaque ? COR_DESTAQUE : COR_DIVISA}
-                strokeWidth={destaque ? 1.6 : 0.9}
+                strokeWidth={destaque ? 1.8 : 1.1}
                 strokeLinejoin="round"
                 className={`transition-[fill] duration-300 ${participou ? "cursor-pointer hover:brightness-110" : ""}`}
                 onMouseMove={(e) => participou && setDica({ texto: m.nome, ...posicao(e) })}
@@ -102,6 +102,16 @@ export default function MapaCearaGaleria({
               />
             );
           })}
+          {/* Nomes de todos os municípios (bem pequenos) */}
+          <g pointerEvents="none" fontSize={5.5} fontWeight={600} textAnchor="middle" fill="#2F3F34" stroke="#fff" strokeWidth={1.4} paintOrder="stroke" strokeLinejoin="round">
+            {mapa.municipios.map((m) =>
+              m.id === realceId ? null : (
+                <text key={m.id} x={m.cx} y={m.cy} dominantBaseline="middle">
+                  {m.nome}
+                </text>
+              )
+            )}
+          </g>
           {/* Município em destaque: anel pulsando */}
           {municipioRealce && (
             <g pointerEvents="none">

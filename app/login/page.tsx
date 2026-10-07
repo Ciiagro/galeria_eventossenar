@@ -105,17 +105,15 @@ export default function LoginPage() {
           <FaixaValores className="mt-4" />
         </form>
 
-        {/* A logo da FAEC é branca, então fica sobre um bloco verde */}
-        <div className="bg-brand rounded-xl px-4 py-2">
-          {/* eslint-disable-next-line @next/next/no-img-element */}
-          <img
-            src="/logo-sistema.png"
-            alt="Sistema FAEC SENAR Ceará — Sindicato Rural"
-            width={800}
-            height={294}
-            className="w-28 h-auto"
-          />
-        </div>
+        {/* Logo colorida do Sistema FAEC/SENAR Ceará (fundo transparente, fica direto sobre o creme) */}
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img
+          src="/logo-sistema-colorida.png"
+          alt="Sistema FAEC SENAR Ceará — Sindicato Rural"
+          width={800}
+          height={294}
+          className="h-auto w-36"
+        />
       </div>
     </FundoLogin>
   );

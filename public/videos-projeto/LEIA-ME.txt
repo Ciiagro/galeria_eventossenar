@@ -3,7 +3,8 @@ Coloque aqui as capas dos vídeos do projeto (imagens JPG, de preferência 1280x
   quixada.jpg
   russas.jpg
   ubajara.jpg
-  visita-tecnica.jpg
+  visita-tecnica.jpg  (Maranguape)
+  vicosa-do-ceara.jpg
   capacitacao.jpg
 
 Dica: abra cada vídeo, pause num quadro bonito e tire um print. Se algum arquivo faltar, o site tenta a

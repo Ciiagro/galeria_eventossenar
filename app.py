@@ -2061,7 +2061,8 @@ IDS_VIDEOS_PROJETO = {
     "1jHMwOMX_UlYbloVgzhlcNR-8GcwlSsW2",  # Quixadá
     "1FaP6DR3nl9x4frkYf5gehAuFtWkRS63K",  # Russas
     "1jU0WqyiEE5gvuo8_-Cb_N-SaW0AZBKKX",  # Ubajara
-    "1FaDvnq_BrrY8PvIHiXCuJ96Cw6iCVBfO",  # Visita técnica
+    "1FaDvnq_BrrY8PvIHiXCuJ96Cw6iCVBfO",  # Maranguape
+    "17BmP5F-0i1GNIQkEAxvZnxDk9yT1Fv23",  # Viçosa do Ceará
     "191onjzFeDUvM9dcxKP6Srun7AZL_fIH_",  # Capacitação
 }
 

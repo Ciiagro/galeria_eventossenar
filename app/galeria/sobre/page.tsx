@@ -233,7 +233,7 @@ export default function SobreProjetoPage() {
         <section id="videos" aria-labelledby="titulo-videos" className="scroll-mt-20 rounded-2xl border border-black/5 p-5 shadow-sm sm:p-7" style={{ background: tom("#1E6B45", 12) }}>
           <Titulo id="titulo-videos" cor="#1E6B45">Assista ao projeto</Titulo>
           <p className="mt-1 text-sm text-brand-dark/80 sm:text-base">Vídeos de divulgação nos municípios, na formação e no acompanhamento das escolas.</p>
-          <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <ul className="mt-4 grid grid-cols-2 gap-3 sm:grid-cols-3 xl:grid-cols-6">
             {VIDEOS_PROJETO.map((v, i) => (
               <li key={v.link}>
                 <CartaoVideo video={v} cor={[FAIXAS.verde, FAIXAS.azul, FAIXAS.rosa, FAIXAS.laranja][i % 4]} onAssistir={() => setAssistindo(v)} />

@@ -10,9 +10,10 @@
 export type VideoProjeto = { titulo: string; rotulo: string; link: string; capa?: string };
 
 export const VIDEOS_PROJETO: VideoProjeto[] = [
+  { titulo: "Maranguape", rotulo: "Município", capa: "/videos-projeto/visita-tecnica.jpg", link: "https://drive.google.com/file/d/1FaDvnq_BrrY8PvIHiXCuJ96Cw6iCVBfO/view" },
   { titulo: "Quixadá", rotulo: "Município", capa: "/videos-projeto/quixada.jpg", link: "https://drive.google.com/file/d/1jHMwOMX_UlYbloVgzhlcNR-8GcwlSsW2/view" },
   { titulo: "Russas", rotulo: "Município", capa: "/videos-projeto/russas.jpg", link: "https://drive.google.com/file/d/1FaP6DR3nl9x4frkYf5gehAuFtWkRS63K/view" },
   { titulo: "Ubajara", rotulo: "Município", capa: "/videos-projeto/ubajara.jpg", link: "https://drive.google.com/file/d/1jU0WqyiEE5gvuo8_-Cb_N-SaW0AZBKKX/view" },
-  { titulo: "Visita técnica", rotulo: "Acompanhamento", capa: "/videos-projeto/visita-tecnica.jpg", link: "https://drive.google.com/file/d/1FaDvnq_BrrY8PvIHiXCuJ96Cw6iCVBfO/view" },
+  { titulo: "Viçosa do Ceará", rotulo: "Município", capa: "/videos-projeto/vicosa-do-ceara.jpg", link: "https://drive.google.com/file/d/17BmP5F-0i1GNIQkEAxvZnxDk9yT1Fv23/view" },
   { titulo: "Capacitação", rotulo: "Formação", capa: "/videos-projeto/capacitacao.jpg", link: "https://drive.google.com/file/d/191onjzFeDUvM9dcxKP6Srun7AZL_fIH_/view" },
 ];
