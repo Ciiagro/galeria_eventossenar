@@ -2446,6 +2446,49 @@ def _galeria_ranking(db, ciclo_id=None):
     return ranking
 
 
+def _totais_professores_alunos(db, ciclo_id=None):
+    """(professores, alunos, por_municipio) das adesões APROVADAS. Alunos = matrículas do Infantil 3 + 4 + 5.
+
+    por_municipio = {"<municipio_id>": {"professores": n, "alunos": n}}.
+    Se a consulta falhar (ex.: tabela ainda sem dados), devolve zeros e não derruba o resumo da galeria.
+    """
+    try:
+        def montar_adesoes():
+            q = db.table("adesoes").select("id, municipio_id").eq("status", "aprovada")
+            if ciclo_id:
+                q = q.eq("ciclo_id", ciclo_id)
+            return q.order("id")
+
+        adesoes = fetch_all(montar_adesoes)
+        municipio_da_adesao = {a["id"]: a.get("municipio_id") for a in adesoes}
+        ids = list(municipio_da_adesao.keys())
+        professores = alunos = 0
+        por_municipio = {}
+        for i in range(0, len(ids), 100):  # em lotes, para não estourar o tamanho da URL
+            linhas = (
+                db.table("adesao_escolas")
+                .select("adesao_id, quantidade_professores, matricula_infantil_3, matricula_infantil_4, matricula_infantil_5")
+                .in_("adesao_id", ids[i:i + 100])
+                .execute()
+                .data
+                or []
+            )
+            for l in linhas:
+                prof = int(l.get("quantidade_professores") or 0)
+                alu = sum(int(l.get(c) or 0) for c in ("matricula_infantil_3", "matricula_infantil_4", "matricula_infantil_5"))
+                professores += prof
+                alunos += alu
+                mid = municipio_da_adesao.get(l.get("adesao_id"))
+                if mid is not None:
+                    acc = por_municipio.setdefault(str(mid), {"professores": 0, "alunos": 0})
+                    acc["professores"] += prof
+                    acc["alunos"] += alu
+        return professores, alunos, por_municipio
+    except Exception as erro:
+        print(f"[galeria] não consegui somar professores/alunos: {erro}")
+        return 0, 0, {}
+
+
 @app.get("/api/galeria")
 def galeria_documentos():
     ciclo_id = request.args.get("ciclo_id") or None
@@ -2489,9 +2532,13 @@ def galeria_documentos():
                 publicados = fetch_all(montar_publicados)
                 escolas = _em_cache(f"mapa_escolas|{ciclo_id}", 300, lambda: escolas_participantes_municipio(db, None, ciclo_id))
                 municipios = {d["municipio_id"] for d in publicados} | {e["municipio_id"] for e in escolas if e.get("municipio_id")}
+                professores, alunos, por_municipio = _totais_professores_alunos(db, ciclo_id)
                 return {
                     "municipios": len(municipios),
                     "escolas": len(escolas),
+                    "professores": professores,
+                    "alunos": alunos,
+                    "por_municipio": por_municipio,
                     "publicacoes": len(publicados),
                     "visualizacoes": sum(d.get("visualizacoes") or 0 for d in publicados),
                 }

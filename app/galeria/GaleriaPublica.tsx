@@ -16,7 +16,7 @@ import { ImageIcon } from "@/components/icons";
 
 type Ordem = "recentes" | "antigas";
 type MunicipioGaleria = { id: number; nome: string; publicacoes: number };
-type Resumo = { municipios: number; escolas: number; publicacoes: number; visualizacoes: number };
+type Resumo = { municipios: number; escolas: number; professores?: number; alunos?: number; por_municipio?: Record<string, { professores: number; alunos: number }>; publicacoes: number; visualizacoes: number };
 
 // Ordem em que as ações aparecem na vitrine (a da apresentação do projeto); as demais vêm depois
 const ORDEM_ACOES = ["acolh", "meditac", "civico", "circulo", "conto", "pratica", "cultura", "familia", "refeic", "aniversari"];
@@ -96,14 +96,17 @@ export default function GaleriaPublica() {
     apiGetCache(`/api/galeria${consulta ? `?${consulta}` : ""}`)
       .then((lista: DocumentoGaleria[]) => setDocumentos(lista))
       .catch((e) => setErro(e.message));
-    if (municipioId) setDestaqueId(Number(municipioId));
+    // filtro em "Todos os municípios" também desfaz a seleção do mapa (cor amarela e totais)
+    setDestaqueId(municipioId ? Number(municipioId) : null);
     setZoomMapaId(municipioId ? Number(municipioId) : null);
   }, [municipioId, parametroCiclo]);
 
   function mudarMunicipio(novoId: string) {
     router.replace(novoId ? `/galeria?municipio_id=${novoId}` : "/galeria", { scroll: false });
   }
+  const [resetMapa, setResetMapa] = useState(0); // pede ao mapa para voltar à visão geral
   function voltarAoCeara() {
+    setResetMapa((n) => n + 1);
     mudarMunicipio("");
     setDestaqueId(null);
     setZoomMapaId(null);
@@ -198,6 +201,25 @@ export default function GaleriaPublica() {
         ultima: acoesDoPainel[0]?.data_realizacao,
       }
     : null;
+
+  // Totais ao lado do mapa: Ceará inteiro, ou só o município selecionado no mapa/filtro
+  const totaisMapa = useMemo(() => {
+    if (destaqueId != null) {
+      const doMunicipio = resumo?.por_municipio?.[String(destaqueId)];
+      return {
+        municipios: 1,
+        escolas: escolasMapa.filter((e) => e.municipio_id === destaqueId).length,
+        professores: resumo ? doMunicipio?.professores ?? 0 : undefined,
+        alunos: resumo ? doMunicipio?.alunos ?? 0 : undefined,
+      };
+    }
+    return {
+      municipios: resumo?.municipios ?? municipiosParticipantes.size,
+      escolas: resumo?.escolas ?? escolasMapa.length,
+      professores: resumo?.professores,
+      alunos: resumo?.alunos,
+    };
+  }, [destaqueId, resumo, escolasMapa, municipiosParticipantes]);
 
   // ---------- ações ----------
   function abrir(doc: DocumentoGaleria) {
@@ -338,11 +360,12 @@ export default function GaleriaPublica() {
             <div className={`${CARTAO} grid md:grid-cols-[0.6fr_1.7fr_1fr] gap-4 items-stretch`}>
               <div className="flex flex-col">
                 <h2 className="text-base font-bold">🗺️ Municípios participantes</h2>
-                <div className="mt-3 space-y-1.5 text-xs text-brand-dark/75">
-                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full" style={{ background: COR_PARTICIPANTE }} /> Participantes</p>
-                  <p className="flex items-center gap-2"><span className="w-2.5 h-2.5 shrink-0 rounded-full bg-[#123A26]" /> Em destaque</p>
-                  <p className="flex items-center gap-2"><svg viewBox="-12 -30 24 32" className="h-3.5 w-3 shrink-0" aria-hidden="true"><path d="M0 0 C-5 -8 -10 -13 -10 -19 a10 10 0 1 1 20 0 C10 -13 5 -8 0 0 Z" fill="#FBBF24" stroke="#fff" strokeWidth="2" /><circle cx="0" cy="-19" r="4" fill="#123A26" /></svg> Escolas participantes</p>
-                </div>
+                <dl className="mt-4 space-y-2.5">
+                  <TotalMapa cor={COR_PARTICIPANTE} rotulo="Município" valor={totaisMapa.municipios} />
+                  <TotalMapa cor="#FBBF24" rotulo="Escola" valor={totaisMapa.escolas} />
+                  <TotalMapa cor="#A855F7" rotulo="Professores" valor={totaisMapa.professores} />
+                  <TotalMapa cor="#38BDF8" rotulo="Alunos" valor={totaisMapa.alunos} />
+                </dl>
                 <button
                   onClick={voltarAoCeara}
                   className="mt-auto pt-0 w-full rounded-full border border-brand-light/40 px-3 py-2 text-xs font-semibold text-brand-light hover:bg-brand-light/5"
@@ -352,12 +375,13 @@ export default function GaleriaPublica() {
               </div>
               <MapaCearaGaleria
                 municipiosParticipantes={municipiosParticipantes}
-                destaqueId={idPainel}
                 focoId={zoomMapaId}
+                destaqueId={destaqueId}
+                resetSinal={resetMapa}
+                onVerCearaInteiro={voltarAoCeara}
                 escolas={escolasMapa}
                 onClicarMunicipio={(id) => { setDestaqueId(id); setZoomMapaId(id); }}
-                onClicarEscola={verAcoesDaEscola}
-                className="h-[250px]"
+                className="h-[280px]"
               />
               {infoPainel && (
                 <div className="rounded-xl bg-[#f4f8f3] p-4 flex flex-col">
@@ -784,6 +808,20 @@ function Numero({ icone, rotulo, valor }: { icone: string; rotulo: string; valor
         <span className="block truncate text-xs text-brand-dark/75">{rotulo}</span>
         <span className="block text-xl font-bold leading-tight">{valor.toLocaleString("pt-BR")}</span>
       </span>
+    </div>
+  );
+}
+
+function TotalMapa({ cor, rotulo, valor }: { cor: string; rotulo: string; valor?: number }) {
+  return (
+    <div className="grid grid-cols-[auto_1fr_auto] items-center gap-x-2.5">
+      <span className="flex h-6 w-6 shrink-0 items-center justify-center rounded-full" style={{ background: `${cor}26` }} aria-hidden>
+        <span className="h-2.5 w-2.5 rounded-full" style={{ background: cor }} />
+      </span>
+      <dt className="text-xs font-medium text-brand-dark">{rotulo}</dt>
+      <dd className="min-w-[2rem] text-xs font-semibold tabular-nums text-brand-dark/80">
+        ({valor == null ? "—" : valor.toLocaleString("pt-BR")})
+      </dd>
     </div>
   );
 }
