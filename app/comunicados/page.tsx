@@ -45,6 +45,7 @@ export default function ComunicadosPage() {
   const [itens, setItens] = useState<Comunicado[] | null>(null);
   const [podeEnviar, setPodeEnviar] = useState(false);
   const [novos, setNovos] = useState<Set<string>>(new Set()); // os que eram novos quando a página abriu
+  const [abertos, setAbertos] = useState<Set<string>>(new Set()); // comunicados expandidos (os demais ficam numa linha só)
   const [erro, setErro] = useState("");
   const [avisoAtual, setAvisoAtual] = useState<{ texto: string; atencao: boolean } | null>(null);
   const setAviso = (texto: string, atencao = false) => setAvisoAtual(texto ? { texto, atencao } : null); // "" apaga o aviso
@@ -76,6 +77,7 @@ export default function ComunicadosPage() {
       if (marcarComoLido && !r.pode_enviar) {
         const naoLidos = lista.filter((c) => !c.lido).map((c) => c.id);
         setNovos(new Set(naoLidos));
+        setAbertos(new Set(naoLidos)); // o que é novo já aparece aberto
         if (naoLidos.length > 0) {
           await apiPost("/api/comunicados/lido", { ids: naoLidos }).catch(() => null);
           window.dispatchEvent(new Event("comunicados-lidos")); // o menu atualiza o contador
@@ -231,6 +233,15 @@ export default function ComunicadosPage() {
     }
   }
 
+  function alternarAberto(id: string) {
+    setAbertos((antes) => {
+      const novo = new Set(antes);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
+  }
+
   const descricao = podeEnviar
     ? "Envie avisos para coordenadores, equipe de apoio e secretários de educação. Todos recebem por e-mail; coordenadores e equipe de apoio também veem aqui no sistema."
     : "Avisos da coordenação do projeto. O que for novo aparece marcado.";
@@ -375,7 +386,7 @@ export default function ComunicadosPage() {
         )}
 
         {/* Lista */}
-        <div className="mt-6 space-y-4">
+        <div className="mt-6 space-y-2">
           {itens === null && <div className="h-28 animate-pulse rounded-xl bg-black/[0.05]" aria-label="Carregando" />}
 
           {itens !== null && itens.length === 0 && !erro && (
@@ -384,105 +395,135 @@ export default function ComunicadosPage() {
             </p>
           )}
 
+          {itens !== null && itens.length > 1 && (
+            <div className="flex justify-end gap-3 text-sm font-semibold text-brand-light">
+              <button type="button" onClick={() => setAbertos(new Set(itens.map((c) => c.id)))} className="hover:underline">Expandir todos</button>
+              <span className="text-black/20" aria-hidden="true">|</span>
+              <button type="button" onClick={() => setAbertos(new Set())} className="hover:underline">Recolher todos</button>
+            </div>
+          )}
+
           {itens?.map((c) => {
             const ehNovo = novos.has(c.id);
+            const aberto = abertos.has(c.id);
             const soSecretarios = c.para_secretarios && !c.para_coordenadores && !c.para_apoiadores;
             const corBarra = soSecretarios ? "#8A5200" : "#6B3F94";
             const dados = leituras[c.id];
             const em = c.emails;
             const temLeitura = (c.destinatarios ?? 0) > 0;
             const ocupado = Boolean(envio);
+            const resumoLinha = c.mensagem.replace(/\*\*/g, "").replace(/\s+/g, " ").trim();
             return (
               <article
                 key={c.id}
                 className="overflow-hidden rounded-xl border border-black/5 shadow-sm"
                 style={{ borderLeft: `5px solid ${corBarra}`, background: ehNovo ? "#F0E8F7" : "#fff" }}
               >
-                <div className="px-4 py-3 sm:px-5">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {ehNovo && <span className="rounded-full bg-status-pendente px-2.5 py-0.5 text-xs font-bold text-white">Novo</span>}
-                    {c.fixado && <span className="rounded-full bg-[#FFF3CC] px-2.5 py-0.5 text-xs font-bold text-[#6E4B00]">📌 Fixado</span>}
-                    {podeEnviar &&
-                      DESTINOS.filter((d) => c[d.chave]).map((d) => (
-                        <span key={d.chave} className="rounded-full px-2.5 py-0.5 text-xs font-bold" style={{ background: d.fundo, color: d.cor }}>
-                          Para: {d.curto}
+                {/* Linha compacta (sempre visível) */}
+                <div
+                  className="flex cursor-pointer items-start gap-2 px-3 py-2 hover:bg-black/[0.02] sm:px-4"
+                  onClick={() => alternarAberto(c.id)}
+                >
+                  <svg
+                    className={`mt-1.5 h-4 w-4 shrink-0 text-brand-dark/50 transition-transform ${aberto ? "rotate-90" : ""}`}
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                    aria-hidden="true"
+                  >
+                    <path d="M7.05 4.55a1 1 0 0 1 1.4 0l5 5a1 1 0 0 1 0 1.4l-5 5a1 1 0 1 1-1.4-1.4L11.34 10 7.05 5.95a1 1 0 0 1 0-1.4Z" />
+                  </svg>
+
+                  <div className="min-w-0 flex-1">
+                    <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
+                      {ehNovo && <span className="rounded-full bg-status-pendente px-2 py-0.5 text-[11px] font-bold text-white">Novo</span>}
+                      {c.fixado && <span className="rounded-full bg-[#FFF3CC] px-2 py-0.5 text-[11px] font-bold text-[#6E4B00]">📌 Fixado</span>}
+                      {podeEnviar &&
+                        DESTINOS.filter((d) => c[d.chave]).map((d) => (
+                          <span key={d.chave} className="rounded-full px-2 py-0.5 text-[11px] font-bold" style={{ background: d.fundo, color: d.cor }}>
+                            {d.curto}
+                          </span>
+                        ))}
+                      <h2 className="min-w-0 text-base font-bold leading-snug text-brand-dark">
+                        <button
+                          type="button"
+                          aria-expanded={aberto}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            alternarAberto(c.id);
+                          }}
+                          className="text-left"
+                        >
+                          {c.titulo}
+                        </button>
+                      </h2>
+                    </div>
+
+                    <p className="mt-0.5 flex flex-wrap items-center gap-x-2 text-xs text-brand-dark/65">
+                      <span className="whitespace-nowrap">
+                        {c.criado_por_nome ? `${c.criado_por_nome} · ` : ""}
+                        {dataHora(c.criado_em)}
+                        {c.atualizado_em ? ` · editado em ${dataHora(c.atualizado_em)}` : ""}
+                      </span>
+                      {podeEnviar && (
+                        <span className="whitespace-nowrap font-semibold text-brand-dark/80">
+                          {temLeitura && <>· Lido {c.lidos ?? 0}/{c.destinatarios ?? 0} </>}
+                          · {em && em.total > 0 ? <>E-mails {em.enviados}/{em.total}</> : <span className="text-[#8A5200]">e-mails não enviados</span>}
+                          {em && em.erros > 0 && <span className="text-status-pendente"> · {em.erros} com erro</span>}
+                          {em && em.pendentes > 0 && <span className="text-[#8A5200]"> · {em.pendentes} pendente(s)</span>}
                         </span>
-                      ))}
+                      )}
+                    </p>
+
+                    {!aberto && <p className="mt-1 truncate text-sm text-brand-dark/70">{resumoLinha}</p>}
                   </div>
 
-                  <div className="mt-1.5 flex items-start justify-between gap-3">
-                    <h2 className="text-lg font-bold leading-snug text-brand-dark">{c.titulo}</h2>
-                    {podeEnviar && (
-                      <div className="flex shrink-0 gap-1">
-                        <BotaoEditar onClick={() => abrirEdicao(c)} rotulo="Editar comunicado" />
-                        <BotaoExcluir onClick={() => excluir(c)} rotulo="Excluir comunicado" />
-                      </div>
-                    )}
-                  </div>
-
-                  <p className="mt-0.5 text-xs text-brand-dark/65">
-                    {c.criado_por_nome ? `${c.criado_por_nome} · ` : ""}
-                    {dataHora(c.criado_em)}
-                    {c.atualizado_em ? ` · editado em ${dataHora(c.atualizado_em)}` : ""}
-                  </p>
-
-                  <p className="mt-3 whitespace-pre-wrap break-words text-sm leading-relaxed text-brand-dark">{c.mensagem}</p>
-
-                  {c.link && (
-                    <a
-                      href={c.link}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className="mt-3 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-sm font-semibold text-brand-light ring-1 ring-black/10 hover:bg-white"
-                    >
-                      <LinkIcon className="h-4 w-4 shrink-0" />
-                      <span className="truncate">Abrir link</span>
-                    </a>
+                  {podeEnviar && (
+                    <div className="flex shrink-0 gap-1" onClick={(e) => e.stopPropagation()}>
+                      <BotaoEditar onClick={() => abrirEdicao(c)} rotulo="Editar comunicado" />
+                      <BotaoExcluir onClick={() => excluir(c)} rotulo="Excluir comunicado" />
+                    </div>
                   )}
                 </div>
 
-                {/* Acompanhamento (administrador) */}
-                {podeEnviar && (
-                  <div className="space-y-2 border-t border-black/5 bg-black/[0.02] px-4 py-2.5 sm:px-5">
-                    {temLeitura && (
-                      <p className="text-sm text-brand-dark/80">
-                        Lido no sistema por <strong>{c.lidos ?? 0}</strong> de <strong>{c.destinatarios ?? 0}</strong>
-                        {(c.destinatarios ?? 0) > 0 && <> ({Math.round(((c.lidos ?? 0) / (c.destinatarios ?? 1)) * 100)}%)</>}
-                      </p>
-                    )}
+                {/* Conteúdo (só quando aberto) */}
+                {aberto && (
+                  <div className="px-4 pb-3 pl-9 sm:px-5 sm:pl-10">
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed text-brand-dark">{c.mensagem}</p>
 
-                    <div className="flex flex-wrap items-center justify-between gap-2">
-                      <p className="text-sm text-brand-dark/80">
-                        E-mails:{" "}
-                        {em && em.total > 0 ? (
-                          <>
-                            <strong>{em.enviados}</strong> enviado(s) de <strong>{em.total}</strong>
-                            {em.erros > 0 && <span className="font-semibold text-status-pendente"> · {em.erros} com erro</span>}
-                            {em.pendentes > 0 && <span className="font-semibold text-[#8A5200]"> · {em.pendentes} pendente(s)</span>}
-                          </>
-                        ) : (
-                          <span className="font-semibold text-[#8A5200]">ainda não enviados</span>
-                        )}
-                      </p>
-                      <div className="flex flex-wrap gap-3">
-                        {(!em || em.total === 0 || em.pendentes > 0) && (
-                          <button disabled={ocupado} onClick={() => enviarEmails(c.id)} className="text-sm font-semibold text-[#8A5200] hover:underline disabled:opacity-50">
-                            {em && em.total > 0 ? "Continuar envio" : "Enviar e-mails agora"}
-                          </button>
-                        )}
-                        {em && em.erros > 0 && (
-                          <button disabled={ocupado} onClick={() => enviarEmails(c.id, true)} className="text-sm font-semibold text-status-pendente hover:underline disabled:opacity-50">
-                            Reenviar os que falharam
-                          </button>
-                        )}
-                      </div>
+                    {c.link && (
+                      <a
+                        href={c.link}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className="mt-2 inline-flex max-w-full items-center gap-1.5 rounded-lg bg-white/80 px-3 py-1.5 text-sm font-semibold text-brand-light ring-1 ring-black/10 hover:bg-white"
+                      >
+                        <LinkIcon className="h-4 w-4 shrink-0" />
+                        <span className="truncate">Abrir link</span>
+                      </a>
+                    )}
+                  </div>
+                )}
+
+                {/* Acompanhamento (administrador, só quando aberto) */}
+                {podeEnviar && aberto && (
+                  <div className="space-y-2 border-t border-black/5 bg-black/[0.02] px-4 py-2 pl-9 sm:px-5 sm:pl-10">
+                    <div className="flex flex-wrap items-center gap-x-4 gap-y-1">
+                      {(!em || em.total === 0 || em.pendentes > 0) && (
+                        <button disabled={ocupado} onClick={() => enviarEmails(c.id)} className="text-sm font-semibold text-[#8A5200] hover:underline disabled:opacity-50">
+                          {em && em.total > 0 ? "Continuar envio" : "Enviar e-mails agora"}
+                        </button>
+                      )}
+                      {em && em.erros > 0 && (
+                        <button disabled={ocupado} onClick={() => enviarEmails(c.id, true)} className="text-sm font-semibold text-status-pendente hover:underline disabled:opacity-50">
+                          Reenviar os que falharam
+                        </button>
+                      )}
+                      {(temLeitura || (em && em.total > 0)) && (
+                        <button onClick={() => alternarLeituras(c)} className="text-sm font-semibold text-brand-light hover:underline">
+                          {leiturasAbertas === c.id ? "Esconder detalhes" : "Ver detalhes (quem leu / e-mails)"}
+                        </button>
+                      )}
                     </div>
-
-                    {(temLeitura || (em && em.total > 0)) && (
-                      <button onClick={() => alternarLeituras(c)} className="text-sm font-semibold text-brand-light hover:underline">
-                        {leiturasAbertas === c.id ? "Esconder detalhes" : "Ver detalhes (quem leu / e-mails)"}
-                      </button>
-                    )}
 
                     {leiturasAbertas === c.id && (
                       <div className="space-y-3">
