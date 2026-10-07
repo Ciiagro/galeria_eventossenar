@@ -24,18 +24,18 @@ export const MATERIAL_INSTRUCIONAL: CategoriaMaterial[] = [
     titulo: "Formação de Professores",
     descricao: "Materiais das quatro formações.",
     links: [
-      { titulo: "1ª Formação", url: "https://docs.google.com/presentation/d/1h27YzGEv6Tn6Vada6VoiasUgU7O-VX-Q/edit?usp=drive_link&ouid=106898825372128667270&rtpof=true&sd=true" },
-      { titulo: "2ª Formação", url: "https://docs.google.com/presentation/d/1bISal7HTK_1VIdfDxSKf7CyZsatiE2l3/edit?usp=drive_link&ouid=106898825372128667270&rtpof=true&sd=true" },
-      { titulo: "3ª Formação", url: "https://docs.google.com/presentation/d/1c_NpF_Fnl51S-pmo_KkTUxqaexRDrxGA/edit?usp=drive_link&ouid=106898825372128667270&rtpof=true&sd=true" },
-      { titulo: "4ª Formação", url: "https://docs.google.com/presentation/d/1Ry7qJgwoNHIjUnMSmk-EvUVMq7DRB095/edit?usp=drive_link&ouid=106898825372128667270&rtpof=true&sd=true" },
+      { titulo: "1ª Formação", url: "https://drive.google.com/file/d/1VpCxrMHweQJ-Rx1uqH-Xuzifld5pBhjQ/view" },
+      { titulo: "2ª Formação", url: "https://drive.google.com/file/d/12ndPEJwfBz23LGBrtzmKMcJEj55mJj3m/view?usp=drive_link" },
+      { titulo: "3ª Formação", url: "https://drive.google.com/file/d/1Nr67XAikiUaSu_zLP2GZTnsuYc0dxVAW/view?usp=sharing" },
+      { titulo: "4ª Formação", url: "https://drive.google.com/file/d/1MRTphsMX9E6xQfXlZWuL_OhVUtS_wudD/view?usp=sharing" },
     ],
   },
   {
     id: "cartilha",
-    titulo: "Cartilha",
+    titulo: "Guia do Professor",
     descricao: "Material de apoio ao professor.",
     links: [
-      { titulo: "Caderno do Professor", url: "https://drive.google.com/file/d/1qadf-HstCsbrt24uoUwNT2cR6W5iBVp3/view" },
+      { titulo: "Guia do Professor", url: "https://drive.google.com/file/d/1fE-8dWxLWLb_Far9bP3-WOrHqQGoLe8i/view?usp=sharing" },
     ],
   },
   {

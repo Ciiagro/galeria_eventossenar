@@ -18,7 +18,7 @@ export default function MaterialInstrucionalPage() {
     <div className="p-4 sm:p-8 max-w-5xl">
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
         <TituloPagina
-          descricao="Apresentações, formações, cartilha e documento norteador do projeto. Cada material abre em uma nova aba."
+          descricao="Apresentações, formações, guia do professor e documento norteador do projeto. Cada material abre em uma nova aba."
           acao={<Indicador valor={MATERIAL_INSTRUCIONAL.reduce((t, c) => t + c.links.length, 0)} rotulo="materiais" />}
         >Material Pedagógico</TituloPagina>
 
