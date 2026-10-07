@@ -236,7 +236,7 @@ export type MembroEquipe = {
   id: string;
   nome: string;
   email: string | null;
-  role: "apoiador_visitas" | "apoiador_relatorios";
+  role: "apoiador_visitas" | "apoiador_relatorios" | "admin";
   municipio_ids: number[];
 };
 

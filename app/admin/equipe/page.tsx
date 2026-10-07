@@ -26,6 +26,13 @@ const PAPEIS: { valor: PapelApoio; titulo: string; descricao: string; cor: strin
     cor: "#17613B",
     fundo: "#E3F4EA",
   },
+  {
+    valor: "admin",
+    titulo: ROTULO_PAPEL.admin,
+    descricao: "Acesso total ao sistema: valida documentos, cadastra a equipe e envia comunicados. Não precisa escolher municípios.",
+    cor: "#6B3F94",
+    fundo: "#F0E8F7",
+  },
 ];
 
 const CAMPO =
@@ -153,7 +160,7 @@ function EquipePage() {
         email,
         senha,
         role: papel,
-        municipio_ids: Array.from(escolhidos),
+        municipio_ids: papel === "admin" ? [] : Array.from(escolhidos),
       });
       setMensagem(editandoId ? "Dados salvos." : "Usuário criado. Passe o e-mail e a senha para a pessoa entrar.");
       setFormAberto(false);
@@ -182,7 +189,7 @@ function EquipePage() {
     <div className="max-w-6xl p-4 sm:p-8">
       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-7">
         <TituloPagina
-          descricao="Cadastre o Apoiador de Visitas (escolha os municípios em que ele atua) e o Apoiador de Relatórios (analisa os documentos antes da sua validação)."
+          descricao="Cadastre o Apoiador de Visitas e o Apoiador de Relatórios (você escolhe os municípios em que atuam) e também outros Administradores, com acesso total."
           acao={
             <div className="flex items-center gap-3">
               <Indicador valor={equipe?.length ?? 0} rotulo="na equipe" />
@@ -191,7 +198,7 @@ function EquipePage() {
               onClick={novo}
               className="shrink-0 rounded-xl bg-[#2678C4] px-4 py-2.5 text-sm font-bold text-white shadow-md shadow-[#2678C4]/25 transition hover:-translate-y-0.5 hover:bg-[#1F67AA]"
             >
-              + Novo apoiador
+              + Novo usuário
             </button>
               )}
             </div>
@@ -204,7 +211,7 @@ function EquipePage() {
         {formAberto && (
           <form onSubmit={salvar} className="mt-5 space-y-4 rounded-2xl border border-black/10 bg-[#FFFBF2] p-4 sm:p-5">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-bold text-brand-dark">{editandoId ? "Editar apoiador" : "Novo apoiador"}</h2>
+              <h2 className="text-lg font-bold text-brand-dark">{editandoId ? "Editar usuário" : "Novo usuário"}</h2>
               <button type="button" onClick={() => setFormAberto(false)} className="rounded p-1 hover:bg-black/5" aria-label="Fechar">
                 <XIcon className="h-5 w-5" />
               </button>
@@ -212,7 +219,7 @@ function EquipePage() {
 
             <fieldset>
               <legend className="mb-2 text-sm font-semibold text-brand-dark">Perfil</legend>
-              <div className="grid gap-2 sm:grid-cols-2">
+              <div className="grid gap-2 sm:grid-cols-3">
                 {PAPEIS.map((p) => (
                   <label
                     key={p.valor}
@@ -242,7 +249,13 @@ function EquipePage() {
               </label>
             </div>
 
-            {(
+            {papel === "admin" && (
+              <p className="rounded-lg bg-[#FFF1DB] px-3 py-2 text-sm font-semibold text-[#6B3D00]" role="note">
+                Atenção: o Administrador tem acesso total ao sistema, inclusive para validar documentos, excluir usuários e enviar comunicados. Crie apenas para pessoas de confiança.
+              </p>
+            )}
+
+            {papel !== "admin" && (
               <div>
                 <div className="mb-2 flex flex-wrap items-center justify-between gap-2">
                   <p className="text-sm font-semibold text-brand-dark">
@@ -280,7 +293,7 @@ function EquipePage() {
             <div className="flex gap-2">
               <button
                 type="submit"
-                disabled={salvando || escolhidos.size === 0}
+                disabled={salvando || (papel !== "admin" && escolhidos.size === 0)}
                 className="rounded-xl bg-[#2F9E62] px-5 py-2.5 text-sm font-bold text-white shadow-sm hover:brightness-110 disabled:opacity-50"
               >
                 {salvando ? "Salvando..." : "Salvar"}
@@ -313,7 +326,7 @@ function EquipePage() {
           )}
           {equipe && equipe.length === 0 && !formAberto && (
             <div className="rounded-xl border border-dashed border-black/10 p-8 text-center text-sm text-brand-dark/75">
-              Ninguém cadastrado ainda. Clique em &quot;+ Novo apoiador&quot;.
+              Ninguém cadastrado ainda. Clique em &quot;+ Novo usuário&quot;.
             </div>
           )}
           {equipeFiltrada?.map((m) => {
@@ -328,7 +341,11 @@ function EquipePage() {
                   <span className="w-fit shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold sm:w-44 sm:text-center" style={{ background: info.fundo, color: info.cor }}>
                     {info.titulo}
                   </span>
-                  <MunicipiosDoApoiador ids={m.municipio_ids} nomes={nomes} />
+                  {m.role === "admin" ? (
+                    <span className="min-w-0 flex-1 text-xs font-semibold text-brand-dark/70">Acesso a todos os municípios</span>
+                  ) : (
+                    <MunicipiosDoApoiador ids={m.municipio_ids} nomes={nomes} />
+                  )}
                   <div className="flex shrink-0 gap-2 sm:ml-auto">
                     <BotaoEditar onClick={() => editar(m)} rotulo={m.nome} />
                     <BotaoExcluir onClick={() => excluir(m)} rotulo={m.nome} />

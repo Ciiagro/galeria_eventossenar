@@ -203,6 +203,8 @@ def fetch_all_paralelo(build_query, page_size=1000, workers=3):
 # ------------------------------------------------------------
 PAPEIS_APOIADOR = ("apoiador_visitas", "apoiador_relatorios")
 ROTULO_PAPEL_APOIADOR = {"apoiador_visitas": "Apoiador de Visitas", "apoiador_relatorios": "Apoiador de Relatórios"}
+# A tela "Equipe" também cadastra Administradores (acesso total, sem municípios definidos)
+PAPEIS_EQUIPE = PAPEIS_APOIADOR + ("admin",)
 ORIGEM_POR_PAPEL = {
     "admin": "admin",
     "municipio": "municipio",
@@ -1918,7 +1920,7 @@ def listar_usuarios():
     try:
         db = get_client()
         perfis = (
-            db.table("perfis").select("id, nome, role").in_("role", list(PAPEIS_APOIADOR)).order("nome").execute().data or []
+            db.table("perfis").select("id, nome, role").in_("role", list(PAPEIS_EQUIPE)).order("nome").execute().data or []
         )
         ids = [p["id"] for p in perfis]
         atribuicoes = {}
@@ -1939,7 +1941,7 @@ def listar_usuarios():
 
 @app.post("/api/usuarios")
 def salvar_usuario():
-    """Cria ou edita (com `id`) um Apoiador de Visitas / Apoiador de Relatórios."""
+    """Cria ou edita (com `id`) um Apoiador de Visitas, Apoiador de Relatórios ou Administrador."""
     auth = require_user()
     if not auth:
         return jsonify({"error": "Não autenticado"}), 401
@@ -1955,19 +1957,23 @@ def salvar_usuario():
     role = body.get("role")
     municipio_ids = body.get("municipio_ids") or []
 
-    if role not in PAPEIS_APOIADOR:
-        return jsonify({"error": "Escolha o perfil: Apoiador de Visitas ou Apoiador de Relatórios."}), 400
+    if role not in PAPEIS_EQUIPE:
+        return jsonify({"error": "Escolha o perfil: Apoiador de Visitas, Apoiador de Relatórios ou Administrador."}), 400
+    if usuario_id and str(usuario_id) == str(user.id) and role != "admin":
+        return jsonify({"error": "Você não pode tirar o seu próprio acesso de administrador."}), 400
     if not nome or not email:
         return jsonify({"error": "Nome e e-mail são obrigatórios."}), 400
     if "@" not in email or email.startswith("@") or email.endswith("@"):
         return jsonify({"error": "Informe um e-mail válido."}), 400
     if senha and len(senha) < 6:
         return jsonify({"error": "A senha deve ter pelo menos 6 caracteres."}), 400
+    if role == "admin":
+        municipio_ids = []  # administrador enxerga todos os municípios
     try:
         municipio_ids = sorted({int(m) for m in municipio_ids})
     except (TypeError, ValueError):
         return jsonify({"error": "Municípios inválidos."}), 400
-    if not municipio_ids:
+    if role != "admin" and not municipio_ids:
         return jsonify({"error": f"Escolha pelo menos um município para o {ROTULO_PAPEL_APOIADOR[role]}."}), 400
 
     try:
@@ -1987,8 +1993,8 @@ def salvar_usuario():
                 return jsonify({"error": "Só é possível escolher municípios que já têm escolas no programa. Marque as escolas em Escolas do programa primeiro."}), 400
         if usuario_id:
             existente = db.table("perfis").select("role").eq("id", usuario_id).limit(1).execute().data or []
-            if not existente or existente[0]["role"] not in PAPEIS_APOIADOR:
-                return jsonify({"error": "Este usuário não é um apoiador."}), 404
+            if not existente or existente[0]["role"] not in PAPEIS_EQUIPE:
+                return jsonify({"error": "Este usuário não faz parte da equipe."}), 404
             atributos = {"email": email, "user_metadata": {"nome": nome}}
             if senha:
                 atributos["password"] = senha
@@ -2030,11 +2036,13 @@ def excluir_usuario():
     usuario_id = request.args.get("id")
     if not usuario_id:
         return jsonify({"error": "id é obrigatório."}), 400
+    if str(usuario_id) == str(user.id):
+        return jsonify({"error": "Você não pode excluir o seu próprio usuário."}), 400
     try:
         db = get_client()
         existente = db.table("perfis").select("role").eq("id", usuario_id).limit(1).execute().data or []
-        if not existente or existente[0]["role"] not in PAPEIS_APOIADOR:
-            return jsonify({"error": "Só é possível excluir Apoiadores por aqui."}), 404
+        if not existente or existente[0]["role"] not in PAPEIS_EQUIPE:
+            return jsonify({"error": "Só é possível excluir a equipe (apoiadores e administradores) por aqui."}), 404
         db.auth.admin.delete_user(usuario_id)
         limpar_caches_perfil()
         return jsonify({"ok": True})
