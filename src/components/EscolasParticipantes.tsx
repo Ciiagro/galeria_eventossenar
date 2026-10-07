@@ -10,7 +10,7 @@ function escaparHtml(texto: string) {
   return texto.replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[c]!);
 }
 
-// Escolas que realmente participaram (com ação aprovada) no município:
+// Escolas que realmente participaram (com ação validada) no município:
 // resumo por ação pedagógica, mapa só com essas escolas e a lista delas.
 export default function EscolasParticipantes({ escolas, semMapa = false }: { escolas: EscolaParticipanteGaleria[]; semMapa?: boolean }) {
   const [programaSelecionado, setProgramaSelecionado] = useState("");
@@ -49,7 +49,7 @@ export default function EscolasParticipantes({ escolas, semMapa = false }: { esc
   if (!escolas.length) {
     return (
       <div className="rounded-xl border border-black/5 bg-white p-5 text-sm text-brand-dark/80">
-        Ainda não há escolas com ações aprovadas neste município.
+        Ainda não há escolas com ações validadas neste município.
       </div>
     );
   }

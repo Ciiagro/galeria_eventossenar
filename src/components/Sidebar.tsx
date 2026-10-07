@@ -42,6 +42,28 @@ export function Sidebar() {
     return () => { montado = false; window.clearInterval(intervalo); window.removeEventListener("focus", atualizar); };
   }, [ehApoioRelatorios, pathname]);
 
+  // Comunicados novos (para quem recebe: coordenador e equipe de apoio): contador ao lado do item do menu
+  const [comunicadosNovos, setComunicadosNovos] = useState(0);
+  const recebeComunicados = Boolean(perfil?.role) && perfil?.role !== "admin";
+  useEffect(() => {
+    if (!recebeComunicados) { setComunicadosNovos(0); return; }
+    let montado = true;
+    function atualizar() {
+      if (document.hidden) return;
+      apiGet("/api/comunicados/nao-lidos").then((r) => { if (montado) setComunicadosNovos(r.nao_lidos ?? 0); }).catch(() => null);
+    }
+    atualizar();
+    const intervalo = window.setInterval(atualizar, 60000);
+    window.addEventListener("focus", atualizar);
+    window.addEventListener("comunicados-lidos", atualizar); // a página de comunicados avisa quando marca como lido
+    return () => {
+      montado = false;
+      window.clearInterval(intervalo);
+      window.removeEventListener("focus", atualizar);
+      window.removeEventListener("comunicados-lidos", atualizar);
+    };
+  }, [recebeComunicados, pathname]);
+
   const aguardandoPerfil = carregandoPerfil && !perfil; // ainda não sabemos quem é: não mostra um menu que pode estar errado
   const links = aguardandoPerfil ? [] : montarLinks(perfil);
 
@@ -128,6 +150,11 @@ export function Sidebar() {
                 {href === "/analise" && paraAnalisar > 0 && (
                   <span className="ml-auto rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white" title={`${paraAnalisar} para analisar`}>
                     {paraAnalisar}
+                  </span>
+                )}
+                {href === "/comunicados" && comunicadosNovos > 0 && (
+                  <span className="ml-auto rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white" title={`${comunicadosNovos} comunicado(s) novo(s)`}>
+                    {comunicadosNovos}
                   </span>
                 )}
               </Link>

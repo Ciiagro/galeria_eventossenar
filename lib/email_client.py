@@ -141,3 +141,29 @@ def montar_concluido(nome: str, municipio: str):
         "O PDF assinado, com a folha de comprovação, segue em anexo.</p>",
     )
     return assunto, texto, html
+
+
+def montar_comunicado(nome: str, titulo: str, mensagem: str, link: str | None, quem_enviou: str, link_sistema: str | None = None):
+    """Retorna (assunto, texto, html) de um comunicado do Canal de Comunicação.
+    `link_sistema`: para quem também recebe no sistema (coordenadores e equipe de apoio), avisa onde ver."""
+    titulo = " ".join((titulo or "").split())  # sem quebras de linha no assunto
+    assunto = f"Comunicado — Projeto Valores: {titulo}"
+    e = _html.escape
+    texto = (
+        f"Olá, {nome}.\n\n{mensagem}\n\n"
+        + (f"Link: {link}\n\n" if link else "")
+        + (f"Este comunicado também está no sistema: {link_sistema}\n\n" if link_sistema else "")
+        + f"Enviado por {quem_enviou} — Projeto Valores Humanos (FAEC/SENAR Ceará).\n"
+    )
+    corpo = (
+        f"<p>Olá, <strong>{e(nome)}</strong>.</p>"
+        f'<p style="line-height:1.55">{e(mensagem).replace(chr(10), "<br>")}</p>'
+        + (
+            f'<p style="font-size:13px;color:#6E6555">Este comunicado também está no sistema: '
+            f'<a href="{e(link_sistema, quote=True)}">abrir Comunicados</a>.</p>'
+            if link_sistema else ""
+        )
+        + f'<p style="font-size:13px;color:#6E6555">Enviado por {e(quem_enviou)}.</p>'
+    )
+    html = _caixa(e(titulo), corpo, "Abrir link" if link else None, e(link, quote=True) if link else None)
+    return assunto, texto, html

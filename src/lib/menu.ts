@@ -1,6 +1,6 @@
 // Itens do menu lateral por perfil. Fica num arquivo só porque a barra lateral e os títulos das
 // páginas usam a MESMA cor: cada página pega a cor do seu item no menu (veja TituloPagina).
-import { HomeIcon, AlertIcon, UserIcon, CalendarIcon, CheckIcon, BuildingIcon, FileTextIcon, HeartIcon, ClipboardListIcon, BookOpenIcon } from "@/components/icons";
+import { HomeIcon, AlertIcon, UserIcon, CalendarIcon, CheckIcon, BuildingIcon, FileTextIcon, HeartIcon, ClipboardListIcon, BookOpenIcon, MegaphoneIcon } from "@/components/icons";
 import { CORES_ALEGRES } from "@/components/Desenhos";
 import type { Perfil } from "@/lib/api";
 
@@ -19,8 +19,11 @@ const linksAdmin: LinkMenu[] = [
   { href: "/admin/ciclos", label: "Edições", Icon: CalendarIcon },
 ];
 
-// Material Instrucional (apresentações, formações, cartilha...) — todos os perfis
-const linkMaterial: LinkMenu = { href: "/material-instrucional", label: "Material Instrucional", Icon: BookOpenIcon };
+// Material Pedagógico (apresentações, formações, cartilha...) — todos os perfis
+const linkMaterial: LinkMenu = { href: "/material-instrucional", label: "Material Pedagógico", Icon: BookOpenIcon };
+
+// Canal de Comunicação: o administrador envia comunicados; coordenadores e equipe de apoio leem (todos os perfis)
+const linkComunicados: LinkMenu = { href: "/comunicados", label: "Comunicados", Icon: MegaphoneIcon };
 
 // Termo de Adesão (documento para imprimir/assinar): só o administrador vê, logo depois do Início
 const linkTermo: LinkMenu = { href: "/admin/termo-adesao", label: "Termo de Adesão", Icon: FileTextIcon, prefixo: "/admin/termo-adesao" };
@@ -47,8 +50,9 @@ export function montarLinks(perfil: Perfil | null): LinkMenu[] {
   // "Início" também não aparece nesse caso: ele só levaria de volta para a Ficha de adesão.
   const linkInicio: LinkMenu[] = aguardandoLiberacao ? [] : [linksBase[0]];
   return perfil?.role === "admin"
-    ? [linksBase[0], linkTermo, ...linksBase.slice(1), ...linksAdmin, linkMaterial]
-    : [...linkInicio, ...(perfil?.role === "municipio" ? [linkAdesao] : []), ...linkDocumentosMunicipio, ...linkAnalise, ...linkEscolas, linkMaterial];
+    ? [linksBase[0], linkComunicados, linkTermo, ...linksBase.slice(1), ...linksAdmin, linkMaterial]
+    
+    : [...linkInicio, linkComunicados, ...(perfil?.role === "municipio" ? [linkAdesao] : []), ...linkDocumentosMunicipio, ...linkAnalise, ...linkEscolas, linkMaterial];
 }
 
 export function linkAtivo(link: LinkMenu, pathname: string | null) {

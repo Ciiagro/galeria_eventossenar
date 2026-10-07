@@ -205,7 +205,7 @@ export default function MunicipioDetalhePage() {
                   [
                     ["", "Todos"],
                     ["pendente", "Novos"],
-                    ["aprovado", "Aprovados"],
+                    ["aprovado", "Validados"],
                     ["arquivado", "Arquivados"],
                   ] as [Aba, string][]
                 ).filter(([valor]) => !ehCoordenador || valor === "" || valor === "pendente").map(([valor, rotulo]) => (
@@ -439,7 +439,7 @@ function CartaoDocumento({
                 <span className="w-5 h-5 rounded-full bg-status-completo text-white flex items-center justify-center">
                   <CheckIcon className="w-3 h-3" />
                 </span>
-                Aprovado{doc.validado_por_nome ? <> por <strong>{doc.validado_por_nome}</strong></> : ""}
+                Validado{doc.validado_por_nome ? <> por <strong>{doc.validado_por_nome}</strong></> : ""}
                 {doc.validado_em && <> · {formatarDataHora(doc.validado_em)}</>}
               </span>
               {doc.arquivado && (

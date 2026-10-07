@@ -280,7 +280,7 @@ function Dashboard({ resumo, acoes, ciclos, cicloEfetivo, filtros, onFiltrosChan
             href="/admin/pendencias"
             className="inline-flex items-center gap-2 self-start sm:self-auto rounded-lg border border-brand-light/30 bg-white px-4 py-2 text-sm font-semibold text-brand-light shadow-sm hover:bg-brand-light/5"
         >
-            Revisar documentos
+            Validar documentos
             {indicadores.documentos_pendentes > 0 && (
               <span className="rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white">{indicadores.documentos_pendentes}</span>
             )}
@@ -336,8 +336,8 @@ function Dashboard({ resumo, acoes, ciclos, cicloEfetivo, filtros, onFiltrosChan
       <section className="grid grid-cols-2 xl:grid-cols-4 gap-3 sm:gap-4 mb-6">
         <MetricCard label="Municípios participantes" value={indicadores.municipios_participantes} detail={`${percentualParticipacao}% dos municípios`} tone="green" />
         <MetricCard label="Escolas no programa" value={indicadores.escolas_total} detail={`${indicadores.escolas_participantes} já enviaram documentos`} tone="blue" />
-        <MetricCard label="Documentos inseridos" value={indicadores.documentos_total} detail={`${percentualDocumentosAprovados}% aprovados`} tone="amber" />
-        <MetricCard label="Para revisar" value={indicadores.documentos_pendentes} detail="enviados e ainda não revisados" tone="red" />
+        <MetricCard label="Documentos inseridos" value={indicadores.documentos_total} detail={`${percentualDocumentosAprovados}% validados`} tone="amber" />
+        <MetricCard label="Aguardando Validação" value={indicadores.documentos_pendentes} detail="enviados e ainda não validados" tone="red" />
       </section>
 
       <section className="grid grid-cols-1 xl:grid-cols-[1.45fr_1fr] gap-5 mb-5">
@@ -411,7 +411,7 @@ function Dashboard({ resumo, acoes, ciclos, cicloEfetivo, filtros, onFiltrosChan
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[620px]">
-            <thead className="bg-brand-light/[0.05] text-xs text-brand-dark/80 uppercase tracking-wide"><tr><th className="text-left font-medium px-5 py-3">Município</th><th className="text-left font-medium px-3 py-3">Documentos</th><th className="text-left font-medium px-3 py-3">Aprovados</th><th className="text-left font-medium px-3 py-3">Para revisar</th><th className="text-left font-medium px-3 py-3">Progresso</th></tr></thead>
+            <thead className="bg-brand-light/[0.05] text-xs text-brand-dark/80 uppercase tracking-wide"><tr><th className="text-left font-medium px-5 py-3">Município</th><th className="text-left font-medium px-3 py-3">Documentos</th><th className="text-left font-medium px-3 py-3">Validados</th><th className="text-left font-medium px-3 py-3">Aguardando Validação</th><th className="text-left font-medium px-3 py-3">Progresso</th></tr></thead>
             <tbody className="divide-y divide-black/5">{municipios.filter((municipio) => (municipio.total_documentos ?? 0) > 0).map((municipio) => { const total = municipio.total_documentos ?? 0; const aprovados = municipio.aprovados ?? 0; const pendentes = municipio.pendentes ?? 0; const progresso = total ? Math.round((aprovados / total) * 100) : 0; return <tr key={municipio.id} className="hover:bg-brand-light/[0.03] cursor-pointer" onClick={() => window.location.href = `/municipios/${municipio.id}${filtrosNaUrl}`}><td className="px-5 py-3 font-medium text-brand-dark">{municipio.nome}<span className="block text-xs font-normal text-brand-dark/70">{municipio.escolas_participantes} de {municipio.escolas_total} escolas participantes</span></td><td className="px-3 py-3 text-brand-dark/85">{total}</td><td className="px-3 py-3 text-status-completo">{aprovados}</td><td className="px-3 py-3 text-status-pendente">{pendentes}</td><td className="px-3 py-3 min-w-[150px]"><div className="flex items-center gap-2"><div className="h-1.5 flex-1 rounded-full bg-brand-light/10 overflow-hidden"><div className="h-full rounded-full bg-brand-light" style={{ width: `${progresso}%` }} /></div><span className="text-xs text-brand-dark/75 w-8">{progresso}%</span></div></td></tr>; })}</tbody>
           </table>
         </div>

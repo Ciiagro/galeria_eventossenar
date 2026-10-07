@@ -239,3 +239,13 @@ export function BookOpenIcon({ className = base }: IconProps) {
     </svg>
   );
 }
+
+export function MegaphoneIcon({ className = base }: IconProps) {
+  return (
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className}>
+      <path d="M3 10.5v3a1 1 0 001 1h2.5l9.5 4.5V5L6.5 9.5H4a1 1 0 00-1 1z" />
+      <path d="M7.5 14.5l1 4.5h2.2l-.9-4" />
+      <path d="M19 9.5a3.5 3.5 0 010 5" />
+    </svg>
+  );
+}

@@ -4,7 +4,7 @@ import { usePathname } from "next/navigation";
 import { usePerfil } from "@/lib/usePerfil";
 import { corDoItem, linkAtivo, montarLinks } from "@/lib/menu";
 
-// Cabeçalho de página no mesmo estilo dos cartões do Material Instrucional:
+// Cabeçalho de página no mesmo estilo dos cartões do Material Pedagógico:
 // faixa clara na cor do item do menu, com o ícone do menu num quadradinho, o título e um subtítulo.
 // `acao` fica à direita (botão, contador...). Se a página não for um item do menu, vira um título comum.
 export function TituloPagina({

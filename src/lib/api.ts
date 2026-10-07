@@ -374,3 +374,35 @@ export type Documento = {
   projetos?: { nome: string; cor?: string | null };
   acoes_pedagogicas?: { nome: string; exige_pdf?: boolean } | null;
 };
+
+// Canal de Comunicação (comunicados do administrador)
+// Todos os públicos recebem por e-mail. Coordenadores e equipe de apoio (que têm login) também veem dentro do
+// sistema; secretários de educação (sem login) recebem só por e-mail.
+export type ResumoEnvio = { total: number; enviados: number; erros: number; pendentes: number };
+export type Comunicado = {
+  id: string;
+  titulo: string;
+  mensagem: string;
+  link?: string | null;
+  para_coordenadores: boolean;
+  para_apoiadores: boolean;
+  para_secretarios: boolean;
+  fixado: boolean;
+  criado_por_nome?: string | null;
+  criado_em: string;
+  atualizado_em?: string | null;
+  lido?: boolean; // para quem recebe dentro do sistema
+  destinatarios?: number; // só para o administrador (quem lê dentro do sistema)
+  lidos?: number; // só para o administrador
+  emails?: ResumoEnvio; // só para o administrador: andamento do envio dos e-mails
+};
+export type LeituraComunicado = { nome: string; role: Papel | null; municipio?: string | null; lido: boolean; lido_em?: string | null };
+export type EnvioEmail = {
+  tipo: "coordenador" | "apoiador" | "secretario";
+  nome?: string | null;
+  municipio?: string | null;
+  email: string;
+  status: "pendente" | "enviado" | "erro";
+  erro?: string | null;
+  enviado_em?: string | null;
+};

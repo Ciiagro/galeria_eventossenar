@@ -256,14 +256,14 @@ function PainelAprovacao() {
         {/* Cabeçalho */}
         <TituloPagina
           descricao="Veja os documentos enviados pelos municípios e aprove. Ao aprovar, decida se vai para a galeria. Arquive o que não precisa ficar na lista."
-          acao={<Indicador valor={pendentesTotal} rotulo="para revisar" alerta={pendentesTotal > 0} />}
+          acao={<Indicador valor={pendentesTotal} rotulo="aguardando validação" alerta={pendentesTotal > 0} />}
         >Painel de Aprovação</TituloPagina>
 
         {/* Abas + ordenação */}
         <Abas<Aba>
           abas={[
-            { valor: "pendente", rotulo: "Para revisar", contagem: contagem.pendente },
-            { valor: "aprovado", rotulo: "Aprovados", contagem: contagem.aprovado },
+            { valor: "pendente", rotulo: "Aguardando Validação", contagem: contagem.pendente },
+            { valor: "aprovado", rotulo: "Validados", contagem: contagem.aprovado },
             { valor: "arquivado", rotulo: "Arquivados", contagem: contagem.arquivado },
             { valor: "", rotulo: "Todos", contagem: contagem[""] },
           ]}
@@ -336,7 +336,7 @@ function PainelAprovacao() {
           {(!documentos || aba === null) && !erro && <p className="text-sm text-brand-dark/75">Carregando...</p>}
           {documentos && aba !== null && lista.length === 0 && (
             <div className="rounded-xl border border-dashed border-black/10 p-8 text-center text-sm text-brand-dark/75">
-              {aba === "pendente" ? "🎉 Nada para revisar neste período." : "Nenhum documento encontrado com esses filtros."}
+              {aba === "pendente" ? "🎉 Nada aguardando validação neste período." : "Nenhum documento encontrado com esses filtros."}
             </div>
           )}
 
@@ -617,7 +617,7 @@ function CartaoDocumento(p: CartaoProps) {
             <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
               <span className="inline-flex items-center gap-1.5 text-brand-dark/85">
                 <span className="w-5 h-5 rounded-full bg-status-completo text-white flex items-center justify-center"><CheckIcon className="w-3 h-3" /></span>
-                Aprovado{doc.validado_por_nome ? <> por <strong>{doc.validado_por_nome}</strong></> : ""}
+                Validado{doc.validado_por_nome ? <> por <strong>{doc.validado_por_nome}</strong></> : ""}
                 {doc.validado_em && <> · {formatarDataHora(doc.validado_em)}</>}
               </span>
               <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${doc.na_galeria ? "bg-sky-100 text-sky-800" : "bg-black/5 text-brand-dark/75"}`}>

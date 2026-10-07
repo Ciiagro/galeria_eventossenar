@@ -20,7 +20,7 @@ export default function MaterialInstrucionalPage() {
         <TituloPagina
           descricao="Apresentações, formações, cartilha e documento norteador do projeto. Cada material abre em uma nova aba."
           acao={<Indicador valor={MATERIAL_INSTRUCIONAL.reduce((t, c) => t + c.links.length, 0)} rotulo="materiais" />}
-        >Material Instrucional</TituloPagina>
+        >Material Pedagógico</TituloPagina>
 
         <div className="mt-6 space-y-4">
           {MATERIAL_INSTRUCIONAL.map((cat, i) => {

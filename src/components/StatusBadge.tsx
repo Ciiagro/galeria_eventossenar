@@ -9,9 +9,9 @@ const STYLES: Record<string, string> = {
 
 const LABELS: Record<string, string> = {
   completo: "Completo",
-  aprovado: "Aprovado",
+  aprovado: "Validado",
   parcial: "Parcial",
-  pendente: "Para revisar",
+  pendente: "Aguardando Validação",
   rejeitado: "Arquivado",
   arquivado: "Arquivado",
 };
