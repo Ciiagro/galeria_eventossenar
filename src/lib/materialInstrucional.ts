@@ -16,7 +16,7 @@ export const MATERIAL_INSTRUCIONAL: CategoriaMaterial[] = [
     titulo: "Apresentação do Projeto",
     descricao: "Apresentação para conhecer o projeto.",
     links: [
-      { titulo: "Apresentação do Projeto", url: "https://drive.google.com/file/d/1JymI9-wqgYOLJa3FYXagC5M3u2zmhwFU/view?usp=drive_link" },
+      { titulo: "Apresentação do Projeto", url: "https://drive.google.com/file/d/1JymI9-wqgYOLJa3FYXagC5M3u2zmhwFU/view" },
     ],
   },
   {
@@ -25,9 +25,9 @@ export const MATERIAL_INSTRUCIONAL: CategoriaMaterial[] = [
     descricao: "Materiais das quatro formações.",
     links: [
       { titulo: "1ª Formação", url: "https://drive.google.com/file/d/1VpCxrMHweQJ-Rx1uqH-Xuzifld5pBhjQ/view" },
-      { titulo: "2ª Formação", url: "https://drive.google.com/file/d/12ndPEJwfBz23LGBrtzmKMcJEj55mJj3m/view?usp=drive_link" },
-      { titulo: "3ª Formação", url: "https://drive.google.com/file/d/1Nr67XAikiUaSu_zLP2GZTnsuYc0dxVAW/view?usp=sharing" },
-      { titulo: "4ª Formação", url: "https://drive.google.com/file/d/1MRTphsMX9E6xQfXlZWuL_OhVUtS_wudD/view?usp=sharing" },
+      { titulo: "2ª Formação", url: "https://drive.google.com/file/d/12ndPEJwfBz23LGBrtzmKMcJEj55mJj3m/view" },
+      { titulo: "3ª Formação", url: "https://drive.google.com/file/d/1Nr67XAikiUaSu_zLP2GZTnsuYc0dxVAW/view" },
+      { titulo: "4ª Formação", url: "https://drive.google.com/file/d/1MRTphsMX9E6xQfXlZWuL_OhVUtS_wudD/view" },
     ],
   },
   {
@@ -35,7 +35,7 @@ export const MATERIAL_INSTRUCIONAL: CategoriaMaterial[] = [
     titulo: "Guia do Professor",
     descricao: "Material de apoio ao professor.",
     links: [
-      { titulo: "Guia do Professor", url: "https://drive.google.com/file/d/1fE-8dWxLWLb_Far9bP3-WOrHqQGoLe8i/view?usp=sharing" },
+      { titulo: "Guia do Professor", url: "https://drive.google.com/file/d/1fE-8dWxLWLb_Far9bP3-WOrHqQGoLe8i/view" },
     ],
   },
   {
@@ -43,7 +43,7 @@ export const MATERIAL_INSTRUCIONAL: CategoriaMaterial[] = [
     titulo: "Documento Norteador",
     descricao: "Documento de referência do projeto.",
     links: [
-      { titulo: "Documento Norteador", url: "https://drive.google.com/file/d/1ddvl3Vu2rBpAUZO0LU0V-ZYmHGDe8LUv/view" },
+      { titulo: "Documento Norteador", url: "https://drive.google.com/file/d/1XrxAEeqPx2qXt9E450W7r3tHHpkgY6Qw/view" },
     ],
   },
 ];
