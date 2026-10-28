@@ -34,7 +34,7 @@ export function Miniatura({ doc, onClick }: { doc: Documento; onClick?: () => vo
         onClick?.();
       }}
       disabled={!onClick}
-      className="group relative w-full sm:w-44 h-32 sm:h-28 shrink-0 overflow-hidden rounded-lg border border-black/10 bg-brand-light/[0.06] disabled:cursor-default"
+      className="group relative w-full sm:w-32 h-28 sm:h-20 shrink-0 overflow-hidden rounded-lg border border-black/10 bg-brand-light/[0.06] disabled:cursor-default"
       title={onClick ? "Ver em tamanho grande" : undefined}
     >
       {url ? (

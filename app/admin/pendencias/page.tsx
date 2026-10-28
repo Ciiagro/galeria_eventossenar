@@ -780,7 +780,7 @@ function Miniatura({ doc, onClick, pequena }: { doc: Documento; onClick: () => v
   return (
     <button
       onClick={(e) => { e.stopPropagation(); onClick(); }}
-      className={`group relative shrink-0 overflow-hidden rounded-lg border border-black/10 bg-brand-light/[0.06] ${pequena ? "h-16 w-20" : "w-full sm:w-44 h-32 sm:h-28"}`}
+      className={`group relative shrink-0 overflow-hidden rounded-lg border border-black/10 bg-brand-light/[0.06] ${pequena ? "h-16 w-20" : "w-full sm:w-32 h-28 sm:h-20"}`}
       title="Ver em tamanho grande"
     >
       {url && !falhou ? (
