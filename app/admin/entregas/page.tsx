@@ -4,6 +4,13 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { TituloPagina, Indicador } from "@/components/TituloPagina";
 import { apiGet } from "@/lib/api";
+import { AlertIcon, BuildingIcon, CalendarIcon, CheckIcon, FileTextIcon } from "@/components/icons";
+
+const Ampulheta = ({ className = "h-3.5 w-3.5" }: { className?: string }) => (
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round" className={className} aria-hidden="true">
+    <path d="M6 3h12M6 21h12M7 3c0 5 5 6 5 9s-5 4-5 9M17 3c0 5-5 6-5 9s5 4 5 9" />
+  </svg>
+);
 
 type Coluna = { nome: string; abre: string; prazo: string | null; aberto: boolean; atrasado: boolean };
 type Entrega = { total: number; enviado_em: string | null; link: string | null; escolas?: Record<string, { enviado_em: string | null; link: string | null }> };
@@ -95,51 +102,54 @@ function Entregas() {
         {dados && linhas.length === 0 && <p className="mt-4 rounded-xl border border-dashed border-black/10 p-6 text-center text-sm text-brand-dark/75">Nenhum município encontrado.</p>}
 
         {dados && linhas.length > 0 && (
-          <div className="mt-4 overflow-x-auto rounded-2xl border border-black/5">
+          <div className="mt-5 overflow-x-auto rounded-2xl border border-[#CFE6D8] shadow-sm">
             <table className="w-full min-w-[900px] border-collapse text-left text-sm">
-              <thead className="bg-[#F6F9F7]">
+              <thead className="bg-[#E8F5EE]">
                 <tr>
-                  <th rowSpan={2} className="sticky left-0 z-10 bg-[#F6F9F7] px-3 py-2 align-bottom font-bold text-brand-dark">Município</th>
+                  <th rowSpan={2} className="sticky left-0 z-10 bg-[#E8F5EE] px-5 py-3 align-middle text-base font-bold text-brand-dark"><span className="inline-flex items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#CDEBDA] text-[#1E6B45]"><BuildingIcon className="h-5 w-5" /></span>Município</span></th>
                   {grupos.map(([nome, cols]) => (
-                    <th key={nome} colSpan={cols.length} className="border-l border-black/5 px-3 py-2 text-center font-bold text-brand-dark">
-                      {nome}
-                      <span className="block text-[11px] font-normal text-brand-dark/65">{cols[0].prazo ? `até ${mesBR(cols[0].prazo)}` : "documento final"}</span>
+                    <th key={nome} colSpan={cols.length} className="border-l border-[#CFE6D8] px-3 py-3 text-center font-bold text-brand-dark">
+                      <span className="inline-flex items-center gap-1.5 text-[15px]">
+                        {cols[0].prazo ? <CalendarIcon className="h-5 w-5 text-[#1E8F5A]" /> : <FileTextIcon className="h-5 w-5 text-[#1E8F5A]" />}
+                        {nome}
+                      </span>
+                      <span className="mt-0.5 block text-xs font-normal text-brand-dark/65">{cols[0].prazo ? `até ${mesBR(cols[0].prazo)}` : "documento final"}</span>
                     </th>
                   ))}
                 </tr>
                 <tr>
                   {grupos.flatMap(([, cols]) => cols).map((c) => (
-                    <th key={c.nome} className="border-l border-black/5 px-3 py-1.5 text-center text-xs font-semibold text-brand-dark/80">
+                    <th key={c.nome} className="border-l border-[#CFE6D8] border-t border-t-[#CFE6D8] bg-[#F1F9F4] px-3 py-2 text-center text-xs font-semibold text-brand-dark/85">
                       {c.nome.startsWith("Relatório") ? "Relatório" : c.nome.startsWith("Lista") ? "Lista" : "Portfólio"}
                     </th>
                   ))}
                 </tr>
               </thead>
-              <tbody className="divide-y divide-black/5">
+              <tbody className="divide-y divide-[#DCEBE2]">
                 {linhas.map((m) => (
                   <tr key={m.id} className="hover:bg-[#F3FAF6]">
-                    <td className="sticky left-0 z-10 bg-white px-3 py-2.5">
-                      <span className="block font-bold text-brand-dark">{m.nome}</span>
-                      <span className="block text-xs text-brand-dark/65">{m.coordenador}</span>
+                    <td className="sticky left-0 z-10 bg-white px-5 py-4">
+                      <span className="block text-base font-bold text-brand-dark">{m.nome}</span>
+                      <span className="mt-0.5 block text-xs text-brand-dark/65">{m.coordenador}</span>
                     </td>
                     {grupos.flatMap(([, cols]) => cols).map((c) => {
                       const cob = cobertura(m, c);
                       return (
-                        <td key={c.nome} className="border-l border-black/5 px-3 py-2.5 text-center">
+                        <td key={c.nome} className="border-l border-[#E3EFE8] px-3 py-4 text-center">
                           {cob.completo ? (
-                            <button type="button" onClick={() => setDetalhe({ m, c })} title="Ver as escolas" className="inline-flex flex-col items-center rounded-lg bg-[#E3F4EA] px-2.5 py-1 text-[#17613B] hover:ring-2 hover:ring-[#17613B]/30">
-                              <b>✓</b><span className="text-[10px] font-semibold">{dataBR(m.entregas[c.nome]?.enviado_em ?? null)}</span>
+                            <button type="button" onClick={() => setDetalhe({ m, c })} title="Ver as escolas" className="inline-flex min-w-[84px] flex-col items-center rounded-xl bg-[#DDF2E6] px-3 py-1.5 text-[#17613B] hover:ring-2 hover:ring-[#17613B]/30">
+                              <CheckIcon className="h-5 w-5" /><span className="mt-0.5 text-[10px] font-semibold">{dataBR(m.entregas[c.nome]?.enviado_em ?? null)}</span>
                             </button>
                           ) : cob.algum ? (
-                            <button type="button" onClick={() => setDetalhe({ m, c })} title="Entrega parcial: veja quais escolas faltam" className="inline-flex flex-col items-center rounded-lg bg-[#FFF3CC] px-2.5 py-1 text-[#8A6D00] hover:ring-2 hover:ring-[#8A6D00]/30">
-                              <b>{cob.feito}/{cob.total}</b><span className="text-[10px] font-semibold">parcial</span>
+                            <button type="button" onClick={() => setDetalhe({ m, c })} title="Entrega parcial: veja quais escolas faltam" className="inline-flex min-w-[84px] flex-col items-center rounded-xl bg-[#FFF0BF] px-3 py-1.5 text-[#8A6D00] hover:ring-2 hover:ring-[#8A6D00]/30">
+                              <b className="text-base leading-tight">{cob.feito}/{cob.total}</b><span className="text-[10px] font-semibold">parcial</span>
                             </button>
                           ) : !c.aberto ? (
-                            <span className="text-brand-dark/45" title={`Abre em ${mesBR(c.abre)}`}>—</span>
+                            <span className="text-lg text-brand-dark/35" title={`Abre em ${mesBR(c.abre)}`}>—</span>
                           ) : c.atrasado ? (
-                            <button type="button" onClick={() => setDetalhe({ m, c })} className="rounded-full bg-[#F8E1DF] px-2.5 py-1 text-xs font-bold text-[#9B2C25]">Atrasado</button>
+                            <button type="button" onClick={() => setDetalhe({ m, c })} className="inline-flex items-center gap-1.5 rounded-full bg-[#F8E1DF] px-3 py-1.5 text-xs font-bold text-[#9B2C25]"><AlertIcon className="h-3.5 w-3.5" />Atrasado</button>
                           ) : (
-                            <button type="button" onClick={() => setDetalhe({ m, c })} className="rounded-full bg-[#FFF3CC] px-2.5 py-1 text-xs font-bold text-[#8A6D00]">Pendente</button>
+                            <button type="button" onClick={() => setDetalhe({ m, c })} className="inline-flex items-center gap-1.5 rounded-full bg-[#FFF0BF] px-3 py-1.5 text-xs font-bold text-[#8A6D00]"><Ampulheta />Pendente</button>
                           )}
                         </td>
                       );
@@ -147,11 +157,11 @@ function Entregas() {
                   </tr>
                 ))}
               </tbody>
-              <tfoot className="bg-[#F6F9F7]">
+              <tfoot className="border-t-2 border-[#CFE6D8] bg-[#E8F5EE]">
                 <tr>
-                  <td className="sticky left-0 z-10 bg-[#F6F9F7] px-3 py-2 text-xs font-bold text-brand-dark">Entregues</td>
+                  <td className="sticky left-0 z-10 bg-[#E8F5EE] px-5 py-3 text-sm font-bold text-brand-dark">Entregues</td>
                   {grupos.flatMap(([, cols]) => cols).map((c) => (
-                    <td key={c.nome} className="border-l border-black/5 px-3 py-2 text-center text-xs font-bold text-brand-dark">
+                    <td key={c.nome} className="border-l border-[#CFE6D8] px-3 py-3 text-center text-sm font-bold text-brand-dark">
                       {(dados?.municipios ?? []).filter((m) => cobertura(m, c).completo).length} de {total}
                     </td>
                   ))}
