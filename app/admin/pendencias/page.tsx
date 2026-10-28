@@ -59,7 +59,7 @@ function PainelAprovacao() {
   const [filtroTipo, setFiltroTipo] = useState("");
   const [grupo, setGrupo] = useState<"acao" | "documento">("documento"); // Documentos (PDF) primeiro, depois Ações (imagens/vídeos)
   const [busca, setBusca] = useState("");
-  const [filtroApoio, setFiltroApoio] = useState<"" | "nao" | "sim">(""); // só relatórios (PDF): já validados pelo Apoiador de Relatórios?
+  const [filtroApoio, setFiltroApoio] = useState<"" | "nao" | "sim" | "visita">(""); // só relatórios (PDF): já validados pelo Apoiador de Relatórios?
 
   // Interação
   const [selecionado, setSelecionado] = useState(0);
@@ -164,7 +164,8 @@ function PainelAprovacao() {
       (doc) =>
         ehDocumentoPdf(doc) === (grupo === "documento") &&
         noCicloEMes(doc, filtroCiclo, ciclos, filtroMes) &&
-        (!filtroApoio || (filtroApoio === "sim") === Boolean(doc.analise_status)) &&
+        (!filtroApoio ||
+          (filtroApoio === "visita" ? doc.origem === "visita" : doc.origem !== "visita" && (filtroApoio === "sim") === Boolean(doc.analise_status))) &&
         (!termo ||
           [doc.descricao, doc.acao_evento, doc.acoes_pedagogicas?.nome, doc.subtipo, doc.tipos_documento?.nome, doc.escolas?.nome, doc.responsavel_nome, nomeMunicipio(doc.municipio_id)]
             .some((v) => normalizar(v).includes(termo)))
@@ -384,10 +385,11 @@ function PainelAprovacao() {
             {municipiosPrograma.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </select>
           {(
-            <select value={filtroApoio} onChange={(e) => setFiltroApoio(e.target.value as "" | "nao" | "sim")} className={CLASSE_SELECT}>
+            <select value={filtroApoio} onChange={(e) => setFiltroApoio(e.target.value as "" | "nao" | "sim" | "visita")} className={CLASSE_SELECT}>
               <option value="">Todos (apoiador)</option>
               <option value="nao">Ainda não validados pelo apoiador</option>
               <option value="sim">Validados pelo apoiador</option>
+              <option value="visita">Enviados pelo Apoiador de Visitas</option>
             </select>
           )}
           {grupo === "acao" && (
