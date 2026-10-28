@@ -790,6 +790,7 @@ ${tabelaEscolas}
       {detalheId !== null && (() => {
         const m = municipios.find((i) => i.id === detalheId);
         if (!m) return null;
+        if (historico === null) return null; // espera o histórico chegar: a janela abre uma vez só, já completa
         const x = sit(m.responsavel_id);
         const ativo = x?.ativo !== false;
         const Campo = ({ rotulo, valor }: { rotulo: string; valor?: string | null }) => (
