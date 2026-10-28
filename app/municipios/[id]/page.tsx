@@ -257,7 +257,7 @@ export default function MunicipioDetalhePage() {
                     ["aprovado", "Validados"],
                     ["arquivado", "Arquivados"],
                   ] as [Aba, string][]
-                ).filter(([valor]) => !ehCoordenador || valor === "" || valor === "pendente").map(([valor, rotulo]) => (
+                ).filter(([valor]) => !ehCoordenador || valor === "").map(([valor, rotulo]) => (
                   <button
                     key={rotulo}
                     onClick={() => setAba(valor)}
@@ -440,6 +440,8 @@ function CartaoDocumento({
   onVisualizar: () => void;
 }) {
   const [expandido, setExpandido] = useState(false);
+  const { perfil: perfilCartao } = usePerfil();
+  const semStatus = perfilCartao?.role === "municipio"; // o coordenador não vê a validação: ela é entre o apoio e o administrador
   const descricao = doc.descricao ?? "";
   const longa = descricao.length > 180;
   const temArquivo = Boolean(doc.drive_file_link || doc.link_externo);
@@ -476,7 +478,7 @@ function CartaoDocumento({
                     Abrir PDF
                   </button>
                 )}
-                {doc.status === "aprovado" ? (
+                {!semStatus && (doc.status === "aprovado" ? (
                   <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-900">
                     ✓ Validado
                   </span>
@@ -484,7 +486,7 @@ function CartaoDocumento({
                   <span className="rounded-full bg-[#FFF3CC] border border-[#F2B705]/50 px-2.5 py-1 text-xs font-semibold text-[#6E4B00]">
                     Aguardando validação
                   </span>
-                )}
+                ))}
                 {doc.status === "pendente" && <BotaoExcluir onClick={onExcluir} disabled={excluindo} rotulo="documento" />}
               </div>
             )}
@@ -503,7 +505,7 @@ function CartaoDocumento({
 
 
           {/* Situação */}
-          {doc.status === "aprovado" && !ehDoc && (
+          {doc.status === "aprovado" && !ehDoc && !semStatus && (
             <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
               <span className="inline-flex items-center gap-1.5 text-brand-dark/85">
                 <span className="w-5 h-5 rounded-full bg-status-completo text-white flex items-center justify-center">
