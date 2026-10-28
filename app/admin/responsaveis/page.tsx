@@ -226,10 +226,21 @@ function ResponsaveisPage() {
 
   type DadosSindicato = Record<string, string | null> & { nome: string };
   const [sindicatoVista, setSindicatoVista] = useState<DadosSindicato | null>(null);
+  async function escolherEmailSindicato(email: string) {
+    if (!sindicatoVista) return;
+    setErro(null);
+    try {
+      const id = Number(sindicatoVista.id);
+      await apiPost("/api/admin/municipio-sindicato", { municipio_id: id, email });
+      setSindicatoVista({ ...sindicatoVista, email_termo: email.toLowerCase() });
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível salvar o e-mail.");
+    }
+  }
   async function verSindicato(municipioId: number) {
     setErro(null);
     try {
-      setSindicatoVista(await apiGet(`/api/admin/municipio-sindicato?municipio_id=${municipioId}`));
+      setSindicatoVista({ ...(await apiGet(`/api/admin/municipio-sindicato?municipio_id=${municipioId}`)), id: String(municipioId) });
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível abrir os dados do sindicato.");
     }
@@ -435,7 +446,25 @@ ${tabelaEscolas}
             {linhaSind("Sindicato rural", sindicatoVista.sindicato_nome)}
             {linhaSind("Presidente", sindicatoVista.presidente_nome)}
             {linhaSind("Telefones", sindicatoVista.telefone1, sindicatoVista.telefone2)}
-            {linhaSind("E-mails", sindicatoVista.email1, sindicatoVista.email2, sindicatoVista.email3, sindicatoVista.email4)}
+            {(() => {
+              const emails = [sindicatoVista.email1, sindicatoVista.email2, sindicatoVista.email3, sindicatoVista.email4].filter((x): x is string => Boolean(x));
+              if (emails.length === 0) return null;
+              const escolhido = (sindicatoVista.email_termo || emails[0]).toLowerCase();
+              return (
+                <div className="border-b border-black/5 py-2">
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-dark/60">E-mail do presidente no termo</p>
+                  {emails.length > 1 && <p className="mb-1 text-xs text-brand-dark/65">Há mais de um e-mail. Escolha o que será usado para assinar.</p>}
+                  <div className="mt-1 space-y-1">
+                    {emails.map((em) => (
+                      <label key={em} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm [overflow-wrap:anywhere] ${em.toLowerCase() === escolhido ? "bg-[#E2EFFB] font-semibold text-[#0F4C85]" : "hover:bg-black/[0.04]"}`}>
+                        <input type="radio" name="email-termo" checked={em.toLowerCase() === escolhido} onChange={() => escolherEmailSindicato(em)} className="h-4 w-4 accent-[#2678C4]" />
+                        {em}
+                      </label>
+                    ))}
+                  </div>
+                </div>
+              );
+            })()}
             {linhaSind("Vice-presidente", sindicatoVista.vice_presidente_texto, sindicatoVista.telefone_vice_presidente, sindicatoVista.email_vice_presidente)}
             {linhaSind("Secretário(a)", sindicatoVista.secretario_nome)}
             {!sindicatoVista.presidente_nome && !sindicatoVista.sindicato_nome && <p className="py-3 text-sm text-brand-dark/70">Este município não tem sindicato ou presidente cadastrado.</p>}

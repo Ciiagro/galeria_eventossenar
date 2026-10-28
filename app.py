@@ -3452,17 +3452,30 @@ def _info_termo_assinado(row, itens):
             "atualizado": atual == row.get("termo_assinado_hash")}
 
 
+def _sindicato_do_municipio(db, municipio_id):
+    """Nome do sindicato rural do município (visão vw_municipio_sindicato); None se não achar."""
+    if not municipio_id:
+        return None
+    try:
+        r = db.table("vw_municipio_sindicato").select("sindicato_nome").eq("municipio_id", municipio_id).limit(1).execute().data or []
+        return r[0].get("sindicato_nome") if r else None
+    except Exception as e:  # noqa: BLE001
+        print(f"[sindicato] {e}")
+        return None
+
+
 def _adesao_com_escolas(db, adesao, coord=None, ciclo_nome=None):
     """Anexa à adesão as escolas escolhidas (com nome) e os dados do município/coordenador.
     As consultas que não dependem umas das outras rodam ao mesmo tempo (a ficha abria devagar
     por esperar uma ida ao banco por vez)."""
     municipio_id = adesao.get("municipio_id")
     ciclo_id = adesao.get("ciclo_id")
-    itens, m, c, ci = _em_paralelo(
+    itens, m, c, ci, sind = _em_paralelo(
         lambda: db.table("adesao_escolas").select("*").eq("adesao_id", adesao["id"]).execute().data or [],
-        lambda: (db.table("municipios").select("id, nome").eq("id", municipio_id).limit(1).execute().data or []) if municipio_id else [],
+        lambda: (db.table("municipios").select("id, nome, presidente_nome").eq("id", municipio_id).limit(1).execute().data or []) if municipio_id else [],
         lambda: [] if coord is not None else (db.table("coordenadores_cadastro").select("*").eq("user_id", adesao["coordenador_id"]).limit(1).execute().data or []),
         lambda: [] if (ciclo_nome is not None or not ciclo_id) else (db.table("ciclos").select("nome").eq("id", ciclo_id).limit(1).execute().data or []),
+        lambda: _sindicato_do_municipio(db, municipio_id),
     )
     nomes = {e["id"]: e for e in _escolas_por_ids(db, [i["escola_id"] for i in itens], "id, nome, tipo, endereco")}
     adesao["termo_assinado"] = _info_termo_assinado(adesao, itens)
@@ -3476,6 +3489,8 @@ def _adesao_com_escolas(db, adesao, coord=None, ciclo_nome=None):
     )
     if municipio_id:
         adesao["municipio_nome"] = m[0]["nome"] if m else None
+        adesao["sindicato_presidente_nome"] = (m[0].get("presidente_nome") if m else None) or None
+        adesao["sindicato_nome"] = sind or None
     if coord is not None:
         adesao["coordenador"] = coord  # o chamador já tinha buscado: poupa uma ida ao banco
     else:
@@ -4126,7 +4141,7 @@ def assinatura_status():
                 atual = resposta["sugestoes"].get("sindicato") or {}
                 resposta["sugestoes"]["sindicato"] = {
                     "nome": atual.get("nome") or mun.get("presidente_nome"),
-                    "email": atual.get("email") or mun.get("email1"),
+                    "email": atual.get("email") or _email_termo_sindicato(db, adesao["municipio_id"]) or mun.get("email1"),
                     "cpf": atual.get("cpf"),
                     "sindicato_nome": sind_nome,
                 }
@@ -4947,7 +4962,49 @@ def municipio_sindicato():
         except Exception as e_sind:  # noqa: BLE001
             print(f"[sindicato] {e_sind}")
             mun["sindicato_nome"] = None
+        mun["email_termo"] = _email_termo_sindicato(db, municipio_id)
         return jsonify(mun)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+def _email_termo_sindicato(db, municipio_id):
+    """E-mail do presidente do sindicato que o administrador escolheu para o termo (None se não escolheu)."""
+    try:
+        r = db.table("sindicato_email_termo").select("email").eq("municipio_id", municipio_id).limit(1).execute().data or []
+        return r[0]["email"] if r else None
+    except Exception as e:  # noqa: BLE001
+        print(f"[sindicato] não consegui ler o e-mail escolhido: {e}")
+        return None
+
+
+@app.post("/api/admin/municipio-sindicato")
+def escolher_email_sindicato():
+    """O administrador escolhe qual dos e-mails do presidente do sindicato vai para o termo de adesão."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    body = request.get_json(force=True, silent=True) or {}
+    try:
+        municipio_id = int(body.get("municipio_id") or 0)
+    except (TypeError, ValueError):
+        municipio_id = 0
+    email = (body.get("email") or "").strip().lower()
+    if not municipio_id or not email:
+        return jsonify({"error": "Escolha um e-mail."}), 400
+    try:
+        db = get_client()
+        mun = (db.table("municipios").select("email1, email2, email3, email4").eq("id", municipio_id).limit(1).execute().data or [None])[0]
+        if not mun:
+            return jsonify({"error": "Município não encontrado."}), 404
+        validos = {(mun.get(k) or "").strip().lower() for k in ("email1", "email2", "email3", "email4")} - {""}
+        if email not in validos:
+            return jsonify({"error": "Esse e-mail não é um dos cadastrados para o presidente."}), 400
+        db.table("sindicato_email_termo").upsert({"municipio_id": municipio_id, "email": email}, on_conflict="municipio_id").execute()
+        return jsonify({"ok": True, "email": email})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500
 

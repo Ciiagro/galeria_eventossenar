@@ -201,8 +201,8 @@ export function TermoConteudo({ a, assinaturas }: { a: Adesao; assinaturas?: Ass
           <Assinatura nome={a.prefeito_nome} cargo={`Prefeito(a) Municipal${a.prefeito_cpf ? ` — CPF ${mascaraCpf(a.prefeito_cpf)}` : ""}`} assinadoEm={quando("prefeito")} />
           <Assinatura nome={a.secretario_nome} cargo={`Secretário(a) de Educação${a.secretario_cpf ? ` — CPF ${mascaraCpf(a.secretario_cpf)}` : ""}`} assinadoEm={quando("secretario")} />
           <Assinatura
-            nome={assinaturas?.find((x) => x.papel === "sindicato")?.nome}
-            cargo={`Presidente do Sindicato Rural${assinaturas?.find((x) => x.papel === "sindicato")?.cpf ? ` — CPF ${mascaraCpf(assinaturas!.find((x) => x.papel === "sindicato")!.cpf!)}` : ""}`}
+            nome={assinaturas?.find((x) => x.papel === "sindicato")?.nome ?? a.sindicato_presidente_nome}
+            cargo={`Presidente do Sindicato Rural${a.sindicato_nome ? ` de ${a.sindicato_nome}` : ""}${assinaturas?.find((x) => x.papel === "sindicato")?.cpf ? ` — CPF ${mascaraCpf(assinaturas!.find((x) => x.papel === "sindicato")!.cpf!)}` : ""}`}
             assinadoEm={quando("sindicato")}
           />
           <Assinatura nome={c?.nome} cargo={`Coordenador(a) do Projeto${c?.cpf ? ` — CPF ${mascaraCpf(c.cpf)}` : ""}`} assinadoEm={quando("coordenador")} />
