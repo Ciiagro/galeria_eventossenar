@@ -1822,7 +1822,7 @@ def listar_documentos():
     auth = require_user()
     if not auth:
         return jsonify({"error": "Não autenticado"}), 401
-    _, jwt = auth
+    user, jwt = auth
 
     try:
         db = get_db(jwt)
@@ -1857,6 +1857,9 @@ def listar_documentos():
             # a fila do Apoiador de Relatórios inclui também os Documentos (PDF), que entram já "recebidos"
             vistos = {d["id"] for d in docs}
             docs += [d for d in fetch_all(lambda: montar_query(True)) if d["id"] not in vistos]
+        if carregar_perfil(user).get("role") == "apoiador_visitas":
+            # o Apoiador de Visitas vê só o que ele mesmo enviou (não o que o coordenador ou outros enviaram)
+            docs = [d for d in docs if str(d.get("responsavel_envio_id") or "") == str(user.id)]
         if fila_analise:
             # o que o Apoiador de Visitas envia não passa pelo Apoiador de Relatórios: vai direto para o administrador
             docs = [d for d in docs if d.get("origem") != "visita"]
