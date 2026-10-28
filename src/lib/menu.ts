@@ -1,6 +1,6 @@
 // Itens do menu lateral por perfil. Fica num arquivo só porque a barra lateral e os títulos das
 // páginas usam a MESMA cor: cada página pega a cor do seu item no menu (veja TituloPagina).
-import { HomeIcon, AlertIcon, UserIcon, CalendarIcon, CheckIcon, BuildingIcon, FileTextIcon, HeartIcon, ClipboardListIcon, BookOpenIcon, MegaphoneIcon } from "@/components/icons";
+import { HomeIcon, AlertIcon, UserIcon, CalendarIcon, CheckIcon, BuildingIcon, FileTextIcon, HeartIcon, ClipboardListIcon, BookOpenIcon, MegaphoneIcon, MapPinIcon } from "@/components/icons";
 import type { Perfil } from "@/lib/api";
 
 export type LinkMenu = { href: string; label: string; Icon: (p: { className?: string }) => JSX.Element; prefixo?: string };
@@ -14,6 +14,7 @@ const linksAdmin: LinkMenu[] = [
   { href: "/admin/pendencias", label: "Relatórios/Ações", Icon: AlertIcon },
   { href: "/admin/entregas", label: "Entregas", Icon: CheckIcon },
   { href: "/admin/responsaveis", label: "Coordenadores", Icon: UserIcon },
+  { href: "/admin/sindicatos", label: "Sindicatos", Icon: MapPinIcon },
   { href: "/admin/equipe", label: "Equipe de apoio", Icon: HeartIcon },
   { href: "/admin/escolas-programa", label: "Escolas do programa", Icon: CheckIcon },
   { href: "/admin/ciclos", label: "Edições", Icon: CalendarIcon },

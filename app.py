@@ -5006,6 +5006,37 @@ def _email_termo_sindicato(db, municipio_id):
     return _escolha_termo_sindicato(db, municipio_id).get("email")
 
 
+@app.get("/api/admin/sindicatos")
+def listar_sindicatos():
+    """Só o administrador: por município, o sindicato rural, o presidente, os e-mails e o que já foi definido para o termo."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    try:
+        db = get_client()
+        campos = "id, nome, regiao_faec, regiao_sebrae, presidente_nome, telefone1, telefone2, email1, email2, email3, email4"
+        muns, sinds, escolhas, contemplados = _em_paralelo(
+            lambda: fetch_all(lambda: db.table("municipios").select(campos).order("id")),
+            lambda: fetch_all(lambda: db.table("vw_municipio_sindicato").select("municipio_id, sindicato_nome").order("municipio_id")),
+            lambda: fetch_all(lambda: db.table("sindicato_email_termo").select("municipio_id, email, cpf").order("municipio_id")),
+            lambda: _municipios_contemplados(db),
+        )
+        nome_sind = {x["municipio_id"]: x["sindicato_nome"] for x in sinds}
+        escolha = {x["municipio_id"]: x for x in escolhas}
+        saida = []
+        for m in muns:
+            e = escolha.get(m["id"]) or {}
+            saida.append({**m, "sindicato_nome": nome_sind.get(m["id"]), "email_termo": e.get("email"), "cpf_termo": e.get("cpf"),
+                          "no_programa": int(m["id"]) in contemplados})
+        saida.sort(key=lambda x: (x["nome"] or "").lower())
+        return jsonify(saida)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
 @app.post("/api/admin/municipio-sindicato")
 def escolher_email_sindicato():
     """O administrador escolhe qual dos e-mails do presidente do sindicato vai para o termo de adesão."""
