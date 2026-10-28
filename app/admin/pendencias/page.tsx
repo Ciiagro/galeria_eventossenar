@@ -681,6 +681,11 @@ function CartaoDocumento(p: CartaoProps) {
           {/* Documento (PDF): não passa por aprovação, então só mostra arquivar/desarquivar */}
           {ehDocumentoPdf(doc) && (
             <div className="mt-3 flex flex-wrap items-center gap-2 text-[13px]">
+              {(doc.drive_file_link || doc.link_externo) && (
+                <button onClick={(e) => { e.stopPropagation(); p.onVisualizar(); }} className="rounded-lg border border-brand-light px-3 py-1 text-xs font-semibold text-brand-light hover:bg-brand-light/5">
+                  Abrir PDF
+                </button>
+              )}
               {doc.arquivado ? (
                 <>
                   <span className="rounded-full bg-black/5 px-2.5 py-0.5 text-xs font-semibold text-brand-dark/75">📁 Arquivado</span>
