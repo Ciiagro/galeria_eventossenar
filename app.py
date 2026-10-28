@@ -3332,7 +3332,8 @@ def _salvar_foto_coordenador(user_id, data_url):
             print(f"[foto] não consegui apagar a foto anterior {antigo}: {e}")
     if _CACHE_FOTOS_IDS["mapa"] is not None:
         _CACHE_FOTOS_IDS["mapa"][str(user_id)] = novo_id
-    _CACHE_FOTOS_BYTES.pop(str(user_id), None)
+    for k in [k for k in _CACHE_FOTOS_BYTES if k.startswith(f"{user_id}|")]:
+        _CACHE_FOTOS_BYTES.pop(k, None)
     _CACHE_FOTOS_SEM.pop(str(user_id), None)
 
 
@@ -3354,12 +3355,15 @@ def coordenador_foto():
         return jsonify({"error": "Sem permissão."}), 403
     alvo = str(alvo)
     agora = time.time()
-    em_cache = _CACHE_FOTOS_BYTES.get(alvo)
+    # "v" muda quando alguém salva uma foto: então esta instância não pode confiar no que guardou antes
+    versao = (request.args.get("v") or "0")[:20]
+    chave = f"{alvo}|{versao}"
+    em_cache = _CACHE_FOTOS_BYTES.get(chave)
     if em_cache and em_cache[1] > agora:
         return Response(em_cache[0], mimetype="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
     try:
-        file_id = _mapa_fotos_coordenadores().get(alvo)
-        if not file_id and _CACHE_FOTOS_SEM.get(alvo, 0) <= agora:
+        file_id = None if versao != "0" else _mapa_fotos_coordenadores().get(alvo)
+        if not file_id and (versao != "0" or _CACHE_FOTOS_SEM.get(alvo, 0) <= agora):
             # Na Vercel cada instância tem a sua própria lista: se a foto foi salva por outra, a lista pode estar velha.
             # Confere direto no Drive só este usuário (consulta pequena) antes de dizer que não tem foto.
             service = get_drive_service()
@@ -3382,7 +3386,7 @@ def coordenador_foto():
         return Response(status=404)
     if len(_CACHE_FOTOS_BYTES) > 300:
         _CACHE_FOTOS_BYTES.clear()
-    _CACHE_FOTOS_BYTES[alvo] = (conteudo, agora + 3600)
+    _CACHE_FOTOS_BYTES[chave] = (conteudo, agora + 3600)
     return Response(conteudo, mimetype="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
 
 
