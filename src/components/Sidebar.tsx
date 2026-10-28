@@ -114,25 +114,23 @@ export function Sidebar() {
 
         {perfil && (
           <div
-            className="mt-3 flex items-center gap-2.5 rounded-2xl border border-black/10 bg-[#FFF8EC] px-3 py-2.5 shadow-sm"
+            className="mt-3 flex flex-col items-center rounded-2xl border border-black/10 bg-[#FFF8EC] px-3 py-3 text-center shadow-sm"
             title={perfil.email || undefined}
           >
             <div
-              className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-[#8E5BB5] text-xs font-bold tracking-wide text-white"
+              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#8E5BB5] text-sm font-bold tracking-wide text-white ring-2 ring-white"
               aria-hidden
             >
               {iniciais(perfil.nome || perfil.email)}
             </div>
-            <div className="min-w-0">
-              <p className="truncate text-sm font-bold leading-tight text-brand-dark">{perfil.nome || perfil.email}</p>
-              <p className="mt-0.5 truncate text-xs leading-tight text-slate-500">{papel}</p>
-              {perfil.municipio_nome && (
-                <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-semibold leading-tight text-brand-dark/75" title={perfil.municipio_pendente ? "Município escolhido no cadastro (liberado após a aprovação da adesão)" : undefined}>
-                  <MapPinIcon className="h-3 w-3 shrink-0" />
-                  {perfil.municipio_nome}
-                </p>
-              )}
-            </div>
+            <p className="mt-2 w-full break-words text-sm font-bold leading-tight text-brand-dark">{perfil.nome || perfil.email}</p>
+            <p className="mt-1 w-full text-xs leading-snug text-slate-500">{papel}</p>
+            {perfil.municipio_nome && (
+              <p className="mt-2 inline-flex max-w-full items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold leading-tight text-brand-dark/80 ring-1 ring-black/5" title={perfil.municipio_pendente ? "Município escolhido no cadastro (liberado após a aprovação da adesão)" : undefined}>
+                <MapPinIcon className="h-3 w-3 shrink-0" />
+                <span className="truncate">{perfil.municipio_nome}</span>
+              </p>
+            )}
           </div>
         )}
 
