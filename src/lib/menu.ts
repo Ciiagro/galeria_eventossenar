@@ -44,7 +44,9 @@ export function montarLinks(perfil: Perfil | null): LinkMenu[] {
   const linkDocumentosMunicipio: LinkMenu[] =
     perfil?.role === "municipio" && perfil.municipio_id
       ? [{ href: `/municipios/${perfil.municipio_id}`, label: "Relatórios/Ações", Icon: FileTextIcon, prefixo: "/municipios/" }]
-      : [];
+      : perfil?.role === "apoiador_visitas" && perfil.municipio_ids?.length
+        ? [{ href: `/municipios/${perfil.municipio_ids[0]}`, label: "Relatórios/Ações", Icon: FileTextIcon, prefixo: "/municipios/" }]
+        : [];
   // Apoiador de Relatórios: fila de análise dos documentos (o admin valida depois)
   const linkAnalise: LinkMenu[] =
     perfil?.role === "apoiador_relatorios"
