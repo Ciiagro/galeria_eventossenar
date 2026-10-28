@@ -358,6 +358,7 @@ export type Documento = {
   validado_por?: string | null;
   validado_por_nome?: string | null;
   validado_em?: string | null;
+  lido_admin_em?: string | null; // quando o administrador abriu ou validou o documento
   origem?: "municipio" | "visita" | "apoio_relatorios" | "admin" | null;
   analise_status?: "recomendado" | "ajustes" | "analisado" | null;
   analise_obs?: string | null;

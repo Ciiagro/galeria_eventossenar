@@ -213,7 +213,13 @@ function PainelAprovacao() {
   }, [itensDaPagina.length]);
 
   // ---------- ações ----------
+  // guarda quando o administrador leu (o Apoiador de Visitas vê essa data nos envios dele)
+  function marcarLido(doc: Documento) {
+    if (!doc.lido_admin_em) apiPost("/api/documentos/lido", { documento_id: doc.id }).catch(() => null);
+  }
+
   async function abrirAprovacao(doc: Documento) {
+    marcarLido(doc);
     // Documento em PDF (relatório, lista, portfólio): valida direto, sem galeria
     if (ehDocumentoPdf(doc) && doc.status === "pendente") {
       setProcessando(doc.id);
@@ -425,7 +431,7 @@ function PainelAprovacao() {
               onAprovar={() => abrirAprovacao(doc)}
               onArquivar={() => arquivar(doc, true)}
               onDesarquivar={() => arquivar(doc, false)}
-              onVisualizar={() => setVisualizando(doc)}
+              onVisualizar={() => { marcarLido(doc); setVisualizando(doc); }}
             />
           ))}
         </div>

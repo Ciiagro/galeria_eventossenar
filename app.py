@@ -1165,6 +1165,25 @@ def entregas_por_municipio():
         return jsonify({"error": str(e)}), 500
 
 
+@app.post("/api/documentos/lido")
+def marcar_documento_lido():
+    """O administrador abriu/validou o documento: guarda quando foi lido (o Apoiador de Visitas vê essa data)."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    documento_id = (request.get_json(force=True, silent=True) or {}).get("documento_id")
+    if not documento_id:
+        return jsonify({"error": "documento_id é obrigatório."}), 400
+    try:
+        get_client().table("documentos").update({"lido_admin_em": datetime.now(timezone.utc).isoformat()}).eq("id", documento_id).is_("lido_admin_em", "null").execute()
+        return jsonify({"ok": True})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
 @app.get("/api/meus-prazos")
 def meus_prazos():
     """?municipio_id= -> prazo e situação de cada documento do projeto para o município (usado no quadro do coordenador)."""

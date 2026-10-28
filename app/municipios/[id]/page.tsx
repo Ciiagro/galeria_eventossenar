@@ -218,7 +218,9 @@ export default function MunicipioDetalhePage() {
               >
                 + Enviar relatório/ação
               </Link>
-              <Indicador valor={pendentesTotal} rotulo={pendentesTotal === 1 ? "pendente" : "pendentes"} alerta={pendentesTotal > 0} />
+              {perfil?.role === "apoiador_visitas"
+                ? <Indicador valor={(documentos ?? []).filter((d) => !d.lido_admin_em).length} rotulo="não lidos" alerta={false} />
+                : <Indicador valor={pendentesTotal} rotulo={pendentesTotal === 1 ? "pendente" : "pendentes"} alerta={pendentesTotal > 0} />}
             </div>
           }
         >
@@ -481,7 +483,15 @@ function CartaoDocumento({
                     Abrir PDF
                   </button>
                 )}
-                {!semStatus && (doc.status === "aprovado" ? (
+                {perfilCartao?.role === "apoiador_visitas" ? (
+                  doc.lido_admin_em ? (
+                    <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+                      ✓ Lido pelo administrador em {formatarDataHora(doc.lido_admin_em)}
+                    </span>
+                  ) : (
+                    <span className="rounded-full bg-black/5 px-2.5 py-1 text-xs font-semibold text-brand-dark/70">Ainda não lido</span>
+                  )
+                ) : !semStatus && (doc.status === "aprovado" ? (
                   <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-900">
                     ✓ Validado
                   </span>
