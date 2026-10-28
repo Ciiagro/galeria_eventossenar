@@ -11,7 +11,7 @@ import { normalizarTexto } from "@/components/DocumentoUI";
 import { Abas, BarraFiltros, CampoBusca, CLASSE_SELECT } from "@/components/Filtros";
 import { mascaraCpf, mascaraTelefone } from "@/lib/mascaras";
 import { reduzirFoto } from "@/lib/reduzirFoto";
-import { FotoCoordenador } from "@/components/FotoCoordenador";
+import { FotoCoordenador, atualizarFotos } from "@/components/FotoCoordenador";
 import { ItemMenu, MenuAcoes, Ordem, Pilula, RodapeTabela, Th, ordenar } from "@/components/TabelaCoordenadores";
 
 const CAMPO =
@@ -339,6 +339,7 @@ function ResponsaveisPage() {
           ? `Coordenador cadastrado${substituindo ? " (o anterior foi desativado e a ficha de adesão passou para o novo)" : ""}. O e-mail do termo de compromisso NÃO foi enviado: quando quiser, clique nos três pontinhos (⋮) dele em Liberados e escolha "Enviar termo de compromisso por e-mail".`
           : "Responsável salvo."
       );
+      if (fotoNova) atualizarFotos(); // a foto nova aparece na hora, sem recarregar
       apiGet("/api/admin/coordenadores-situacao").then(setSituacao).catch(() => {});
       setSenha("");
       const listaAtualizada = await apiGet("/api/municipios?fresh=1") as Municipio[];

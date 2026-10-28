@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { TituloPagina } from "@/components/TituloPagina";
-import { FotoCoordenador } from "@/components/FotoCoordenador";
+import { FotoCoordenador, atualizarFotos } from "@/components/FotoCoordenador";
 import { usePerfil } from "@/lib/usePerfil";
 import { apiGet, apiPost } from "@/lib/api";
 import { reduzirFoto } from "@/lib/reduzirFoto";
@@ -52,6 +52,7 @@ export default function MeusDadosPage() {
     try {
       if (fotoNova) {
         await apiPost("/api/coordenador-foto", { foto: fotoNova });
+        atualizarFotos();
         setFotoSalva(true);
         try { if (meuId) window.sessionStorage.setItem(`foto_ok:${meuId}`, "1"); } catch { /* ignora */ }
       }

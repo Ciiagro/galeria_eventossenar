@@ -3269,11 +3269,18 @@ _CACHE_FOTOS_IDS = {"mapa": None, "expira": 0.0}   # user_id -> id do arquivo no
 _CACHE_FOTOS_BYTES = {}                            # user_id -> (bytes, expira_em)
 
 
+_CACHE_PASTA_FOTOS = {"id": None}   # o id da pasta não muda: evita uma consulta ao Drive a cada foto
+_CACHE_FOTOS_SEM = {}               # user_id -> até quando não procurar de novo (quem não tem foto)
+
+
 def _pasta_fotos_coordenadores(service):
+    if _CACHE_PASTA_FOTOS["id"]:
+        return _CACHE_PASTA_FOTOS["id"]
     raiz = os.environ.get("DRIVE_ROOT_FOLDER_ID")
     if not raiz:
         raise RuntimeError("DRIVE_ROOT_FOLDER_ID não está configurado no .env.")
-    return get_or_create_subfolder(service, raiz, PASTA_FOTOS_COORDENADORES)
+    _CACHE_PASTA_FOTOS["id"] = get_or_create_subfolder(service, raiz, PASTA_FOTOS_COORDENADORES)
+    return _CACHE_PASTA_FOTOS["id"]
 
 
 def _mapa_fotos_coordenadores(forcar=False):
@@ -3326,6 +3333,7 @@ def _salvar_foto_coordenador(user_id, data_url):
     if _CACHE_FOTOS_IDS["mapa"] is not None:
         _CACHE_FOTOS_IDS["mapa"][str(user_id)] = novo_id
     _CACHE_FOTOS_BYTES.pop(str(user_id), None)
+    _CACHE_FOTOS_SEM.pop(str(user_id), None)
 
 
 def _foto_valida(valor):
@@ -3351,8 +3359,23 @@ def coordenador_foto():
         return Response(em_cache[0], mimetype="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
     try:
         file_id = _mapa_fotos_coordenadores().get(alvo)
+        if not file_id and _CACHE_FOTOS_SEM.get(alvo, 0) <= agora:
+            # Na Vercel cada instância tem a sua própria lista: se a foto foi salva por outra, a lista pode estar velha.
+            # Confere direto no Drive só este usuário (consulta pequena) antes de dizer que não tem foto.
+            service = get_drive_service()
+            r = service.files().list(
+                q=f"'{_pasta_fotos_coordenadores(service)}' in parents and name = '{alvo.replace(chr(39), '').replace(chr(92), '')}.jpg' and trashed = false",
+                fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True,
+            ).execute()
+            achados = r.get("files", [])
+            if achados:
+                file_id = achados[0]["id"]
+                if _CACHE_FOTOS_IDS["mapa"] is not None:
+                    _CACHE_FOTOS_IDS["mapa"][alvo] = file_id
+            else:
+                _CACHE_FOTOS_SEM[alvo] = agora + 60
         if not file_id:
-            return Response(status=404, headers={"Cache-Control": "private, max-age=60"})
+            return Response(status=404, headers={"Cache-Control": "private, max-age=10"})
         conteudo = baixar_arquivo(get_drive_service(), file_id)
     except Exception as e:  # noqa: BLE001
         print(f"[foto] {alvo}: {e}")

@@ -8,6 +8,16 @@ const PASTEIS = [
   { fundo: "#F3E4F5", texto: "#7B3A86" }, { fundo: "#FDE7DD", texto: "#9A4A22" }, { fundo: "#E0F3F1", texto: "#1B6B63" },
 ];
 
+// "Versão" das fotos: muda sempre que alguém salva uma foto. Entra no endereço da imagem, assim a foto nova
+// aparece na hora (sem recarregar a página) e o navegador não mostra a antiga que ficou guardada.
+let versaoFotos = "0";
+try { versaoFotos = window.sessionStorage.getItem("fotos_v") ?? "0"; } catch { /* sem armazenamento */ }
+export function atualizarFotos() {
+  versaoFotos = String(Date.now());
+  try { window.sessionStorage.setItem("fotos_v", versaoFotos); } catch { /* ignora */ }
+  window.dispatchEvent(new Event("fotos-atualizadas"));
+}
+
 export function iniciais(nome?: string | null) {
   const partes = (nome ?? "").trim().split(/\s+/).filter(Boolean);
   if (!partes.length) return "?";
@@ -18,13 +28,20 @@ export function iniciais(nome?: string | null) {
 // aparecem as iniciais do nome numa cor suave.
 export function FotoCoordenador({ userId, nome, tamanho = 40, propria = false }: { userId?: string | null; nome?: string | null; tamanho?: number; propria?: boolean }) {
   const [src, setSrc] = useState<string | null>(null);
+  const [versao, setVersao] = useState(versaoFotos);
+  useEffect(() => {
+    const aoMudar = () => setVersao(versaoFotos);
+    window.addEventListener("fotos-atualizadas", aoMudar);
+    return () => window.removeEventListener("fotos-atualizadas", aoMudar);
+  }, []);
   useEffect(() => {
     let vivo = true;
-    setSrc(null);
     // "propria": a foto de quem está logado (o servidor usa o usuário da sessão)
-    if (userId || propria) apiBlobUrl(userId ? `/api/coordenador-foto?user_id=${encodeURIComponent(userId)}` : "/api/coordenador-foto").then((u) => { if (vivo) setSrc(u); });
+    const caminho = userId ? `/api/coordenador-foto?user_id=${encodeURIComponent(userId)}&v=${versao}` : `/api/coordenador-foto?v=${versao}`;
+    if (userId || propria) apiBlobUrl(caminho).then((u) => { if (vivo) setSrc(u); });
+    else setSrc(null);
     return () => { vivo = false; };
-  }, [userId, propria]);
+  }, [userId, propria, versao]);
   const cor = PASTEIS[Math.abs([...(nome ?? "")].reduce((a, c) => a + c.charCodeAt(0), 0)) % PASTEIS.length];
   return (
     <span
