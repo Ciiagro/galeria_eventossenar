@@ -5,7 +5,7 @@ import { TituloPagina, Indicador } from "@/components/TituloPagina";
 
 import { useEffect, useMemo, useState } from "react";
 import { apiAbrirArquivo, apiDelete, apiGet, apiPost, Municipio } from "@/lib/api";
-import { UserIcon, MailIcon, LockIcon, MapPinIcon, XIcon, BuildingIcon } from "@/components/icons";
+import { UserIcon, MailIcon, LockIcon, MapPinIcon, XIcon, BuildingIcon, FileTextIcon, ClipboardListIcon, PencilIcon, CheckIcon } from "@/components/icons";
 import { AdminGuard } from "@/components/AdminGuard";
 import { normalizarTexto } from "@/components/DocumentoUI";
 import { Abas, BarraFiltros, CampoBusca, CLASSE_SELECT } from "@/components/Filtros";
@@ -882,35 +882,42 @@ ${tabelaEscolas}
         if (historico === null) return null; // espera o histórico chegar: a janela abre uma vez só, já completa
         const x = sit(m.responsavel_id);
         const ativo = x?.ativo !== false;
-        const Campo = ({ rotulo, valor }: { rotulo: string; valor?: string | null }) => (
-          <div><p className="text-xs font-bold uppercase tracking-wide text-brand-dark/55">{rotulo}</p><p className="mt-0.5 break-all text-[15px] text-brand-dark">{valor || "—"}</p></div>
+        const Campo = ({ rotulo, valor, Icone }: { rotulo: string; valor?: string | null; Icone?: (p: { className?: string }) => JSX.Element }) => (
+          <div className="flex items-start gap-3">
+            {Icone && <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/70 text-[#1E6B45]"><Icone className="h-4 w-4" /></span>}
+            <div className="min-w-0"><p className="text-[11px] font-bold uppercase tracking-wide text-brand-dark/55">{rotulo}</p><p className="mt-0.5 break-all text-[15px] text-brand-dark">{valor || "—"}</p></div>
+          </div>
         );
+        const TelefoneIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
+          <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className}><path d="M22 16.9v3a2 2 0 01-2.2 2 19.8 19.8 0 01-8.6-3.1 19.5 19.5 0 01-6-6A19.8 19.8 0 012.1 4.2 2 2 0 014.1 2h3a2 2 0 012 1.7c.1 1 .4 1.9.7 2.8a2 2 0 01-.5 2.1L8.1 9.9a16 16 0 006 6l1.3-1.3a2 2 0 012.1-.4c.9.3 1.8.6 2.8.7a2 2 0 011.7 2z" /></svg>
+        );
+        const DocIcon = ({ className = "w-4 h-4" }: { className?: string }) => <FileTextIcon className={className} />;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDetalheId(null)} role="dialog" aria-modal="true">
             <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start gap-4">
-                <FotoCoordenador userId={m.responsavel_id ?? ""} nome={m.responsavel_nome} tamanho={88} />
+                <span className="rounded-full bg-[#DDF3E4] p-1"><FotoCoordenador userId={m.responsavel_id ?? ""} nome={m.responsavel_nome} tamanho={88} /></span>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-xl font-extrabold text-brand-dark">{m.responsavel_nome}</h2>
                   <p className="text-sm text-brand-dark/70">Coordenador(a) municipal · {m.nome}</p>
                   <div className="mt-2 flex flex-wrap gap-2">
-                    {ativo ? <Pilula texto="Acesso ativo" fundo="#E3F4EA" cor="#17613B" /> : <Pilula texto="Acesso desativado" fundo="#F8E1DF" cor="#9B2C25" />}
-                    {x?.compromisso_em ? <Pilula texto={`Compromisso assinado em ${dataCurta(x.compromisso_em)}`} fundo="#E3F4EA" cor="#17613B" /> : <Pilula texto="Compromisso pendente" fundo="#FFF3CC" cor="#6E4B00" />}
+                    {ativo ? <Pilula texto="✓ Acesso ativo" fundo="#E3F4EA" cor="#17613B" /> : <Pilula texto="Acesso desativado" fundo="#F8E1DF" cor="#9B2C25" />}
+                    {x?.compromisso_em ? <Pilula texto={`✓ Compromisso assinado em ${dataCurta(x.compromisso_em)}`} fundo="#E3F4EA" cor="#17613B" /> : <Pilula texto="Compromisso pendente" fundo="#FFF3CC" cor="#6E4B00" />}
                   </div>
                 </div>
                 <button type="button" onClick={() => setDetalheId(null)} className="rounded-lg px-2 py-1 text-2xl leading-none text-brand-dark/60 hover:bg-black/5" aria-label="Fechar">×</button>
               </div>
-              <div className="mt-5 grid gap-x-6 gap-y-4 rounded-2xl bg-[#F6F9F7] p-5 sm:grid-cols-2">
-                <Campo rotulo="E-mail (login)" valor={m.responsavel_email} />
-                <Campo rotulo="CPF" valor={x?.cpf ? mascaraCpf(x.cpf) : null} />
-                <Campo rotulo="RG" valor={x?.rg} />
-                <Campo rotulo="Município" valor={m.nome} />
-                <Campo rotulo="Telefone 1" valor={x?.telefone1} />
-                <Campo rotulo="Telefone 2" valor={x?.telefone2} />
+              <div className="mt-5 grid gap-x-6 gap-y-4 rounded-2xl bg-[#EAF5EE] p-5 sm:grid-cols-2">
+                <Campo rotulo="E-mail (login)" valor={m.responsavel_email} Icone={MailIcon} />
+                <Campo rotulo="CPF" valor={x?.cpf ? mascaraCpf(x.cpf) : null} Icone={DocIcon} />
+                <Campo rotulo="RG" valor={x?.rg} Icone={DocIcon} />
+                <Campo rotulo="Município" valor={m.nome} Icone={MapPinIcon} />
+                <Campo rotulo="Telefone 1" valor={x?.telefone1} Icone={TelefoneIcon} />
+                <Campo rotulo="Telefone 2" valor={x?.telefone2} Icone={TelefoneIcon} />
               </div>
               {historico && historico.length > 1 && (
                 <div className="mt-5">
-                  <h3 className="text-sm font-bold text-brand-dark">Histórico de coordenadores de {m.nome} ({historico.length})</h3>
+                  <h3 className="flex items-center gap-2 text-sm font-bold text-[#1E6B45]"><UserIcon className="h-4 w-4" /> Histórico de coordenadores de {m.nome} ({historico.length})</h3>
                   <ul className="mt-2 divide-y divide-black/5 rounded-2xl border border-black/5">
                     {historico.map((h) => (
                       <li key={h.user_id} className="flex items-center gap-3 px-3 py-2.5">
@@ -935,26 +942,58 @@ ${tabelaEscolas}
                 const docs = todas.filter((i) => i.rotulo.startsWith("Ver "));
                 const cuidado = todas.filter((i) => i.perigo || /acesso$/.test(i.rotulo));
                 const principais = todas.filter((i) => !docs.includes(i) && !cuidado.includes(i));
-                const claro = "flex items-center justify-center rounded-xl border border-black/10 bg-white px-3 py-2.5 text-center text-sm font-semibold text-brand-dark transition hover:border-brand-light/50 hover:bg-[#F3FAF6]";
+                const ImprimirIcon = ({ className = "w-6 h-6" }: { className?: string }) => (
+                  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={1.7} strokeLinecap="round" strokeLinejoin="round" className={className}>
+                    <path d="M6 9V3h12v6" /><path d="M6 18H4a1 1 0 01-1-1v-6a2 2 0 012-2h14a2 2 0 012 2v6a1 1 0 01-1 1h-2" /><rect x="6" y="14" width="12" height="7" rx="1" />
+                  </svg>
+                );
+                // cada ação vira um cartão: ícone colorido, título e uma linha explicando
+                const VISUAL: Record<string, { Icone: (p: { className?: string }) => JSX.Element; fundo: string; cor: string; titulo: string; desc: string }> = {
+                  "Imprimir ficha": { Icone: ImprimirIcon, fundo: "#DDF3E4", cor: "#1E6B45", titulo: "Imprimir ficha", desc: "Gera a ficha do coordenador para impressão." },
+                  "Ver termo de compromisso": { Icone: FileTextIcon, fundo: "#E2EFFB", cor: "#0F4C85", titulo: "Termo de compromisso", desc: "Visualize ou baixe o termo de compromisso assinado." },
+                  "Ver termo de compromisso (prévia)": { Icone: FileTextIcon, fundo: "#E2EFFB", cor: "#0F4C85", titulo: "Termo de compromisso", desc: "Veja a prévia do termo, que ainda não foi assinado." },
+                  "Ver sindicato e presidente": { Icone: BuildingIcon, fundo: "#EDE6F8", cor: "#5B3A9E", titulo: "Sindicato e presidente", desc: "Consulte as informações do sindicato e do presidente." },
+                  "Ver termo de adesão": { Icone: ClipboardListIcon, fundo: "#FFF1CC", cor: "#9A6A00", titulo: "Termo de adesão", desc: "Visualize ou baixe o termo de adesão assinado." },
+                  "Editar dados": { Icone: PencilIcon, fundo: "#DDF3E4", cor: "#1E6B45", titulo: "Editar dados", desc: "Altere nome, contatos, e-mail, senha ou foto." },
+                  "Substituir coordenador": { Icone: UserIcon, fundo: "#E0F3F1", cor: "#1B6B63", titulo: "Substituir coordenador", desc: "Troca o coordenador; o atual fica desativado." },
+                  "Enviar termo de compromisso por e-mail": { Icone: MailIcon, fundo: "#FDE7DD", cor: "#9A4A22", titulo: "Enviar termo por e-mail", desc: "Manda o termo de compromisso para o coordenador assinar." },
+                };
+                const Cartao = ({ rotulo, onClick }: { rotulo: string; onClick: () => void }) => {
+                  const v = VISUAL[rotulo];
+                  if (!v) return <button type="button" onClick={onClick} className="rounded-xl border border-black/10 bg-white px-4 py-2.5 text-sm font-semibold text-brand-dark hover:bg-[#F3FAF6]">{rotulo}</button>;
+                  return (
+                    <button type="button" onClick={onClick} className="group flex items-center gap-3 rounded-2xl border border-black/10 bg-white p-3 text-left shadow-sm transition hover:border-brand-light/40 hover:bg-[#F8FCF9]">
+                      <span className="flex h-12 w-12 shrink-0 items-center justify-center rounded-xl" style={{ background: v.fundo, color: v.cor }}><v.Icone className="h-6 w-6" /></span>
+                      <span className="min-w-0 flex-1">
+                        <span className="block text-sm font-bold leading-tight text-brand-dark">{v.titulo}</span>
+                        <span className="mt-0.5 block text-xs leading-snug text-brand-dark/65">{v.desc}</span>
+                      </span>
+                      <span className="shrink-0 text-lg text-brand-dark/40 transition group-hover:text-brand-dark/70" aria-hidden>›</span>
+                    </button>
+                  );
+                };
                 return (
-                  <div className="mt-6 space-y-4">
+                  <div className="mt-6 space-y-5">
                     <div>
-                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-dark/55">Documentos</p>
+                      <p className="mb-2 flex items-center gap-2 text-sm font-bold text-[#1E6B45]"><FileTextIcon className="h-4 w-4" /> Documentos</p>
                       <div className="grid gap-2 sm:grid-cols-2">
-                        <button type="button" onClick={() => imprimirFicha(m)} className={claro}>🖨 Imprimir ficha</button>
-                        {docs.map((i) => (
-                          <button key={i.rotulo} type="button" onClick={i.onClick} className={claro}>{i.rotulo}</button>
-                        ))}
+                        <Cartao rotulo="Imprimir ficha" onClick={() => imprimirFicha(m)} />
+                        {docs.map((i) => <Cartao key={i.rotulo} rotulo={i.rotulo} onClick={i.onClick} />)}
                       </div>
                     </div>
                     {principais.length > 0 && (
                       <div>
-                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-dark/55">Coordenador</p>
+                        <p className="mb-2 flex items-center gap-2 text-sm font-bold text-[#1E6B45]"><UserIcon className="h-4 w-4" /> Coordenador</p>
                         <div className="flex flex-wrap gap-2">
-                          {principais.map((i) => (
-                            <button key={i.rotulo} type="button" onClick={i.onClick}
-                              className="rounded-xl border border-[#BFE3CC] bg-[#E6F4EB] px-4 py-2.5 text-sm font-semibold text-[#1E6B45] transition hover:bg-[#D5ECDD]">{i.rotulo}</button>
-                          ))}
+                          {principais.map((i) => {
+                            const v = VISUAL[i.rotulo];
+                            return (
+                              <button key={i.rotulo} type="button" onClick={i.onClick}
+                                className="flex items-center gap-2 rounded-xl border border-[#BFE3CC] bg-[#E6F4EB] px-4 py-2.5 text-sm font-semibold text-[#1E6B45] transition hover:bg-[#D5ECDD]">
+                                {v && <v.Icone className="h-5 w-5" />}{i.rotulo}
+                              </button>
+                            );
+                          })}
                         </div>
                       </div>
                     )}
@@ -962,7 +1001,9 @@ ${tabelaEscolas}
                       <div className="flex flex-wrap justify-end gap-2 border-t border-black/5 pt-4">
                         {cuidado.map((i) => (
                           <button key={i.rotulo} type="button" onClick={i.onClick}
-                            className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${i.perigo ? "border-red-300 text-red-700 hover:bg-red-50" : "border-amber-300 text-amber-800 hover:bg-amber-50"}`}>{i.rotulo}</button>
+                            className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${i.perigo ? "border-red-300 text-red-700 hover:bg-red-50" : "border-amber-300 text-amber-800 hover:bg-amber-50"}`}>
+                            {i.perigo ? <XIcon className="h-4 w-4" /> : /^Ativar/.test(i.rotulo) ? <CheckIcon className="h-4 w-4" /> : <TrashIcon className="h-4 w-4" />}{i.rotulo}
+                          </button>
                         ))}
                       </div>
                     )}
