@@ -1165,6 +1165,77 @@ def entregas_por_municipio():
         return jsonify({"error": str(e)}), 500
 
 
+@app.get("/api/meus-prazos")
+def meus_prazos():
+    """?municipio_id= -> prazo e situação de cada documento do projeto para o município (usado no quadro do coordenador)."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, _ = auth
+    perfil = carregar_perfil(user)
+    try:
+        mid = int(request.args.get("municipio_id") or 0)
+    except ValueError:
+        mid = 0
+    permitidos = perfil.get("municipios_ids")
+    if not mid or (perfil.get("role") != "admin" and permitidos is not None and mid not in permitidos):
+        return jsonify({"error": "Sem permissão para este município."}), 403
+    try:
+        db = get_client()
+        hoje = _hoje_br()
+        ciclo_id = _ciclo_ativo_id(db)
+        grupos = db.table("acoes_pedagogicas").select("id").eq("exige_pdf", True).execute().data or []
+        ids_grupos = [g["id"] for g in grupos]
+        enviados = {}  # subtipo -> ids das escolas com envio
+        tem_envio = set()
+        if ids_grupos:
+            def consulta():
+                return db.table("documentos").select("id, subtipo, escola_id, escolas_ids, ciclo_id, arquivado").in_("acao_pedagogica_id", ids_grupos).eq("municipio_id", mid).order("id")
+            for d in fetch_all(consulta):
+                if (ciclo_id and d.get("ciclo_id") and d["ciclo_id"] != ciclo_id) or not d.get("subtipo") or d.get("arquivado"):
+                    continue
+                tem_envio.add(d["subtipo"])
+                alvo = enviados.setdefault(d["subtipo"], set())
+                if d.get("escola_id"):
+                    alvo.add(str(d["escola_id"]))
+                alvo.update(str(x) for x in (d.get("escolas_ids") or []))
+        # escolas esperadas = as da adesão aprovada do ciclo (sem adesão, só vale ter algum envio)
+        esperadas = set()
+        q = db.table("adesoes").select("id").eq("status", "aprovada").eq("municipio_id", mid)
+        if ciclo_id:
+            q = q.eq("ciclo_id", ciclo_id)
+        ades = [a["id"] for a in q.execute().data or []]
+        if ades:
+            for r in db.table("adesao_escolas").select("escola_id").in_("adesao_id", ades).execute().data or []:
+                esperadas.add(str(r["escola_id"]))
+        saida = []
+        for d in _documentos_projeto():
+            nome = d["nome"]
+            feitas = enviados.get(nome, set()) & esperadas if esperadas else enviados.get(nome, set())
+            completo = (len(feitas) >= len(esperadas)) if esperadas else (nome in tem_envio)
+            if completo and nome not in tem_envio:
+                completo = False
+            aberto = d["abre"] <= hoje
+            dias = (d["prazo"] - hoje).days if d["prazo"] else None
+            if completo:
+                situacao = "enviado"
+            elif not aberto:
+                situacao = "fechado"
+            elif dias is not None and dias < 0:
+                situacao = "atrasado"
+            elif dias is not None and dias <= 7:
+                situacao = "vence_logo"
+            else:
+                situacao = "em_dia"
+            saida.append({
+                "nome": nome, "abre": d["abre"].isoformat(), "prazo": d["prazo"].isoformat() if d["prazo"] else None,
+                "situacao": situacao, "dias": dias, "enviadas": len(feitas), "total_escolas": len(esperadas),
+            })
+        return jsonify({"documentos": saida})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
 @app.post("/api/admin/prazos-documentos")
 def prazos_documentos_salvar():
     auth = require_user()

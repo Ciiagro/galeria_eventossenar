@@ -15,6 +15,7 @@ import { BotaoExcluir } from "@/components/BotoesIcone";
 import { AnaliseBadge } from "@/components/AnaliseBadge";
 import { usePerfil } from "@/lib/usePerfil";
 import { Paginacao } from "@/components/Paginacao";
+import { PrazosEnvio } from "@/components/PrazosEnvio";
 import { Indicador, TituloPagina } from "@/components/TituloPagina";
 
 type Aba = "" | "pendente" | "aprovado" | "arquivado";
@@ -227,6 +228,8 @@ export default function MunicipioDetalhePage() {
         {erro && (
           <div className="mt-5 rounded-lg bg-status-pendente/10 text-status-pendente px-4 py-3 text-sm">{erro}</div>
         )}
+
+        {ehCoordenador && <PrazosEnvio municipioId={id} />}
 
         {documentos && documentos.length > 0 && (
           <>
