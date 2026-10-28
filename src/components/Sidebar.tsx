@@ -8,6 +8,7 @@ import { esquecerPerfilSalvo, usePerfil } from "@/lib/usePerfil";
 import { LogoutIcon, ImageIcon, MapPinIcon } from "@/components/icons";
 import { montarLinks, linkAtivo, CORES_ICONES } from "@/lib/menu";
 import { apiGet, apiGetCache, ROTULO_PAPEL } from "@/lib/api";
+import { FotoCoordenador } from "@/components/FotoCoordenador";
 import { FaixaValores, LogoValores } from "@/components/Sol";
 import { Estrela } from "@/components/Desenhos";
 import { useCiclos } from "@/lib/ciclos";
@@ -114,12 +115,19 @@ export function Sidebar() {
 
         {perfil && (
           <div className="mt-3 px-2 text-center" title={perfil.email || undefined}>
-            <div
-              className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-[#8E5BB5] text-sm font-bold tracking-wide text-white shadow-sm ring-2 ring-white"
-              aria-hidden
-            >
-              {iniciais(perfil.nome || perfil.email)}
-            </div>
+            {perfil.role === "municipio" ? (
+              // coordenador: mostra a foto dele (do Drive); sem foto, as iniciais
+              <div className="mx-auto mb-2 flex w-fit rounded-full shadow-sm ring-2 ring-white">
+                <FotoCoordenador propria nome={perfil.nome || perfil.email} tamanho={48} />
+              </div>
+            ) : (
+              <div
+                className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-[#8E5BB5] text-sm font-bold tracking-wide text-white shadow-sm ring-2 ring-white"
+                aria-hidden
+              >
+                {iniciais(perfil.nome || perfil.email)}
+              </div>
+            )}
             <p className="break-words text-sm font-bold leading-tight text-brand-dark">{perfil.nome || perfil.email}</p>
             <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{papel}</p>
             {perfil.municipio_nome && (

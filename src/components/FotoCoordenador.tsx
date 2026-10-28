@@ -16,14 +16,15 @@ export function iniciais(nome?: string | null) {
 
 // Foto redonda do(a) coordenador(a). A imagem fica no Google Drive; enquanto carrega, ou se não houver foto,
 // aparecem as iniciais do nome numa cor suave.
-export function FotoCoordenador({ userId, nome, tamanho = 40 }: { userId?: string | null; nome?: string | null; tamanho?: number }) {
+export function FotoCoordenador({ userId, nome, tamanho = 40, propria = false }: { userId?: string | null; nome?: string | null; tamanho?: number; propria?: boolean }) {
   const [src, setSrc] = useState<string | null>(null);
   useEffect(() => {
     let vivo = true;
     setSrc(null);
-    if (userId) apiBlobUrl(`/api/coordenador-foto?user_id=${encodeURIComponent(userId)}`).then((u) => { if (vivo) setSrc(u); });
+    // "propria": a foto de quem está logado (o servidor usa o usuário da sessão)
+    if (userId || propria) apiBlobUrl(userId ? `/api/coordenador-foto?user_id=${encodeURIComponent(userId)}` : "/api/coordenador-foto").then((u) => { if (vivo) setSrc(u); });
     return () => { vivo = false; };
-  }, [userId]);
+  }, [userId, propria]);
   const cor = PASTEIS[Math.abs([...(nome ?? "")].reduce((a, c) => a + c.charCodeAt(0), 0)) % PASTEIS.length];
   return (
     <span
