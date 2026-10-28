@@ -32,7 +32,7 @@ load_dotenv()
 from lib.supabase_client import get_client, get_client_as_user, get_user_from_jwt
 from lib.drive_client import upload_arquivo_privado, baixar_arquivo, apagar_arquivo, get_drive_service, upload_file, create_municipio_folder, get_or_create_subfolder, iniciar_upload_resumavel, enviar_pedaco_resumavel, liberar_link_publico, baixar_miniatura
 from lib.video_compress import comprimir_video_se_necessario
-from lib.email_client import enviar_email, email_configurado, montar_convite, montar_codigo, montar_concluido, montar_comunicado, url_base, montar_compromisso_assinado, montar_convite_compromisso
+from lib.email_client import enviar_email, email_configurado, montar_convite, montar_codigo, montar_concluido, montar_comunicado, url_base, montar_compromisso_assinado, montar_convite_compromisso, montar_redefinicao_senha
 from lib.termo_pdf import gerar_pdf_termo
 from lib.termo_compromisso import montar_texto as montar_texto_compromisso, hash_texto as hash_texto_compromisso, gerar_pdf_compromisso
 
@@ -3906,6 +3906,44 @@ def _dt(valor):
 def _mascarar_email(email):
     usuario, _, dominio = (email or "").partition("@")
     return f"{usuario[:1]}{'*' * max(len(usuario) - 1, 3)}@{dominio}"
+
+
+_ULTIMO_PEDIDO_SENHA: dict = {}
+
+
+@app.post("/api/esqueci-senha")
+def esqueci_senha():
+    """Envia o link para criar nova senha pelo nosso e-mail (sem o limite do e-mail do Supabase)."""
+    corpo = request.get_json(silent=True) or {}
+    email = str(corpo.get("email") or "").strip().lower()
+    resposta = jsonify({"ok": True})  # sempre a mesma resposta: não revela quais e-mails existem
+    if "@" not in email or len(email) > 200:
+        return resposta
+    agora = time.time()
+    if agora - _ULTIMO_PEDIDO_SENHA.get(email, 0) < 45:
+        return resposta
+    _ULTIMO_PEDIDO_SENHA[email] = agora
+    try:
+        db = get_client()
+        gerado = db.auth.admin.generate_link({
+            "type": "recovery", "email": email,
+            "options": {"redirect_to": f"{_link_base()}/redefinir-senha"},
+        })
+        link = getattr(getattr(gerado, "properties", None), "action_link", None)
+        if not link:
+            return resposta
+        nome = email
+        try:
+            cad = (db.table("coordenadores_cadastro").select("nome").ilike("email", email).limit(1).execute().data or [])
+            if cad and cad[0].get("nome"):
+                nome = cad[0]["nome"].split()[0]
+        except Exception:
+            pass
+        assunto, texto, html = montar_redefinicao_senha(nome, link)
+        enviar_email(email, assunto, texto, html)
+    except Exception as erro:  # usuário inexistente ou e-mail fora do ar: só registra
+        print(f"[esqueci-senha] não enviou para {email}: {erro}")
+    return resposta
 
 
 def _link_base():

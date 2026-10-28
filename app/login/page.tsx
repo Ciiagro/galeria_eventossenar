@@ -5,7 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowserClient";
 import { esquecerPerfilSalvo } from "@/lib/usePerfil";
-import { apiGetCache } from "@/lib/api";
+import { apiGetCache, API_BASE } from "@/lib/api";
 
 const CAMPO =
   "w-full rounded-xl border border-black/15 bg-white py-3 pl-11 pr-4 text-[15px] text-brand-dark placeholder:text-slate-400 focus:outline-none focus:ring-4 focus:ring-brand-light/15 focus:border-brand-light";
@@ -28,9 +28,13 @@ export default function LoginPage() {
     setErro(null);
     setAviso(null);
     if (!email.trim()) { setErro("Digite seu e-mail acima e clique de novo em “Esqueci minha senha”."); return; }
-    const { error } = await supabaseBrowser.auth.resetPasswordForEmail(email.trim(), { redirectTo: `${window.location.origin}/redefinir-senha` });
-    if (error) { setErro(error.message); return; }
-    setAviso("Enviamos um link para o seu e-mail. Abra e crie uma nova senha.");
+    try {
+      const r = await fetch(`${API_BASE}/api/esqueci-senha`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: email.trim() }) });
+      if (!r.ok) throw new Error();
+      setAviso("Se esse e-mail estiver cadastrado, enviamos um link para criar a nova senha. Confira também a caixa de spam.");
+    } catch {
+      setErro("Não consegui enviar agora. Tente de novo em instantes.");
+    }
   }
 
   async function handleSubmit(e: React.FormEvent) {

@@ -109,6 +109,28 @@ def montar_convite(nome: str, papel_rotulo: str, municipio: str, ciclo: str, lin
     return assunto, texto, html
 
 
+def montar_redefinicao_senha(nome: str, link: str):
+    """E-mail de "Esqueci minha senha"."""
+    assunto = "Crie uma nova senha — Projeto Valores"
+    texto = (
+        f"Olá, {nome}.\n\nRecebemos um pedido para criar uma nova senha de acesso ao Projeto Valores.\n"
+        f"Para continuar, abra o link abaixo (vale por 1 hora):\n{link}\n\n"
+        "Se não foi você quem pediu, é só ignorar esta mensagem: sua senha atual continua a mesma.\n"
+    )
+    html = _caixa(
+        "Criar nova senha",
+        f"<p>Olá, <strong>{_html.escape(nome)}</strong>.</p>"
+        "<p>Recebemos um pedido para criar uma <strong>nova senha</strong> de acesso ao Projeto Valores.</p>"
+        "<p>Clique no botão abaixo, escolha a nova senha e pronto. O link vale por <strong>1 hora</strong>.</p>",
+        "Criar minha nova senha",
+        link,
+    ) + (
+        '<p style="font-family:Arial,Helvetica,sans-serif;max-width:560px;margin:12px auto 0;font-size:13px;color:#6E6555">'
+        "Se não foi você quem pediu, ignore esta mensagem: sua senha atual continua a mesma.</p>"
+    )
+    return assunto, texto, html
+
+
 def montar_codigo(nome: str, codigo: str, contexto: str = ""):
     """`contexto` = "Município - Papel": ajuda quando a mesma caixa de e-mail recebe códigos de vários termos."""
     assunto = f"Seu código para assinar o termo: {codigo}" + (f" ({contexto})" if contexto else "")

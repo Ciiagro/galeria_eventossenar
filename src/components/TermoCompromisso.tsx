@@ -24,8 +24,12 @@ export function TermoCompromisso({ onMudou }: { onMudou?: (assinado: boolean) =>
   const [ocupado, setOcupado] = useState(false);
 
   async function carregar() {
+    setErro(null);
     try {
-      const r: Estado = await apiGet("/api/compromisso");
+      const r: Estado = await Promise.race([
+        apiGet("/api/compromisso"),
+        new Promise<never>((_, rej) => setTimeout(() => rej(new Error("O termo está demorando para carregar.")), 20000)),
+      ]);
       setEstado(r);
       onMudou?.(Boolean(r.assinado));
     } catch (e: any) {
@@ -69,7 +73,14 @@ export function TermoCompromisso({ onMudou }: { onMudou?: (assinado: boolean) =>
     try { await apiAbrirArquivo("/api/compromisso/arquivo"); } catch (e: any) { setErro(e.message); }
   }
 
-  if (!estado) return <p className="text-sm text-brand-dark/75">{erro ?? "Carregando..."}</p>;
+  if (!estado) {
+    return erro ? (
+      <div className="space-y-3 text-sm text-brand-dark/80">
+        <p>{erro}</p>
+        <button type="button" onClick={carregar} className="rounded-lg bg-brand-light px-4 py-2 font-semibold text-white hover:bg-brand-accent">Tentar de novo</button>
+      </div>
+    ) : <p className="text-sm text-brand-dark/75">Carregando...</p>;
+  }
   if (estado.sem_edicao || !estado.texto) {
     return <div className="rounded-xl border border-dashed border-black/10 p-6 text-center text-sm text-brand-dark/75">Não há edição ativa no momento. Fale com o administrador.</div>;
   }
