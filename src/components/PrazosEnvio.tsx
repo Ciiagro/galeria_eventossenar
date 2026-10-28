@@ -122,8 +122,8 @@ export function PrazosEnvio({ municipioId }: { municipioId: string }) {
       )}
 
       {!nadaAberto && proxima && (
-        <p className="mt-3 text-xs text-brand-dark/65">
-          Depois vem a <strong>{proxima.nome}</strong> (abre em {br(proxima.docs[0].abre)}).
+        <p className="mt-3 text-sm text-brand-dark/80">
+          A <strong>{proxima.nome}</strong> abre em <strong>{br(proxima.docs[0].abre)}</strong>.
         </p>
       )}
     </section>
