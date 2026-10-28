@@ -193,7 +193,7 @@ export default function MunicipioDetalhePage() {
   const carregando = !documentos && !erro;
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl">
+    <div className="p-4 sm:p-8 max-w-[1800px]">
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
         {/* Cabeçalho (mesmo padrão das outras telas: faixa colorida com o ícone do menu) */}
         {!ehCoordenador && (

@@ -196,7 +196,7 @@ function FilaAnalise() {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl">
+    <div className="p-4 sm:p-8 max-w-[1800px]">
       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-7">
         <TituloPagina
           descricao="Confira os relatórios e os registros das ações (imagens e vídeos) e escreva suas observações: o administrador faz a validação final com a sua análise."

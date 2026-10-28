@@ -290,7 +290,7 @@ function PainelAprovacao() {
   const ocupado = Boolean(documentoParaAprovar || visualizando);
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl" {...(ocupado ? { "data-painel-ocupado": "" } : {})}>
+    <div className="p-4 sm:p-8 max-w-[1800px]" {...(ocupado ? { "data-painel-ocupado": "" } : {})}>
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
         {/* Cabeçalho */}
         <TituloPagina

@@ -220,7 +220,7 @@ function Conteudo() {
 
   return (
     <>
-      <div className="relative p-4 sm:p-8 max-w-6xl">
+      <div className="relative p-4 sm:p-8 max-w-[1800px]">
        <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-7">
         {/* ============ topo (mesmo padrão das outras páginas) ============ */}
         <TituloPagina

@@ -191,7 +191,7 @@ export default function EscolasPage() {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-6xl">
+    <div className="p-4 sm:p-8 max-w-[1800px]">
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
         {/* Cabeçalho */}
         <TituloPagina

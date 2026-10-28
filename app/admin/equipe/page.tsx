@@ -210,7 +210,7 @@ function EquipePage() {
   }
 
   return (
-    <div className="max-w-6xl p-4 sm:p-8">
+    <div className="max-w-[1800px] p-4 sm:p-8">
       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-7">
         <TituloPagina
           descricao="Cadastre o Apoiador de Visitas e o Apoiador de Relatórios (você escolhe os municípios em que atuam) e também outros Administradores, com acesso total."
