@@ -80,6 +80,12 @@ export default function HomePage() {
     if (aguardandoAdesao) router.replace("/adesao/ficha");
   }, [aguardandoAdesao, router]);
 
+  // Coordenador já liberado: a página dele é Relatórios/Ações (sem passar pelo Início)
+  const ehCoordLiberado = !carregandoPerfil && perfil?.role === "municipio" && Boolean(perfil.municipio_id);
+  useEffect(() => {
+    if (ehCoordLiberado && perfil?.municipio_id) router.replace(`/municipios/${perfil.municipio_id}`);
+  }, [ehCoordLiberado, perfil?.municipio_id, router]);
+
   // Apoiador de Relatórios só analisa os documentos (não envia): a página dele é a Análise
   const ehApoioRelatorios = !carregandoPerfil && perfil?.role === "apoiador_relatorios";
   useEffect(() => {
@@ -91,7 +97,7 @@ export default function HomePage() {
     if (municipioId) router.push(`/municipios/${municipioId}/novo-documento`);
   }
 
-  if (carregandoPerfil || aguardandoAdesao || ehApoioRelatorios) return null;
+  if (carregandoPerfil || aguardandoAdesao || ehApoioRelatorios || ehCoordLiberado) return null;
 
   if (perfil?.role === "admin") {
     if (erroResumo) {

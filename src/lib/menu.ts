@@ -51,7 +51,7 @@ export function montarLinks(perfil: Perfil | null): LinkMenu[] {
   const aguardandoLiberacao = perfil?.role === "municipio" && !perfil.municipio_id;
   const linkEscolas: LinkMenu[] = aguardandoLiberacao ? [] : linksBase.slice(1);
   // "Início" também não aparece nesse caso: ele só levaria de volta para a Ficha de adesão.
-  const linkInicio: LinkMenu[] = aguardandoLiberacao ? [] : [linksBase[0]];
+  const linkInicio: LinkMenu[] = aguardandoLiberacao || (perfil?.role === "municipio" && perfil.municipio_id) ? [] : [linksBase[0]];
   return perfil?.role === "admin"
     ? [linksBase[0], linkComunicados, linkTermo, ...linksBase.slice(1), ...linksAdmin, linkMaterial]
     

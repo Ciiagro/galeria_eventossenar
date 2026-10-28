@@ -55,6 +55,7 @@ export default function LoginPage() {
     try {
       const perfil = await apiGetCache("/api/perfil");
       if (perfil?.role === "municipio" && !perfil.municipio_id) destino = "/adesao/ficha";
+      else if (perfil?.role === "municipio" && perfil.municipio_id) destino = `/municipios/${perfil.municipio_id}`;
       else if (perfil?.role === "apoiador_relatorios") destino = "/analise";
     } catch {
       // sem perfil agora: o Início resolve
