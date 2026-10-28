@@ -154,9 +154,9 @@ export function TermoCompromisso({ onMudou }: { onMudou?: (assinado: boolean) =>
                 <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={aceito} onChange={(e) => setAceito(e.target.checked)} />
                 <span>Li o termo de compromisso e concordo com todas as cláusulas.</span>
               </label>
-              <button type="button" disabled={ocupado || !codigoEnviado} onClick={assinar}
+              <button type="button" disabled={ocupado || codigo.replace(/\D/g, "").length !== 6} onClick={assinar}
                 className="mt-3 rounded-lg bg-brand-light px-5 py-2 font-semibold text-white shadow-sm hover:bg-brand-accent disabled:opacity-50"
-                title={!codigoEnviado ? "Peça o código primeiro" : undefined}>
+                title={codigo.replace(/\D/g, "").length !== 6 ? "Digite o código de 6 dígitos que chegou no e-mail" : undefined}>
                 {ocupado ? "Aguarde..." : "Assinar termo"}
               </button>
             </li>
