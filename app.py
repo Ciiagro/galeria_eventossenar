@@ -3306,9 +3306,19 @@ def _salvar_foto_coordenador(user_id, data_url):
     conteudo = base64.b64decode(data_url.split(",", 1)[1])
     service = get_drive_service()
     pasta = _pasta_fotos_coordenadores(service)
-    antigo = _mapa_fotos_coordenadores(forcar=True).get(str(user_id))
-    novo_id = upload_arquivo_privado(service, pasta, f"{user_id}.jpg", conteudo, "image/jpeg")
-    if antigo:
+    # Busca só o arquivo deste usuário (uma consulta pequena), em vez de listar a pasta inteira de todos os coordenadores
+    nome_arq = f"{str(user_id).replace(chr(39), '').replace(chr(92), '')}.jpg"
+    antigos = []
+    try:
+        r = service.files().list(
+            q=f"'{pasta}' in parents and name = '{nome_arq}' and trashed = false", fields="files(id)",
+            supportsAllDrives=True, includeItemsFromAllDrives=True,
+        ).execute()
+        antigos = [f["id"] for f in r.get("files", [])]
+    except Exception as e:  # noqa: BLE001
+        print(f"[foto] não consegui procurar a foto anterior de {user_id}: {e}")
+    novo_id = upload_arquivo_privado(service, pasta, nome_arq, conteudo, "image/jpeg")
+    for antigo in antigos:
         try:
             apagar_arquivo(service, antigo)
         except Exception as e:  # noqa: BLE001
