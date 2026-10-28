@@ -11,7 +11,7 @@ import { normalizarTexto } from "@/components/DocumentoUI";
 import { Abas, BarraFiltros, CampoBusca, CLASSE_SELECT } from "@/components/Filtros";
 import { mascaraCpf, mascaraTelefone } from "@/lib/mascaras";
 import { reduzirFoto } from "@/lib/reduzirFoto";
-import { FotoCoordenador, atualizarFotos } from "@/components/FotoCoordenador";
+import { FotoCoordenador, atualizarFotos, caminhoFotoCoordenador } from "@/components/FotoCoordenador";
 import { ItemMenu, MenuAcoes, Ordem, Pilula, RodapeTabela, Th, ordenar } from "@/components/TabelaCoordenadores";
 
 const CAMPO =
@@ -360,7 +360,7 @@ function ResponsaveisPage() {
     const janela = window.open("", "_blank");
     if (!janela) { setErro("O navegador bloqueou a janela de impressão. Permita pop-ups para este site."); return; }
     let foto = "";
-    try { foto = (m.responsavel_id && (await apiBlobUrl(`/api/coordenador-foto?user_id=${encodeURIComponent(m.responsavel_id)}`))) || ""; } catch { /* sem foto */ }
+    try { foto = (m.responsavel_id && (await apiBlobUrl(caminhoFotoCoordenador(m.responsavel_id)))) || ""; } catch { /* sem foto */ }
     let statusAdesao = "Sem adesão iniciada";
     // escolas que ele coordena: as da adesão dele (edição ativa)
     let escolas: { nome: string; quantidade_professores?: number | null; matricula_infantil_3?: number | null; matricula_infantil_4?: number | null; matricula_infantil_5?: number | null }[] = [];
@@ -1002,7 +1002,7 @@ ${tabelaEscolas}
                         {cuidado.map((i) => (
                           <button key={i.rotulo} type="button" onClick={i.onClick}
                             className={`flex items-center gap-2 rounded-xl border px-4 py-2 text-sm font-semibold transition ${i.perigo ? "border-red-300 text-red-700 hover:bg-red-50" : "border-amber-300 text-amber-800 hover:bg-amber-50"}`}>
-                            {i.perigo ? <XIcon className="h-4 w-4" /> : /^Ativar/.test(i.rotulo) ? <CheckIcon className="h-4 w-4" /> : <TrashIcon className="h-4 w-4" />}{i.rotulo}
+                            {i.perigo ? <XIcon className="h-4 w-4" /> : /^Ativar/.test(i.rotulo) ? <CheckIcon className="h-4 w-4" /> : <LockIcon className="h-4 w-4" />}{i.rotulo}
                           </button>
                         ))}
                       </div>

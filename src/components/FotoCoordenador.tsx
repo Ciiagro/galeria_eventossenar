@@ -18,6 +18,9 @@ export function atualizarFotos() {
   window.dispatchEvent(new Event("fotos-atualizadas"));
 }
 
+// endereço da foto de um coordenador, já com a versão (para nunca pegar uma foto velha guardada)
+export const caminhoFotoCoordenador = (userId: string) => `/api/coordenador-foto?user_id=${encodeURIComponent(userId)}&v=${versaoFotos}`;
+
 export function iniciais(nome?: string | null) {
   const partes = (nome ?? "").trim().split(/\s+/).filter(Boolean);
   if (!partes.length) return "?";

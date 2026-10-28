@@ -3294,12 +3294,13 @@ def _mapa_fotos_coordenadores(forcar=False):
     while True:
         r = service.files().list(
             q=f"'{pasta}' in parents and trashed = false", fields="nextPageToken, files(id, name)", pageSize=1000,
+            orderBy="createdTime desc",  # se houver duas fotos com o mesmo nome, vale a mais nova
             pageToken=pagina, supportsAllDrives=True, includeItemsFromAllDrives=True,
         ).execute()
         for f in r.get("files", []):
             nome = f["name"]
             if nome.lower().endswith(".jpg"):
-                mapa[nome[:-4]] = f["id"]
+                mapa.setdefault(nome[:-4], f["id"])
         pagina = r.get("nextPageToken")
         if not pagina:
             break
@@ -3369,7 +3370,7 @@ def coordenador_foto():
             service = get_drive_service()
             r = service.files().list(
                 q=f"'{_pasta_fotos_coordenadores(service)}' in parents and name = '{alvo.replace(chr(39), '').replace(chr(92), '')}.jpg' and trashed = false",
-                fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True,
+                fields="files(id)", orderBy="createdTime desc", supportsAllDrives=True, includeItemsFromAllDrives=True,
             ).execute()
             achados = r.get("files", [])
             if achados:
