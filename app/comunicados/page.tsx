@@ -1,5 +1,6 @@
 "use client";
 
+import { usePerfil } from "@/lib/usePerfil";
 import { useCallback, useEffect, useState } from "react";
 import { TituloPagina, Indicador } from "@/components/TituloPagina";
 import { apiDelete, apiGet, apiPost, apiPut, Comunicado, EnvioEmail, LeituraComunicado, ResumoEnvio, ROTULO_PAPEL } from "@/lib/api";
@@ -42,6 +43,7 @@ type Contagem = Record<ChaveContagem, { com_email: number; sem_email: number }> 
 type Envio = { id: string; resumo: ResumoEnvio };
 
 export default function ComunicadosPage() {
+  const { carregando: carregandoPerfil } = usePerfil(); // a faixa do título só aparece com o perfil: o conteúdo espera por ela
   const [itens, setItens] = useState<Comunicado[] | null>(null);
   const [podeEnviar, setPodeEnviar] = useState(false);
   const [novos, setNovos] = useState<Set<string>>(new Set()); // os que eram novos quando a página abriu
@@ -387,9 +389,9 @@ export default function ComunicadosPage() {
 
         {/* Lista */}
         <div className="mt-6 space-y-2">
-          {itens === null && <div className="h-28 animate-pulse rounded-xl bg-black/[0.05]" aria-label="Carregando" />}
+          {(itens === null || carregandoPerfil) && <div className="h-28 animate-pulse rounded-xl bg-black/[0.05]" aria-label="Carregando" />}
 
-          {itens !== null && itens.length === 0 && !erro && (
+          {itens !== null && !carregandoPerfil && itens.length === 0 && !erro && (
             <div className="rounded-2xl border border-dashed border-black/15 bg-[#FBFAFF] px-4 py-10 text-center">
               <svg aria-hidden="true" viewBox="0 0 240 150" className="mx-auto h-36 w-auto">
                 <ellipse cx="110" cy="112" rx="78" ry="26" fill="#EDE7FA" />
@@ -412,7 +414,7 @@ export default function ComunicadosPage() {
             </div>
           )}
 
-          {itens !== null && itens.length > 1 && (
+          {itens !== null && !carregandoPerfil && itens.length > 1 && (
             <div className="flex justify-end gap-3 text-sm font-semibold text-brand-light">
               <button type="button" onClick={() => setAbertos(new Set(itens.map((c) => c.id)))} className="hover:underline">Expandir todos</button>
               <span className="text-black/20" aria-hidden="true">|</span>
@@ -420,7 +422,7 @@ export default function ComunicadosPage() {
             </div>
           )}
 
-          {itens?.map((c) => {
+          {(carregandoPerfil ? null : itens)?.map((c) => {
             const ehNovo = novos.has(c.id);
             const aberto = abertos.has(c.id);
             const soSecretarios = c.para_secretarios && !c.para_coordenadores && !c.para_apoiadores;

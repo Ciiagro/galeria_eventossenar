@@ -26,6 +26,10 @@ export function TituloPagina({
   const links = montarLinks(perfil);
   const indice = carregando ? -1 : links.findIndex((l) => linkAtivo(l, pathname));
 
+  if (carregando) {
+    return <div aria-hidden="true" className={`h-[76px] animate-pulse rounded-2xl bg-black/[0.05] ${className}`} />;
+  }
+
   if (indice < 0) {
     return (
       <div className={`flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between ${className}`}>
