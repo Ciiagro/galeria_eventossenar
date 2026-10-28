@@ -42,10 +42,17 @@ export function TituloPagina({
   const cor = corDoItem(indice);
   return (
     <div
-      className={`flex flex-col gap-3 rounded-2xl px-4 py-3 sm:flex-row sm:items-center sm:justify-between ${className}`}
+      className={`relative flex flex-col gap-3 overflow-hidden rounded-2xl px-4 py-3.5 sm:flex-row sm:items-center sm:justify-between ${className}`}
       style={{ background: cor.fundo }}
     >
-      <div className="flex min-w-0 items-center gap-3">
+      {/* enfeite: três traços coloridos no canto e um brilho suave */}
+      <svg aria-hidden="true" viewBox="0 0 64 64" className="pointer-events-none absolute -right-1 -top-1 hidden h-16 w-16 opacity-80 sm:block">
+        <path d="M30 12 L40 4" stroke="#FFB300" strokeWidth="5" strokeLinecap="round" />
+        <path d="M42 26 L55 16" stroke="#FF7A45" strokeWidth="5" strokeLinecap="round" />
+        <path d="M44 42 L52 34" stroke="#3DBE8B" strokeWidth="5" strokeLinecap="round" />
+      </svg>
+      <span aria-hidden="true" className="pointer-events-none absolute -bottom-10 left-1/3 h-24 w-24 rounded-full bg-white/40 blur-2xl" />
+      <div className="relative flex min-w-0 items-center gap-3">
         <span
           className="flex h-11 w-11 shrink-0 items-center justify-center rounded-xl shadow-sm"
           style={{ background: cor.barra, color: cor.sobre }}
@@ -58,7 +65,7 @@ export function TituloPagina({
           {descricao && <p className="mt-0.5 max-w-2xl text-sm text-brand-dark/75">{descricao}</p>}
         </div>
       </div>
-      {acao && <div className="shrink-0">{acao}</div>}
+      {acao && <div className="relative shrink-0 sm:mr-8">{acao}</div>}
     </div>
   );
 }

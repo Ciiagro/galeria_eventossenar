@@ -390,9 +390,26 @@ export default function ComunicadosPage() {
           {itens === null && <div className="h-28 animate-pulse rounded-xl bg-black/[0.05]" aria-label="Carregando" />}
 
           {itens !== null && itens.length === 0 && !erro && (
-            <p className="rounded-xl border border-dashed border-black/15 px-4 py-10 text-center text-sm text-brand-dark/70">
-              {podeEnviar ? "Você ainda não enviou nenhum comunicado. Clique em “Novo comunicado” para começar." : "Nenhum comunicado por enquanto."}
-            </p>
+            <div className="rounded-2xl border border-dashed border-black/15 bg-[#FBFAFF] px-4 py-10 text-center">
+              <svg aria-hidden="true" viewBox="0 0 240 150" className="mx-auto h-36 w-auto">
+                <ellipse cx="110" cy="112" rx="78" ry="26" fill="#EDE7FA" />
+                <path d="M150 38 L205 14 L184 62 L168 50 Z" fill="#FFC83D" />
+                <path d="M150 38 L168 50 L162 66 Z" fill="#F5A300" />
+                <path d="M118 62 C132 54 144 52 150 42" stroke="#9AA4C7" strokeWidth="2" strokeDasharray="4 5" fill="none" strokeLinecap="round" />
+                <rect x="58" y="62" width="104" height="66" rx="10" fill="#7E57C9" />
+                <rect x="70" y="46" width="80" height="52" rx="6" fill="#F4F0FF" />
+                <rect x="82" y="58" width="42" height="7" rx="3.5" fill="#CFC4EE" />
+                <rect x="82" y="72" width="56" height="7" rx="3.5" fill="#E0D8F6" />
+                <path d="M58 72 L110 106 L162 72 L162 122 Q162 128 156 128 L64 128 Q58 128 58 122 Z" fill="#6A44B8" />
+                <path d="M58 72 L110 104 L162 72" stroke="#9272DA" strokeWidth="3" fill="none" strokeLinejoin="round" />
+                <path d="M34 78 L44 84 M30 98 L42 98 M40 54 L48 64" stroke="#7E57C9" strokeWidth="3.5" strokeLinecap="round" />
+                <path d="M176 92 L186 88 M178 106 L190 108" stroke="#7E57C9" strokeWidth="3.5" strokeLinecap="round" />
+              </svg>
+              <p className="mt-2 text-lg font-bold text-brand-dark">
+                {podeEnviar ? "Você ainda não enviou nenhum comunicado." : "Nenhum comunicado por enquanto."}
+              </p>
+              {podeEnviar && <p className="mt-1 text-sm text-brand-dark/70">Clique em “Novo comunicado” para começar.</p>}
+            </div>
           )}
 
           {itens !== null && itens.length > 1 && (

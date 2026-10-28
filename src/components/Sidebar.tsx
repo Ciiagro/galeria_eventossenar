@@ -155,7 +155,7 @@ export function Sidebar() {
                 style={active ? { background: `${cor}22`, color: "#1B1B2F" } : undefined}
               >
                 {active && <span className="absolute -left-4 top-1 bottom-1 w-1 rounded-r-full" style={{ background: cor }} aria-hidden />}
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={active ? { background: cor, color: "#fff" } : { color: cor }}>
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={active ? { background: cor, color: "#fff" } : { background: `${cor}1F`, color: cor }}>
                   <Icon className="h-[18px] w-[18px]" />
                 </span>
                 {label}
