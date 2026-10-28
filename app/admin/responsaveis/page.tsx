@@ -224,6 +224,17 @@ function ResponsaveisPage() {
     }
   }
 
+  type DadosSindicato = Record<string, string | null> & { nome: string };
+  const [sindicatoVista, setSindicatoVista] = useState<DadosSindicato | null>(null);
+  async function verSindicato(municipioId: number) {
+    setErro(null);
+    try {
+      setSindicatoVista(await apiGet(`/api/admin/municipio-sindicato?municipio_id=${municipioId}`));
+    } catch (e) {
+      setErro(e instanceof Error ? e.message : "Não foi possível abrir os dados do sindicato.");
+    }
+  }
+
   async function verCompromisso(id: string) {
     setErro(null);
     try {
@@ -396,6 +407,7 @@ ${tabelaEscolas}
       { rotulo: "Substituir coordenador", oculto: !idResp, onClick: () => { setDetalheId(null); substituirCoordenador(municipio.id); } },
       { rotulo: ativo ? "Desativar acesso" : "Ativar acesso", oculto: !idResp, onClick: () => alternarAtivo(idResp, municipio.responsavel_nome ?? "este coordenador", !ativo) },
       { rotulo: x?.compromisso_em ? "Ver termo de compromisso" : "Ver termo de compromisso (prévia)", oculto: !idResp, onClick: () => verCompromisso(idResp) },
+      { rotulo: "Ver sindicato e presidente", onClick: () => verSindicato(municipio.id) },
       { rotulo: "Ver termo de adesão", oculto: !x?.adesao_id, onClick: () => window.open(`/admin/termo-adesao/${x?.adesao_id}`, "_blank") },
       { rotulo: "Enviar termo de compromisso por e-mail", oculto: !idResp || Boolean(x?.compromisso_em), onClick: () => enviarTermo(idResp, municipio.responsavel_nome ?? "este coordenador") },
       { rotulo: "Excluir", perigo: true, onClick: () => { setDetalheId(null); excluir(municipio.id); } },
@@ -404,8 +416,32 @@ ${tabelaEscolas}
 
   const trocaAtiva = Boolean(municipioSelecionado?.responsavel_id) && (substituindo || sit(municipioSelecionado?.responsavel_id)?.ativo === false);
 
+  const linhaSind = (rotulo: string, ...valores: (string | null | undefined)[]) => {
+    const v = valores.filter(Boolean).join(" · ");
+    return v ? (<div className="flex flex-col gap-0.5 border-b border-black/5 py-2 sm:flex-row sm:gap-3"><span className="w-40 shrink-0 text-xs font-semibold uppercase tracking-wide text-brand-dark/60">{rotulo}</span><span className="text-sm text-brand-dark [overflow-wrap:anywhere]">{v}</span></div>) : null;
+  };
+
   return (
     <div className="p-3 sm:p-5">
+      {sindicatoVista && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setSindicatoVista(null)}>
+          <div className="max-h-[85vh] w-full max-w-xl overflow-y-auto rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-2 flex items-center justify-between">
+              <h3 className="text-lg font-bold text-brand-dark">{sindicatoVista.nome}</h3>
+              <button type="button" onClick={() => setSindicatoVista(null)} className="rounded-lg px-2 py-1 text-lg leading-none text-brand-dark/60 hover:bg-black/5" aria-label="Fechar">×</button>
+            </div>
+            {linhaSind("Região FAEC", sindicatoVista.regiao_faec)}
+            {linhaSind("Região Sebrae", sindicatoVista.regiao_sebrae)}
+            {linhaSind("Sindicato rural", sindicatoVista.sindicato_nome)}
+            {linhaSind("Presidente", sindicatoVista.presidente_nome)}
+            {linhaSind("Telefones", sindicatoVista.telefone1, sindicatoVista.telefone2)}
+            {linhaSind("E-mails", sindicatoVista.email1, sindicatoVista.email2, sindicatoVista.email3, sindicatoVista.email4)}
+            {linhaSind("Vice-presidente", sindicatoVista.vice_presidente_texto, sindicatoVista.telefone_vice_presidente, sindicatoVista.email_vice_presidente)}
+            {linhaSind("Secretário(a)", sindicatoVista.secretario_nome)}
+            {!sindicatoVista.presidente_nome && !sindicatoVista.sindicato_nome && <p className="py-3 text-sm text-brand-dark/70">Este município não tem sindicato ou presidente cadastrado.</p>}
+          </div>
+        </div>
+      )}
       <div className="rounded-2xl border border-black/5 bg-white p-4 shadow-sm sm:p-5">
         <TituloPagina
           descricao="Escolha um município e crie o acesso do Coordenador Geral por Município."

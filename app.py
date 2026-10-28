@@ -4919,6 +4919,39 @@ def coordenadores_situacao():
         return jsonify({"error": str(e)}), 500
 
 
+@app.get("/api/admin/municipio-sindicato")
+def municipio_sindicato():
+    """Só o administrador: região, sindicato rural e presidente (com contatos) de um município."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    try:
+        municipio_id = int(request.args.get("municipio_id") or 0)
+    except ValueError:
+        municipio_id = 0
+    if not municipio_id:
+        return jsonify({"error": "municipio_id é obrigatório."}), 400
+    try:
+        db = get_client()
+        campos = ("nome, regiao_faec, regiao_sebrae, presidente_nome, vice_presidente_texto, telefone_vice_presidente, "
+                  "email_vice_presidente, secretario_nome, telefone1, telefone2, email1, email2, email3, email4")
+        mun = (db.table("municipios").select(campos).eq("id", municipio_id).limit(1).execute().data or [None])[0]
+        if not mun:
+            return jsonify({"error": "Município não encontrado."}), 404
+        try:
+            sind = (db.table("vw_municipio_sindicato").select("sindicato_nome").eq("municipio_id", municipio_id).limit(1).execute().data or [{}])[0]
+            mun["sindicato_nome"] = sind.get("sindicato_nome")
+        except Exception as e_sind:  # noqa: BLE001
+            print(f"[sindicato] {e_sind}")
+            mun["sindicato_nome"] = None
+        return jsonify(mun)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
 @app.get("/api/admin/coordenadores-historico")
 def coordenadores_historico():
     """Todos os coordenadores que já passaram por um município (o atual e os desativados), do mais novo para o mais antigo."""
