@@ -243,7 +243,7 @@ export default function ComunicadosPage() {
   }
 
   const descricao = podeEnviar
-    ? "Envie avisos para coordenadores, equipe de apoio e secretários de educação. Todos recebem por e-mail; coordenadores e equipe de apoio também veem aqui no sistema."
+    ? "Envie avisos por e-mail para coordenadores, equipe de apoio e secretários."
     : "Avisos da coordenação do projeto. O que for novo aparece marcado.";
 
   const progresso = envio && envio.resumo.total > 0 ? Math.round(((envio.resumo.enviados + envio.resumo.erros) / envio.resumo.total) * 100) : 0;
