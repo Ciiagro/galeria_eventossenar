@@ -920,18 +920,45 @@ ${tabelaEscolas}
                   </ul>
                 </div>
               )}
-              <div className="mt-5 flex flex-wrap gap-2">
-                <button type="button" onClick={() => imprimirFicha(m)}
-                  className="rounded-lg border border-brand-light px-4 py-2 text-sm font-semibold text-brand-light hover:bg-brand-light/5">
-                  🖨 Imprimir ficha
-                </button>
-                {acoesDe(m).filter((i) => !i.oculto).map((i) => (
-                  <button key={i.rotulo} type="button" onClick={i.onClick}
-                    className={`rounded-lg px-4 py-2 text-sm font-semibold ${i.perigo ? "border border-red-300 text-red-700 hover:bg-red-50" : "bg-brand-light text-white hover:bg-brand-accent"}`}>
-                    {i.rotulo}
-                  </button>
-                ))}
-              </div>
+              {(() => {
+                const todas = acoesDe(m).filter((i) => !i.oculto);
+                const docs = todas.filter((i) => i.rotulo.startsWith("Ver "));
+                const cuidado = todas.filter((i) => i.perigo || /acesso$/.test(i.rotulo));
+                const principais = todas.filter((i) => !docs.includes(i) && !cuidado.includes(i));
+                const claro = "flex items-center justify-center rounded-xl border border-black/10 bg-white px-3 py-2.5 text-center text-sm font-semibold text-brand-dark transition hover:border-brand-light/50 hover:bg-[#F3FAF6]";
+                return (
+                  <div className="mt-6 space-y-4">
+                    <div>
+                      <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-dark/55">Documentos</p>
+                      <div className="grid gap-2 sm:grid-cols-2">
+                        <button type="button" onClick={() => imprimirFicha(m)} className={claro}>🖨 Imprimir ficha</button>
+                        {docs.map((i) => (
+                          <button key={i.rotulo} type="button" onClick={i.onClick} className={claro}>{i.rotulo}</button>
+                        ))}
+                      </div>
+                    </div>
+                    {principais.length > 0 && (
+                      <div>
+                        <p className="mb-2 text-xs font-bold uppercase tracking-wide text-brand-dark/55">Coordenador</p>
+                        <div className="flex flex-wrap gap-2">
+                          {principais.map((i) => (
+                            <button key={i.rotulo} type="button" onClick={i.onClick}
+                              className="rounded-xl bg-brand-light px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-accent">{i.rotulo}</button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                    {cuidado.length > 0 && (
+                      <div className="flex flex-wrap justify-end gap-2 border-t border-black/5 pt-4">
+                        {cuidado.map((i) => (
+                          <button key={i.rotulo} type="button" onClick={i.onClick}
+                            className={`rounded-xl border px-4 py-2 text-sm font-semibold transition ${i.perigo ? "border-red-300 text-red-700 hover:bg-red-50" : "border-amber-300 text-amber-800 hover:bg-amber-50"}`}>{i.rotulo}</button>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                );
+              })()}
             </div>
           </div>
         );
