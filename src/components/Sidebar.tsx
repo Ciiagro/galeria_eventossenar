@@ -137,7 +137,7 @@ export function Sidebar() {
         )}
 
         {/* menu: cada item com uma cor do programa */}
-        <nav className="mt-3 space-y-0.5" aria-label="Menu principal">
+        <nav className={`${perfil?.role === "admin" ? "mt-3" : "mt-[12vh]"} space-y-0.5`} aria-label="Menu principal">
           {aguardandoPerfil && (
             <div aria-hidden="true" className="space-y-1.5 pt-1">
               {[0, 1, 2, 3, 4].map((n) => <div key={n} className="h-9 animate-pulse rounded-xl bg-black/[0.06]" />)}
