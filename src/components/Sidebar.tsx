@@ -137,7 +137,8 @@ export function Sidebar() {
         )}
 
         {/* menu: cada item com uma cor do programa */}
-        <nav className={`${perfil?.role === "admin" ? "mt-3" : "mt-[12vh]"} space-y-0.5`} aria-label="Menu principal">
+        <div className="flex flex-1 flex-col justify-center py-2">
+        <nav className="space-y-0.5" aria-label="Menu principal">
           {aguardandoPerfil && (
             <div aria-hidden="true" className="space-y-1.5 pt-1">
               {[0, 1, 2, 3, 4].map((n) => <div key={n} className="h-9 animate-pulse rounded-xl bg-black/[0.06]" />)}
@@ -199,6 +200,7 @@ export function Sidebar() {
           </span>
           Sair
         </button>
+        </div>
 
         {/* pé da lateral: crianças na grama (só aparece em telas altas) e a marca da FAEC */}
         <div className="mt-auto pt-2">
