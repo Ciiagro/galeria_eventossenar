@@ -61,17 +61,17 @@ export function MenuAcoes({ itens, rotulo }: { itens: ItemMenu[]; rotulo: string
           e.stopPropagation();
           if (pos) return setPos(null);
           const r = botao.current?.getBoundingClientRect();
-          if (r) setPos({ x: Math.max(8, r.right - 240), y: r.bottom + 4 });
+          if (r) setPos({ x: Math.max(8, r.right - 310), y: r.bottom + 4 });
         }}
         className="inline-flex h-9 w-9 items-center justify-center rounded-lg bg-black/[0.04] text-lg font-bold leading-none text-brand-dark hover:bg-black/10">
         ⋮
       </button>
       {pos &&
-        createPortal(<div role="menu" style={{ position: "fixed", left: pos.x, top: pos.y, width: 240, zIndex: 9999, background: "#ffffff", opacity: 1 }}
+        createPortal(<div role="menu" style={{ position: "fixed", left: pos.x, top: pos.y, width: 310, zIndex: 9999, background: "#ffffff", opacity: 1 }}
           className="overflow-hidden rounded-xl border border-black/10 py-1 shadow-xl" onClick={(e) => e.stopPropagation()}>
           {visiveis.map((i) => (
             <button key={i.rotulo} role="menuitem" type="button" onClick={() => { setPos(null); i.onClick(); }}
-              className={`block w-full whitespace-nowrap px-4 py-2.5 text-left text-sm font-medium leading-5 hover:bg-black/5 ${i.perigo ? "text-status-pendente" : "text-brand-dark"}`}>
+              className={`block w-full px-4 py-2.5 text-left text-sm font-medium leading-5 hover:bg-black/5 ${i.perigo ? "text-status-pendente" : "text-brand-dark"}`}>
               {i.rotulo}
             </button>
           ))}
