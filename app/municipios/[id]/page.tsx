@@ -453,7 +453,7 @@ function CartaoDocumento({
   const ehDoc = ehDocumentoPdf(doc); // Documento (PDF): não passa por aprovação
 
   return (
-    <article className="rounded-xl border border-black/5 bg-white p-3 sm:p-4 transition-shadow hover:shadow-sm">
+    <article className="rounded-xl border border-black/25 bg-white shadow-sm p-3 sm:p-4 transition-shadow hover:shadow-md">
       <div className="flex flex-col sm:flex-row gap-4">
         {/* a imagem de prévia é só para ações (vídeo/imagem); documentos PDF mostram só o botão de abrir */}
         {!ehDoc && <Miniatura doc={doc} onClick={temArquivo ? onVisualizar : undefined} />}

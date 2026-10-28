@@ -615,7 +615,7 @@ function CartaoDocumento(p: CartaoProps) {
       ref={p.refFn}
       onClick={p.onSelecionar}
       className={`relative rounded-xl border bg-white transition-shadow ${compacto ? "p-2.5" : "p-3 sm:p-4"} ${
-        p.selecionado ? "border-brand-light/40 ring-2 ring-brand-light/20 shadow-md" : "border-black/5 hover:shadow-sm"
+        p.selecionado ? "border-brand-light/40 ring-2 ring-brand-light/20 shadow-md" : "border-black/25 shadow-sm hover:shadow-md"
       }`}
     >
       <div className={compacto ? "flex gap-3" : "flex flex-col sm:flex-row gap-4"}>

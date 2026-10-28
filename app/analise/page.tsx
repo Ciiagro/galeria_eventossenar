@@ -355,7 +355,7 @@ function CartaoAnalise({
   const travado = Boolean(doc.analise_status) && !alterando;
 
   return (
-    <article className="rounded-xl border border-black/5 bg-white p-3 transition-shadow hover:shadow-sm sm:p-4">
+    <article className="rounded-xl border border-black/25 bg-white shadow-sm p-3 transition-shadow hover:shadow-md sm:p-4">
       <div className="flex flex-col gap-4 sm:flex-row">
         {!ehDocumentoPdf(doc) && <Miniatura doc={doc} onClick={temArquivo ? onVisualizar : undefined} />}
 
