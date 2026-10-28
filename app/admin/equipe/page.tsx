@@ -121,8 +121,10 @@ function EquipePage() {
     // só os contemplados; os que a pessoa já tem marcados continuam na lista para poderem ser desmarcados
     const visiveis =
       contemplados instanceof Set ? municipios.filter((m) => contemplados.has(m.id) || escolhidos.has(m.id)) : municipios;
-    return termo ? visiveis.filter((m) => semAcento(m.nome).includes(termo)) : visiveis;
-  }, [municipios, buscaMunicipio, contemplados, escolhidos]);
+    // os que já são de outro Apoiador de Relatórios não aparecem mais
+    const livres = visiveis.filter((m) => !ocupadosRelatorios.has(m.id) || escolhidos.has(m.id));
+    return termo ? livres.filter((m) => semAcento(m.nome).includes(termo)) : livres;
+  }, [municipios, buscaMunicipio, contemplados, escolhidos, ocupadosRelatorios]);
 
   // pesquisa por nome, e-mail, função (visitas/relatórios) ou município
   const equipeFiltrada = useMemo(() => {
