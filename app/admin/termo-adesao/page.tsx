@@ -253,15 +253,15 @@ function TermoAdesao() {
                   <div className="min-w-0">
                     <p className="text-lg font-bold text-brand-dark leading-snug">{a.municipio_nome ?? "Município não escolhido"}</p>
                     <p className="text-sm text-brand-dark/75">
-                      {a.coordenador_nome ?? "—"}{a.coordenador_telefone ? ` · ${a.coordenador_telefone}` : ""}{a.coordenador_email ? ` · ${a.coordenador_email}` : ""}
+                      {a.coordenador_nome ?? "—"}
                     </p>
                     <p className="text-xs text-brand-dark/60 mt-0.5">
-                      {a.total_escolas_informado ?? 0} escola(s) · {a.total_professores_informado ?? 0} professor(es) · enviada em {dataBr(a.enviada_em)}
+                      {a.total_escolas_informado ?? 0} escolas · {a.total_professores_informado ?? 0} professores · {dataBr(a.enviada_em)}
                     </p>
                   </div>
                 </button>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
-                  <span className={`${SELO} w-44`}
+                  <span className={`${SELO} w-32`}
                     title={faltaParaValer(a).length > 0 ? `Falta: ${faltaParaValer(a).join("; ")}` : undefined}
                     style={a.status === "rascunho" && a.observacao_admin ? { background: "#FFE8D9", color: "#8A2A00" } : faltaParaValer(a).length > 0 ? { background: "#FFF3CC", color: "#6E4B00" } : { background: r.fundo, color: r.cor }}>
                     {a.status === "rascunho" && a.observacao_admin ? "Devolvida para correção" : faltaParaValer(a).length > 0 ? "Pendente" : r.texto}
@@ -270,15 +270,15 @@ function TermoAdesao() {
                     a.compromisso_assinado_em && a.coordenador_id ? (
                       <button type="button"
                         onClick={() => apiAbrirArquivo(`/api/compromisso/arquivo?user_id=${a.coordenador_id}`).catch((e) => setErro(e.message))}
-                        className={`${SELO} min-w-[7rem] cursor-pointer underline-offset-2 hover:underline`}
+                        className={`${SELO} min-w-[6rem] cursor-pointer underline-offset-2 hover:underline`}
                         title={`Abrir o termo de compromisso assinado em ${new Date(a.compromisso_assinado_em).toLocaleDateString("pt-BR")} (PDF)`}
                         style={{ background: "#E3F4EA", color: "#17613B" }}>
-                        ✓ Compromisso assinado
+                        ✓ Compromisso
                       </button>
                     ) : (
-                      <span className={`${SELO} min-w-[7rem]`} title="O coordenador ainda não assinou o termo de compromisso"
+                      <span className={`${SELO} min-w-[6rem]`} title="O coordenador ainda não assinou o termo de compromisso"
                         style={{ background: "#FFF3CC", color: "#6E4B00" }}>
-                        Compromisso: falta assinar
+                        Compromisso pendente
                       </span>
                     )
                   )}
@@ -289,13 +289,13 @@ function TermoAdesao() {
                   )}
                   {a.status !== "rascunho" && !(a.assinatura?.status === "pendente" && !a.termo_assinado_nome) && (
                     <span className="group relative">
-                      <span className={`${SELO} min-w-[7rem] cursor-help`}
+                      <span className={`${SELO} min-w-[6rem] cursor-help`}
                         style={a.termo_assinado_nome ? { background: "#E3F4EA", color: "#17613B" } : { background: "#EFEDE4", color: "#4A453A" }}>
                         {a.termo_assinado_nome
                           ? (a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0
-                              ? `✓ Adesão assinada (${PAPEIS_DO_TERMO.length - faltamPorEmail(a).length} de ${PAPEIS_DO_TERMO.length})`
-                              : "✓ Adesão assinada")
-                          : "Adesão sem assinatura"}
+                              ? `✓ Adesão ${PAPEIS_DO_TERMO.length - faltamPorEmail(a).length}/${PAPEIS_DO_TERMO.length}`
+                              : "✓ Adesão")
+                          : "Adesão pendente"}
                       </span>
                       {a.termo_assinado_nome && a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0 && (
                         <span className="pointer-events-none absolute right-0 top-full z-30 mt-1 hidden w-72 rounded-xl border border-black/10 bg-white p-3 text-left text-xs leading-relaxed text-brand-dark shadow-xl group-hover:block">
