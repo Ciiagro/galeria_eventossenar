@@ -2,8 +2,8 @@ import type { Documento } from "@/lib/api";
 import { CheckIcon, AlertIcon } from "@/components/icons";
 
 const ORIGEM: Record<string, string> = {
-  visita: "Visita",
-  apoio_relatorios: "Apoio de relatórios",
+  visita: "Apoiador de Visitas",
+  apoio_relatorios: "Apoiador de Relatórios",
 };
 
 function dataHora(texto: string) {
