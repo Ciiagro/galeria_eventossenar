@@ -98,8 +98,17 @@ export default function MunicipioDetalhePage() {
       .catch(() => null);
   }, [id]);
   const escolasDisponiveis = useMemo(
-    () => Array.from(new Map((documentos ?? []).filter((d) => d.escolas?.nome).map((d) => [d.escola_id, d.escolas!.nome])).entries()),
-    [documentos]
+    () => {
+      const m = new Map<string, string>();
+      for (const d of documentos ?? []) {
+        for (const eid of idsEscolasDoc(d)) {
+          const nome = nomesEscolas[eid] ?? (String(d.escola_id) === eid ? d.escolas?.nome : undefined);
+          if (nome) m.set(eid, nome);
+        }
+      }
+      return Array.from(m.entries()).sort((a, b) => a[1].localeCompare(b[1]));
+    },
+    [documentos, nomesEscolas]
   );
 
   // ---------- filtragem ----------
@@ -109,13 +118,13 @@ export default function MunicipioDetalhePage() {
       (documentos ?? []).filter(
         (d) =>
           ehDocumentoPdf(d) === (grupo === "documento") &&
-          (!filtroEscola || d.escola_id === filtroEscola) &&
+          (!filtroEscola || idsEscolasDoc(d).includes(String(filtroEscola))) &&
           (!filtroAcao || d.acao_pedagogica_id === filtroAcao) &&
           (!filtroTipo || d.tipo_id === filtroTipo) &&
           noCicloEMes(d, filtroCiclo, ciclos, filtroMes) &&
-          correspondeBusca(d, busca)
+          correspondeBusca(d, busca, nomesEscolas)
       ),
-    [documentos, grupo, filtroEscola, filtroAcao, filtroTipo, filtroCiclo, ciclos, filtroMes, busca]
+    [documentos, grupo, filtroEscola, filtroAcao, filtroTipo, filtroCiclo, ciclos, filtroMes, busca, nomesEscolas]
   );
 
   const totalPorGrupo = useMemo(() => ({
@@ -547,7 +556,14 @@ function CartaoDocumento({
   );
 }
 
-function correspondeBusca(doc: Documento, busca: string) {
+function idsEscolasDoc(d: Documento): string[] {
+  const ids = new Set<string>();
+  if (d.escola_id != null && d.escola_id !== "") ids.add(String(d.escola_id));
+  for (const i of d.escolas_ids ?? []) ids.add(String(i));
+  return Array.from(ids);
+}
+
+function correspondeBusca(doc: Documento, busca: string, nomesEscolas: Record<string, string> = {}) {
   const termo = normalizarTexto(busca.trim());
   if (!termo) return true;
   const campos = [
@@ -558,6 +574,7 @@ function correspondeBusca(doc: Documento, busca: string) {
     doc.finalidade,
     doc.responsavel_nome,
     doc.escolas?.nome,
+    ...idsEscolasDoc(doc).map((i) => nomesEscolas[i]),
     doc.tipos_documento?.nome,
     formatarData(doc.data_realizacao),
   ];
