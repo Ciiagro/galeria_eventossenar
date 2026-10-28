@@ -616,7 +616,7 @@ ${tabelaEscolas}
                         <Th className="text-right">Ações</Th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-black/5">
+                    <tbody className="divide-y divide-black/15">
                       {cadastrosFiltrados.slice((pagina - 1) * porPagina, pagina * porPagina).map((c) => {
                         const st = SITUACAO[c.adesao_status];
                         return (
@@ -625,7 +625,7 @@ ${tabelaEscolas}
                             const liberado = municipios.find((m) => m.responsavel_id === c.user_id);
                             if (liberado) setDetalheId(liberado.id); else setDetalheCad(c);
                           }} className="cursor-pointer hover:bg-[#F3FAF6]" title="Clique para ver todos os dados">
-                            <td className="px-3 py-3">
+                            <td className="px-4 py-[18px]">
                               <div className="flex items-center gap-3">
                                 <FotoCoordenador userId={c.user_id} nome={c.nome} />
                                 <div className="min-w-0">
@@ -634,19 +634,19 @@ ${tabelaEscolas}
                                 </div>
                               </div>
                             </td>
-                            <td className="px-3 py-3">
+                            <td className="px-4 py-[18px]">
                               <span className="block whitespace-nowrap text-brand-dark">{c.email}</span>
                               <span className="block whitespace-nowrap text-xs text-brand-dark/65">{c.telefone1 ?? "—"}</span>
                             </td>
-                            <td className="whitespace-nowrap px-3 py-3 font-medium">{c.municipio_nome ?? "—"}</td>
-                            <td className="px-3 py-3"><span className="inline-block whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold" style={{ background: st.fundo, color: st.cor }} title={`Adesão: ${st.texto}`}>{st.texto}</span></td>
-                            <td className="px-3 py-3">
+                            <td className="whitespace-nowrap px-4 py-[18px] font-medium">{c.municipio_nome ?? "—"}</td>
+                            <td className="px-4 py-[18px]"><span className="inline-block whitespace-nowrap rounded-full px-3 py-1 text-xs font-bold" style={{ background: st.fundo, color: st.cor }} title={`Adesão: ${st.texto}`}>{st.texto}</span></td>
+                            <td className="px-4 py-[18px]">
                               {sit(c.user_id)?.ativo === false
                                 ? <Pilula texto="Desativado" fundo="#F8E1DF" cor="#9B2C25" />
                                 : <Pilula texto="Ativo" fundo="#E3F4EA" cor="#17613B" />}
                             </td>
-                            <td className="whitespace-nowrap px-3 py-3 text-brand-dark/70">{dataCurta(c.cadastrado_em)}{diasParado(c.cadastrado_em, c.adesao_status) && <span className="block text-xs font-semibold text-[#9B5A00]">{diasParado(c.cadastrado_em, c.adesao_status)}</span>}</td>
-                            <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}>
+                            <td className="whitespace-nowrap px-4 py-[18px] text-brand-dark/70">{dataCurta(c.cadastrado_em)}{diasParado(c.cadastrado_em, c.adesao_status) && <span className="block text-xs font-semibold text-[#9B5A00]">{diasParado(c.cadastrado_em, c.adesao_status)}</span>}</td>
+                            <td className="px-4 py-[18px] text-right" onClick={(e) => e.stopPropagation()}>
                               <MenuAcoes rotulo={c.nome ?? "coordenador"} itens={[
                                 { rotulo: "Abrir termo de adesão", oculto: !(c.adesao_id && c.adesao_status !== "rascunho"), onClick: () => window.open(`/admin/termo-adesao/${c.adesao_id}`, "_blank") },
                                 { rotulo: "Desativar cadastro", onClick: () => desativarCadastro(c.user_id, c.nome ?? "este coordenador") },
@@ -683,10 +683,10 @@ ${tabelaEscolas}
                         <Th className="text-right">Ações</Th>
                       </tr>
                     </thead>
-                    <tbody className="divide-y divide-black/5">
+                    <tbody className="divide-y divide-black/15">
                       {desativados.map((d) => (
                         <tr key={d.user_id} className="hover:bg-[#F3FAF6]">
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-[18px]">
                             <div className="flex items-center gap-3">
                               <FotoCoordenador userId={d.user_id} nome={d.nome} />
                               <div className="min-w-0">
@@ -695,15 +695,15 @@ ${tabelaEscolas}
                               </div>
                             </div>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-[18px]">
                             <span className="block whitespace-nowrap text-brand-dark">{d.email}</span>
                             <span className="block whitespace-nowrap text-xs text-brand-dark/65">{d.telefone1 ?? "—"}</span>
                           </td>
-                          <td className="whitespace-nowrap px-3 py-3 font-medium">{d.municipio_nome ?? "—"}</td>
-                          <td className="px-3 py-3"><Pilula texto={d.substituido ? "Substituído" : "Desativado"} fundo="#F8E1DF" cor="#9B2C25" /></td>
-                          <td className="whitespace-nowrap px-3 py-3 text-brand-dark/70">{d.desativado_em ? dataCurta(d.desativado_em) : "—"}</td>
-                          <td className="whitespace-nowrap px-3 py-3 text-brand-dark/70">{d.created_at ? dataCurta(d.created_at) : "—"}</td>
-                          <td className="px-3 py-3 text-right">
+                          <td className="whitespace-nowrap px-4 py-[18px] font-medium">{d.municipio_nome ?? "—"}</td>
+                          <td className="px-4 py-[18px]"><Pilula texto={d.substituido ? "Substituído" : "Desativado"} fundo="#F8E1DF" cor="#9B2C25" /></td>
+                          <td className="whitespace-nowrap px-4 py-[18px] text-brand-dark/70">{d.desativado_em ? dataCurta(d.desativado_em) : "—"}</td>
+                          <td className="whitespace-nowrap px-4 py-[18px] text-brand-dark/70">{d.created_at ? dataCurta(d.created_at) : "—"}</td>
+                          <td className="px-4 py-[18px] text-right">
                             <MenuAcoes rotulo={d.nome ?? "coordenador"} itens={[
                               { rotulo: "Ver termo de compromisso", onClick: () => verCompromisso(d.user_id) },
                               { rotulo: "Ativar acesso", oculto: d.substituido, onClick: () => alternarAtivo(d.user_id, d.nome ?? "este coordenador", true) },
@@ -744,7 +744,7 @@ ${tabelaEscolas}
                       <Th className="text-right">Ações</Th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-black/5">
+                  <tbody className="divide-y divide-black/15">
                     {filtrados.slice((pagina - 1) * porPagina, pagina * porPagina).map((municipio) => {
                       const x = sit(municipio.responsavel_id);
                       const ativo = x?.ativo !== false;
@@ -752,7 +752,7 @@ ${tabelaEscolas}
                       return (
                         <tr key={municipio.id} onClick={() => setDetalheId(municipio.id)}
                           className={`cursor-pointer hover:bg-[#F3FAF6] ${ativo ? "" : "opacity-70"}`} title="Clique para ver todos os dados">
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-[18px]">
                             <div className="flex items-center gap-3">
                               <FotoCoordenador userId={idResp} nome={municipio.responsavel_nome} tamanho={44} />
                               <div className="min-w-0">
@@ -761,20 +761,20 @@ ${tabelaEscolas}
                               </div>
                             </div>
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-[18px]">
                             <span className="block whitespace-nowrap text-brand-dark">{municipio.responsavel_email}</span>
                             <span className="block whitespace-nowrap text-xs text-brand-dark/65">{x?.telefone1 || "—"}</span>
                           </td>
-                          <td className="whitespace-nowrap px-3 py-3 font-medium">{municipio.nome}</td>
-                          <td className="px-3 py-3">
+                          <td className="whitespace-nowrap px-4 py-[18px] font-medium">{municipio.nome}</td>
+                          <td className="px-4 py-[18px]">
                             {ativo ? <Pilula texto="Ativo" fundo="#E3F4EA" cor="#17613B" /> : <Pilula texto="Desativado" fundo="#F8E1DF" cor="#9B2C25" />}
                           </td>
-                          <td className="px-3 py-3">
+                          <td className="px-4 py-[18px]">
                             {x?.compromisso_em
                               ? <Pilula texto="Assinado" fundo="#E3F4EA" cor="#17613B" />
                               : <Pilula texto="Pendente" fundo="#FFF3CC" cor="#6E4B00" />}
                           </td>
-                          <td className="px-3 py-3 text-right" onClick={(e) => e.stopPropagation()}><MenuAcoes rotulo={municipio.responsavel_nome ?? municipio.nome} itens={acoesDe(municipio)} /></td>
+                          <td className="px-4 py-[18px] text-right" onClick={(e) => e.stopPropagation()}><MenuAcoes rotulo={municipio.responsavel_nome ?? municipio.nome} itens={acoesDe(municipio)} /></td>
                         </tr>
                       );
                     })}

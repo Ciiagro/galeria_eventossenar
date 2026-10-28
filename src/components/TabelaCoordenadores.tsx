@@ -11,7 +11,7 @@ export function Th({ col, ordem, onOrdem, children, className = "" }: {
 }) {
   const ativo = col && ordem?.col === col;
   return (
-    <th className={`px-3 py-3 text-sm font-bold text-brand-dark ${className}`} aria-sort={ativo ? (ordem!.dir === "asc" ? "ascending" : "descending") : undefined}>
+    <th className={`px-4 py-3.5 text-sm font-bold text-brand-dark ${className}`} aria-sort={ativo ? (ordem!.dir === "asc" ? "ascending" : "descending") : undefined}>
       {col && onOrdem ? (
         <button type="button" onClick={() => onOrdem({ col, dir: ativo && ordem!.dir === "asc" ? "desc" : "asc" })}
           className="group inline-flex items-center gap-1 text-sm font-bold normal-case tracking-normal text-brand-dark hover:text-brand-light">

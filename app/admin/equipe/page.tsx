@@ -354,14 +354,14 @@ function EquipePage() {
                       <Th className="text-right">Ações</Th>
                     </tr>
                   </thead>
-                  <tbody className="divide-y divide-black/5">
+                  <tbody className="divide-y divide-black/15">
                     {ordenar(equipeFiltrada, ordemTabela, (m, col) => col === "email" ? m.email ?? "" : col === "funcao" ? PAPEIS.find((p) => p.valor === m.role)?.titulo ?? "" : m.nome)
                       .slice((paginaTabela - 1) * POR_PAGINA_TABELA, paginaTabela * POR_PAGINA_TABELA)
                       .map((m) => {
                         const info = PAPEIS.find((p) => p.valor === m.role)!;
                         return (
                           <tr key={m.id} className="hover:bg-[#F3FAF6]">
-                            <td className="px-3 py-3">
+                            <td className="px-4 py-[18px]">
                               <div className="flex items-center gap-3">
                                 <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ background: info.fundo, color: info.cor }} aria-hidden="true">
                                   {iniciais(m.nome)}
@@ -369,16 +369,16 @@ function EquipePage() {
                                 <span className="block font-bold text-brand-dark">{m.nome}</span>
                               </div>
                             </td>
-                            <td className="whitespace-nowrap px-3 py-3 text-brand-dark">{m.email ?? "sem e-mail"}</td>
-                            <td className="px-3 py-3"><Pilula texto={info.titulo} fundo={info.fundo} cor={info.cor} /></td>
-                            <td className="px-3 py-3">
+                            <td className="whitespace-nowrap px-4 py-[18px] text-brand-dark">{m.email ?? "sem e-mail"}</td>
+                            <td className="px-4 py-[18px]"><Pilula texto={info.titulo} fundo={info.fundo} cor={info.cor} /></td>
+                            <td className="px-4 py-[18px]">
                               {m.role === "admin" ? (
                                 <span className="text-xs font-semibold text-brand-dark/70">Todos os municípios</span>
                               ) : (
                                 <MunicipiosDoApoiador ids={m.municipio_ids} nomes={nomes} />
                               )}
                             </td>
-                            <td className="px-3 py-3 text-right">
+                            <td className="px-4 py-[18px] text-right">
                               <MenuAcoes rotulo={m.nome} itens={[
                                 { rotulo: "Editar dados", onClick: () => editar(m) },
                                 { rotulo: "Excluir", perigo: true, onClick: () => excluir(m) },
