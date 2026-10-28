@@ -493,8 +493,12 @@ def resumo_dashboard():
             print(f"[resumo] função painel_resumo indisponível, usando modo lento: {erro_rpc}")
             dados = _resumo_lento(acao_id, ano, mes, ciclo_id)
 
-        resultado = _separar_documentos(_montar_resumo(dados), ano, mes, ciclo_id)
-        _contar_escolas_multiplas(resultado, ano, mes, ciclo_id, acao_id)
+        resultado = _montar_resumo(dados)
+        # as duas etapas mexem em partes diferentes do resultado e consultam o banco: rodam juntas
+        _em_paralelo(
+            lambda: _separar_documentos(resultado, ano, mes, ciclo_id),
+            lambda: _contar_escolas_multiplas(resultado, ano, mes, ciclo_id, acao_id),
+        )
         if len(_CACHE_RESUMO) > 100:
             _CACHE_RESUMO.clear()
         _CACHE_RESUMO[chave_resumo] = (time.time(), resultado)
@@ -517,7 +521,8 @@ def _contar_escolas_multiplas(resultado, ano, mes, ciclo_id, acao_id):
             ades = db.table("adesoes").select("id, municipio_id").eq("status", "aprovada").execute().data or []
             if ades:
                 por_ades = {a["id"]: a["municipio_id"] for a in ades}
-                vinc = fetch_all(lambda: db.table("adesao_escolas").select("adesao_id, escola_id").order("escola_id"))
+                ids_ades = list(por_ades)
+                vinc = fetch_all(lambda: db.table("adesao_escolas").select("adesao_id, escola_id").in_("adesao_id", ids_ades).order("escola_id"))
                 total_mun = {}
                 for v in vinc:
                     mid = por_ades.get(v["adesao_id"])
@@ -530,9 +535,14 @@ def _contar_escolas_multiplas(resultado, ano, mes, ciclo_id, acao_id):
                     resultado["indicadores"]["escolas_total"] = sum(m["escolas_total"] for m in resultado.get("municipios", []))
         except Exception as e:  # noqa: BLE001
             print(f"[resumo] não consegui usar as escolas da adesão: {e}")
-        docs = fetch_all(lambda: db.table("documentos").select(
-            "id, municipio_id, escola_id, escolas_ids, data_realizacao, ciclo_id, acao_pedagogica_id"
-        ).not_.is_("escolas_ids", "null").order("id"))
+        def _consulta_multiplos():
+            q = db.table("documentos").select(
+                "id, municipio_id, escola_id, escolas_ids, data_realizacao, ciclo_id, acao_pedagogica_id"
+            ).not_.is_("escolas_ids", "null")
+            if ciclo_id:
+                q = q.eq("ciclo_id", ciclo_id)
+            return q.order("id")
+        docs = fetch_all(_consulta_multiplos)
         if not docs:
             return
         lista = resultado.get("escolas_participantes_lista") or []
@@ -624,7 +634,12 @@ def _separar_documentos(resultado, ano, mes, ciclo_id):
         resultado["por_documento"] = []
         if not ids:
             return resultado
-        docs = fetch_all(lambda: db.table("documentos").select("id, subtipo, status, data_realizacao, ciclo_id").in_("acao_pedagogica_id", ids).order("id"))
+        def _consulta_pdf():
+            q = db.table("documentos").select("id, subtipo, status, data_realizacao, ciclo_id").in_("acao_pedagogica_id", ids)
+            if ciclo_id:
+                q = q.eq("ciclo_id", ciclo_id)
+            return q.order("id")
+        docs = fetch_all(_consulta_pdf)
 
         def no_periodo(d):
             data = d.get("data_realizacao") or ""
