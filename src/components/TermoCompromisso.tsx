@@ -39,6 +39,18 @@ export function TermoCompromisso({ onMudou }: { onMudou?: (assinado: boolean) =>
   }
   useEffect(() => { carregar(); }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
+  // o código sai sozinho ao abrir o termo (no máximo um a cada 10 minutos), para a pessoa só precisar digitar
+  useEffect(() => {
+    if (!estado || estado.assinado || estado.sem_edicao || !estado.texto) return;
+    let recente = false;
+    try {
+      const ultimo = Number(window.sessionStorage.getItem("codigo_compromisso_em") || 0);
+      recente = Date.now() - ultimo < 10 * 60 * 1000;
+      if (!recente) window.sessionStorage.setItem("codigo_compromisso_em", String(Date.now()));
+    } catch { /* sem armazenamento: envia mesmo assim */ }
+    if (!recente) pedirCodigo();
+  }, [estado?.assinado, estado?.sem_edicao]); // eslint-disable-line react-hooks/exhaustive-deps
+
   async function pedirCodigo() {
     setErro(null); setMsg(null); setOcupado(true);
     try {
@@ -132,35 +144,28 @@ export function TermoCompromisso({ onMudou }: { onMudou?: (assinado: boolean) =>
       ) : (
         <div className="space-y-3 rounded-2xl border border-black/10 bg-white p-4">
           <h3 className="text-base font-bold text-brand-dark">Assinar</h3>
-          <ol className="space-y-3 text-sm text-brand-dark">
-            <li>
-              <strong>1.</strong> Peça o código de confirmação. Ele chega no e-mail {estado.email_mascarado ? <strong>{estado.email_mascarado}</strong> : "do seu cadastro"}.
-              <div className="mt-2">
-                <button type="button" disabled={ocupado} onClick={pedirCodigo}
-                  className="rounded-lg border border-brand-light px-4 py-2 font-semibold text-brand-light hover:bg-brand-light/5 disabled:opacity-50">
-                  {codigoEnviado ? "Enviar um novo código" : "Enviar código para o meu e-mail"}
-                </button>
-              </div>
-            </li>
-            <li>
-              <strong>2.</strong> Digite o código{estado.precisa_cpf ? " e o seu CPF" : ""}, leia o termo acima e confirme.
-              <div className="mt-2 grid gap-2 sm:max-w-md sm:grid-cols-2">
-                <input inputMode="numeric" maxLength={6} placeholder="Código de 6 dígitos" value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))} className={CAMPO} aria-label="Código" />
-                {estado.precisa_cpf && (
-                  <input inputMode="numeric" placeholder="Seu CPF" value={cpf} onChange={(e) => setCpf(mascaraCpf(e.target.value))} className={CAMPO} aria-label="CPF" />
-                )}
-              </div>
-              <label className="mt-3 flex items-start gap-2">
-                <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={aceito} onChange={(e) => setAceito(e.target.checked)} />
-                <span>Li o termo de compromisso e concordo com todas as cláusulas.</span>
-              </label>
-              <button type="button" disabled={ocupado || codigo.replace(/\D/g, "").length !== 6} onClick={assinar}
-                className="mt-3 rounded-lg bg-brand-light px-5 py-2 font-semibold text-white shadow-sm hover:bg-brand-accent disabled:opacity-50"
-                title={codigo.replace(/\D/g, "").length !== 6 ? "Digite o código de 6 dígitos que chegou no e-mail" : undefined}>
-                {ocupado ? "Aguarde..." : "Assinar termo"}
-              </button>
-            </li>
-          </ol>
+          <p className="text-sm text-brand-dark">
+            Enviamos um código de 6 dígitos para o e-mail {estado.email_mascarado ? <strong>{estado.email_mascarado}</strong> : "do seu cadastro"}.
+            Digite o código abaixo, marque que leu e clique em assinar.{" "}
+            <button type="button" disabled={ocupado} onClick={pedirCodigo} className="font-semibold text-brand-light underline disabled:opacity-50">
+              Não chegou? Enviar de novo
+            </button>
+          </p>
+          <div className="grid gap-2 sm:max-w-md sm:grid-cols-2">
+            <input inputMode="numeric" maxLength={6} placeholder="Código de 6 dígitos" value={codigo} onChange={(e) => setCodigo(e.target.value.replace(/\D/g, ""))} className={CAMPO} aria-label="Código" />
+            {estado.precisa_cpf && (
+              <input inputMode="numeric" placeholder="Seu CPF" value={cpf} onChange={(e) => setCpf(mascaraCpf(e.target.value))} className={CAMPO} aria-label="CPF" />
+            )}
+          </div>
+          <label className="flex items-start gap-2 text-sm text-brand-dark">
+            <input type="checkbox" className="mt-0.5 h-4 w-4 shrink-0" checked={aceito} onChange={(e) => setAceito(e.target.checked)} />
+            <span>Li o termo de compromisso e concordo com todas as cláusulas.</span>
+          </label>
+          <button type="button" disabled={ocupado || codigo.replace(/\D/g, "").length !== 6} onClick={assinar}
+            className="rounded-lg bg-brand-light px-5 py-2 font-semibold text-white shadow-sm hover:bg-brand-accent disabled:opacity-50"
+            title={codigo.replace(/\D/g, "").length !== 6 ? "Digite o código de 6 dígitos que chegou no e-mail" : undefined}>
+            {ocupado ? "Aguarde..." : "Assinar termo"}
+          </button>
         </div>
       )}
     </div>
