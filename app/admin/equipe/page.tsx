@@ -106,6 +106,16 @@ function EquipePage() {
   }, [carregar]);
 
   const nomes = useMemo(() => new Map(municipios.map((m) => [m.id, m.nome])), [municipios]);
+  // município que já tem Apoiador de Relatórios (outra pessoa) não fica disponível para um novo
+  const ocupadosRelatorios = useMemo(() => {
+    const mapa = new Map<number, string>();
+    if (papel !== "apoiador_relatorios") return mapa;
+    for (const m of equipe ?? []) {
+      if (m.role !== "apoiador_relatorios" || m.id === editandoId) continue;
+      for (const id of m.municipio_ids) mapa.set(id, m.nome);
+    }
+    return mapa;
+  }, [equipe, papel, editandoId]);
   const municipiosFiltrados = useMemo(() => {
     const termo = semAcento(buscaMunicipio.trim());
     // só os contemplados; os que a pessoa já tem marcados continuam na lista para poderem ser desmarcados
@@ -283,15 +293,20 @@ function EquipePage() {
                   <input value={buscaMunicipio} onChange={(e) => setBuscaMunicipio(e.target.value)} placeholder="Buscar município..." className={`${CAMPO} pl-9`} />
                 </div>
                 <div className="grid max-h-64 gap-1 overflow-y-auto rounded-xl border border-black/10 bg-white p-2 sm:grid-cols-2 lg:grid-cols-3">
-                  {municipiosFiltrados.map((m) => (
-                    <label key={m.id} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${escolhidos.has(m.id) ? "bg-[#E2EFFB] font-semibold text-[#0F4C85]" : "hover:bg-black/[0.04]"}`}>
-                      <input type="checkbox" checked={escolhidos.has(m.id)} onChange={() => alternar(m.id)} className="h-4 w-4 accent-[#2678C4]" />
+                  {municipiosFiltrados.map((m) => {
+                    const dono = ocupadosRelatorios.get(m.id);
+                    const bloqueado = Boolean(dono) && !escolhidos.has(m.id);
+                    return (
+                    <label key={m.id} title={bloqueado ? `Já é do Apoiador de Relatórios ${dono}` : undefined} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${bloqueado ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${escolhidos.has(m.id) ? "bg-[#E2EFFB] font-semibold text-[#0F4C85]" : bloqueado ? "" : "hover:bg-black/[0.04]"}`}>
+                      <input type="checkbox" checked={escolhidos.has(m.id)} disabled={bloqueado} onChange={() => alternar(m.id)} className="h-4 w-4 accent-[#2678C4]" />
                       {m.nome}
+                      {bloqueado && <span className="text-xs font-normal text-brand-dark/70">(já com {dono})</span>}
                       {contemplados instanceof Set && !contemplados.has(m.id) && (
                         <span className="text-xs font-normal text-amber-800">(sem escolas no programa)</span>
                       )}
                     </label>
-                  ))}
+                    );
+                  })}
                   {contemplados === null && <p className="p-2 text-sm text-brand-dark/70">Carregando...</p>}
                   {contemplados !== null && municipiosFiltrados.length === 0 && (
                     <p className="p-2 text-sm text-brand-dark/70 sm:col-span-2 lg:col-span-3">

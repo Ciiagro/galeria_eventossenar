@@ -2414,6 +2414,18 @@ def salvar_usuario():
                 for r in db.table("perfil_municipios").select("municipio_id").eq("perfil_id", usuario_id).execute().data or []
             }
         novos = [m for m in municipio_ids if m not in atuais]
+        if role == "apoiador_relatorios" and municipio_ids:
+            # cada município fica com um único Apoiador de Relatórios
+            outros = db.table("perfis").select("id, nome").eq("role", "apoiador_relatorios").execute().data or []
+            outros = {o["id"]: o["nome"] for o in outros if str(o["id"]) != str(usuario_id or "")}
+            if outros:
+                linhas = db.table("perfil_municipios").select("perfil_id, municipio_id").in_("perfil_id", list(outros)).execute().data or []
+                ocupados = {int(l["municipio_id"]): outros[l["perfil_id"]] for l in linhas}
+                repetidos = [m for m in municipio_ids if m in ocupados]
+                if repetidos:
+                    m0 = repetidos[0]
+                    nome_m = (db.table("municipios").select("nome").eq("id", m0).limit(1).execute().data or [{}])[0].get("nome", m0)
+                    return jsonify({"error": f"O município {nome_m} já tem Apoiador de Relatórios ({ocupados[m0]}). Cada município fica com um só."}), 400
         if novos:
             contemplados = _municipios_contemplados(db)
             if any(m not in contemplados for m in novos):
