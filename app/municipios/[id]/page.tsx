@@ -324,7 +324,7 @@ export default function MunicipioDetalhePage() {
                   ))}
                 </select>
               )}
-              <select value={filtroEscola} onChange={(e) => setFiltroEscola(e.target.value)} className={`${SELECT} lg:col-span-6`}>
+              <select value={filtroEscola} onChange={(e) => setFiltroEscola(e.target.value)} className={`${SELECT} ${grupo === "acao" ? "lg:col-span-6" : "lg:col-span-4"}`}>
                 <option value="">Todas as escolas</option>
                 {escolasDisponiveis.map(([eid, nome]) => (
                   <option key={eid} value={eid}>{nome}</option>
