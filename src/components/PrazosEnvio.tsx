@@ -79,9 +79,11 @@ export function PrazosEnvio({ municipioId }: { municipioId: string }) {
     if (!g) { g = { nome: f, docs: [] }; grupos.push(g); }
     g.docs.push(l);
   }
-  // só o que já está aberto para envio e ainda não foi todo enviado
-  const abertas = grupos.filter((g) => g.docs.some((d) => d.situacao !== "fechado") && g.docs.some((d) => d.situacao !== "enviado"));
-  const concluidas = grupos.filter((g) => g.docs.every((d) => d.situacao === "enviado")).length;
+  // só o que já abriu: as formações com envio faltando e, sempre, a última que abriu (mesmo já enviada)
+  const jaAbriu = grupos.filter((g) => g.docs.some((d) => d.situacao !== "fechado"));
+  const ultimaAberta = jaAbriu[jaAbriu.length - 1];
+  const abertas = jaAbriu.filter((g) => g === ultimaAberta || g.docs.some((d) => d.situacao !== "enviado"));
+  const concluidas = grupos.filter((g) => g.docs.every((d) => d.situacao === "enviado") && !abertas.includes(g)).length;
   const proxima = grupos.find((g) => g.docs.every((d) => d.situacao === "fechado"));
   const port = portfolio[0];
   const portAberto = port && port.situacao !== "fechado" && port.situacao !== "enviado";
