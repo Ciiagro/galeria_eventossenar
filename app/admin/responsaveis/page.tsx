@@ -37,7 +37,7 @@ const SITUACAO: Record<CadastroRecebido["adesao_status"], { texto: string; cor: 
   enviada: { texto: "Aguardando aprovação", cor: "#0F4C85", fundo: "#E2EFFB" },
   aprovada: { texto: "Aprovada", cor: "#17613B", fundo: "#E3F4EA" },
 };
-type Situacao = { ativo: boolean; compromisso_em: string | null; email?: string | null; cpf?: string | null; rg?: string | null; telefone1?: string | null; telefone2?: string | null; adesao_id?: string | null; adesao_status?: string | null };
+type Situacao = { ativo: boolean; compromisso_em: string | null; email?: string | null; cpf?: string | null; rg?: string | null; telefone1?: string | null; telefone2?: string | null; adesao_id?: string | null; adesao_status?: string | null; adesao_assinada?: boolean };
 // "Parado há N dias": só para quem ainda não enviou a adesão (sem ficha ou preenchendo)
 const diasParado = (iso?: string | null, status?: string | null) => {
   if (status && status !== "rascunho" && status !== "sem_ficha") return "";
@@ -146,7 +146,7 @@ function ResponsaveisPage() {
     return ordenar(lista, ordem, (m, col) => {
       const x = sit(m.responsavel_id);
       return col === "nome" ? m.responsavel_nome ?? "" : col === "email" ? m.responsavel_email ?? "" : col === "municipio" ? m.nome
-        : col === "cpf" ? x?.cpf ?? "" : col === "situacao" ? (x?.ativo === false ? "Desativado" : "Ativo") : col === "compromisso" ? x?.compromisso_em ?? "" : "";
+        : col === "cpf" ? x?.cpf ?? "" : col === "situacao" ? (x?.ativo === false ? "Desativado" : x?.compromisso_em && x?.adesao_assinada ? "Ativo" : "Pendente") : col === "compromisso" ? x?.compromisso_em ?? "" : "";
     });
   }, [responsaveis, busca, filtroMunicipio, ordem, situacao]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -846,7 +846,13 @@ ${tabelaEscolas}
                           </td>
                           <td className="whitespace-nowrap px-4 py-[18px] font-medium">{municipio.nome}</td>
                           <td className="px-4 py-[18px]">
-                            {ativo ? <Pilula texto="Ativo" fundo="#E3F4EA" cor="#17613B" /> : <Pilula texto="Desativado" fundo="#F8E1DF" cor="#9B2C25" />}
+                            {!ativo ? <Pilula texto="Desativado" fundo="#F8E1DF" cor="#9B2C25" />
+                              : x?.compromisso_em && x?.adesao_assinada ? <Pilula texto="Ativo" fundo="#E3F4EA" cor="#17613B" />
+                              : (
+                                <span title={`Falta: ${[!x?.adesao_assinada && "termo de adesão assinado", !x?.compromisso_em && "termo de compromisso assinado"].filter(Boolean).join(" e ")}`}>
+                                  <Pilula texto="Pendente" fundo="#FFF3CC" cor="#6E4B00" />
+                                </span>
+                              )}
                           </td>
                           <td className="px-4 py-[18px]">
                             {x?.compromisso_em

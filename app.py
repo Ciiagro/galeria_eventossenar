@@ -4925,9 +4925,10 @@ def coordenadores_situacao():
         except Exception as e_cad:  # noqa: BLE001
             print(f"[coordenadores] não consegui ler os cadastros: {e_cad}")
         try:  # ficha/termo de adesão de cada coordenador (para o menu "Ver termo de adesão")
-            for a in fetch_all(lambda: db.table("adesoes").select("id, coordenador_id, status").order("id")):
+            for a in fetch_all(lambda: db.table("adesoes").select("id, coordenador_id, status, termo_assinado_nome").order("id")):
                 if a.get("coordenador_id") in saida and a.get("status") != "rascunho":
-                    saida[a["coordenador_id"]].update({"adesao_id": a["id"], "adesao_status": a.get("status")})
+                    saida[a["coordenador_id"]].update({"adesao_id": a["id"], "adesao_status": a.get("status"),
+                                                       "adesao_assinada": bool(a.get("termo_assinado_nome"))})
         except Exception as e_ades:  # noqa: BLE001
             print(f"[coordenadores] não consegui ler as adesões: {e_ades}")
         ciclo_id = _ciclo_ativo_id(db)
