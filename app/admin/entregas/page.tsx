@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import { AdminGuard } from "@/components/AdminGuard";
 import { TituloPagina, Indicador } from "@/components/TituloPagina";
 import { apiGet } from "@/lib/api";
+import { RodapeTabela } from "@/components/TabelaCoordenadores";
 import { AlertIcon, BuildingIcon, CalendarIcon, CheckIcon, FileTextIcon } from "@/components/icons";
 
 const Ampulheta = ({ className = "h-3.5 w-3.5" }: { className?: string }) => (
@@ -33,6 +34,8 @@ function Entregas() {
   const [busca, setBusca] = useState("");
   const [soPendentes, setSoPendentes] = useState(false);
   const [detalhe, setDetalhe] = useState<{ m: Linha; c: Coluna } | null>(null);
+  const [pagina, setPagina] = useState(1);
+  const porPagina = 10;
 
   useEffect(() => { apiGet("/api/admin/entregas").then(setDados).catch((e) => setErro(e.message)); }, []);
 
@@ -64,6 +67,8 @@ function Entregas() {
     });
   }, [dados, busca, soPendentes, colunas]);
 
+  useEffect(() => { setPagina(1); }, [busca, soPendentes]);
+  const visiveis = linhas.slice((pagina - 1) * porPagina, pagina * porPagina);
   const total = dados?.municipios.length ?? 0;
   const atrasados = (dados?.municipios ?? []).reduce((n, m) => n + colunas.filter((c) => c.atrasado && !cobertura(m, c).completo).length, 0);
 
@@ -106,9 +111,9 @@ function Entregas() {
             <table className="w-full min-w-[900px] border-collapse text-left text-sm">
               <thead className="bg-[#E8F5EE]">
                 <tr>
-                  <th rowSpan={2} className="sticky left-0 z-10 bg-[#E8F5EE] px-5 py-3 align-middle text-base font-bold text-brand-dark"><span className="inline-flex items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#CDEBDA] text-[#1E6B45]"><BuildingIcon className="h-5 w-5" /></span>Município</span></th>
+                  <th rowSpan={2} className="sticky left-0 z-10 bg-[#E8F5EE] px-5 py-2 align-middle text-base font-bold text-brand-dark"><span className="inline-flex items-center gap-2.5"><span className="flex h-9 w-9 items-center justify-center rounded-xl bg-[#CDEBDA] text-[#1E6B45]"><BuildingIcon className="h-5 w-5" /></span>Município</span></th>
                   {grupos.map(([nome, cols]) => (
-                    <th key={nome} colSpan={cols.length} className="border-l border-[#CFE6D8] px-3 py-3 text-center font-bold text-brand-dark">
+                    <th key={nome} colSpan={cols.length} className="border-l border-[#CFE6D8] px-3 py-2 text-center font-bold text-brand-dark">
                       <span className="inline-flex items-center gap-1.5 text-[15px]">
                         {cols[0].prazo ? <CalendarIcon className="h-5 w-5 text-[#1E8F5A]" /> : <FileTextIcon className="h-5 w-5 text-[#1E8F5A]" />}
                         {nome}
@@ -119,37 +124,37 @@ function Entregas() {
                 </tr>
                 <tr>
                   {grupos.flatMap(([, cols]) => cols).map((c) => (
-                    <th key={c.nome} className="border-l border-[#CFE6D8] border-t border-t-[#CFE6D8] bg-[#F1F9F4] px-3 py-2 text-center text-xs font-semibold text-brand-dark/85">
+                    <th key={c.nome} className="border-l border-[#CFE6D8] border-t border-t-[#CFE6D8] bg-[#F1F9F4] px-3 py-1 text-center text-xs font-semibold text-brand-dark/85">
                       {c.nome.startsWith("Relatório") ? "Relatório" : c.nome.startsWith("Lista") ? "Lista" : "Portfólio"}
                     </th>
                   ))}
                 </tr>
               </thead>
               <tbody className="divide-y divide-[#DCEBE2]">
-                {linhas.map((m) => (
+                {visiveis.map((m) => (
                   <tr key={m.id} className="hover:bg-[#F3FAF6]">
-                    <td className="sticky left-0 z-10 bg-white px-5 py-4">
-                      <span className="block text-base font-bold text-brand-dark">{m.nome}</span>
-                      <span className="mt-0.5 block text-xs text-brand-dark/65">{m.coordenador}</span>
+                    <td className="sticky left-0 z-10 bg-white px-5 py-2">
+                      <span className="block text-[15px] font-bold text-brand-dark">{m.nome}</span>
+                      <span className="block text-xs leading-tight text-brand-dark/65">{m.coordenador}</span>
                     </td>
                     {grupos.flatMap(([, cols]) => cols).map((c) => {
                       const cob = cobertura(m, c);
                       return (
-                        <td key={c.nome} className="border-l border-[#E3EFE8] px-3 py-4 text-center">
+                        <td key={c.nome} className="border-l border-[#E3EFE8] px-2 py-1.5 text-center">
                           {cob.completo ? (
-                            <button type="button" onClick={() => setDetalhe({ m, c })} title="Ver as escolas" className="inline-flex min-w-[84px] flex-col items-center rounded-xl bg-[#DDF2E6] px-3 py-1.5 text-[#17613B] hover:ring-2 hover:ring-[#17613B]/30">
-                              <CheckIcon className="h-5 w-5" /><span className="mt-0.5 text-[10px] font-semibold">{dataBR(m.entregas[c.nome]?.enviado_em ?? null)}</span>
+                            <button type="button" onClick={() => setDetalhe({ m, c })} title="Ver as escolas" className="inline-flex min-w-[84px] flex-col items-center rounded-lg bg-[#DDF2E6] px-3 py-0.5 text-[#17613B] hover:ring-2 hover:ring-[#17613B]/30">
+                              <CheckIcon className="h-4 w-4" /><span className="text-[10px] font-semibold leading-tight">{dataBR(m.entregas[c.nome]?.enviado_em ?? null)}</span>
                             </button>
                           ) : cob.algum ? (
-                            <button type="button" onClick={() => setDetalhe({ m, c })} title="Entrega parcial: veja quais escolas faltam" className="inline-flex min-w-[84px] flex-col items-center rounded-xl bg-[#FFF0BF] px-3 py-1.5 text-[#8A6D00] hover:ring-2 hover:ring-[#8A6D00]/30">
-                              <b className="text-base leading-tight">{cob.feito}/{cob.total}</b><span className="text-[10px] font-semibold">parcial</span>
+                            <button type="button" onClick={() => setDetalhe({ m, c })} title="Entrega parcial: veja quais escolas faltam" className="inline-flex min-w-[84px] flex-col items-center rounded-lg bg-[#FFF0BF] px-3 py-0.5 text-[#8A6D00] hover:ring-2 hover:ring-[#8A6D00]/30">
+                              <b className="text-sm leading-tight">{cob.feito}/{cob.total}</b><span className="text-[10px] font-semibold">parcial</span>
                             </button>
                           ) : !c.aberto ? (
                             <span className="text-lg text-brand-dark/35" title={`Abre em ${mesBR(c.abre)}`}>—</span>
                           ) : c.atrasado ? (
-                            <button type="button" onClick={() => setDetalhe({ m, c })} className="inline-flex items-center gap-1.5 rounded-full bg-[#F8E1DF] px-3 py-1.5 text-xs font-bold text-[#9B2C25]"><AlertIcon className="h-3.5 w-3.5" />Atrasado</button>
+                            <button type="button" onClick={() => setDetalhe({ m, c })} className="inline-flex items-center gap-1.5 rounded-full bg-[#F8E1DF] px-3 py-1 text-xs font-bold text-[#9B2C25]"><AlertIcon className="h-3.5 w-3.5" />Atrasado</button>
                           ) : (
-                            <button type="button" onClick={() => setDetalhe({ m, c })} className="inline-flex items-center gap-1.5 rounded-full bg-[#FFF0BF] px-3 py-1.5 text-xs font-bold text-[#8A6D00]"><Ampulheta />Pendente</button>
+                            <button type="button" onClick={() => setDetalhe({ m, c })} className="inline-flex items-center gap-1.5 rounded-full bg-[#FFF0BF] px-3 py-1 text-xs font-bold text-[#8A6D00]"><Ampulheta />Pendente</button>
                           )}
                         </td>
                       );
@@ -159,9 +164,9 @@ function Entregas() {
               </tbody>
               <tfoot className="border-t-2 border-[#CFE6D8] bg-[#E8F5EE]">
                 <tr>
-                  <td className="sticky left-0 z-10 bg-[#E8F5EE] px-5 py-3 text-sm font-bold text-brand-dark">Entregues</td>
+                  <td className="sticky left-0 z-10 bg-[#E8F5EE] px-5 py-2 text-sm font-bold text-brand-dark">Entregues</td>
                   {grupos.flatMap(([, cols]) => cols).map((c) => (
-                    <td key={c.nome} className="border-l border-[#CFE6D8] px-3 py-3 text-center text-sm font-bold text-brand-dark">
+                    <td key={c.nome} className="border-l border-[#CFE6D8] px-3 py-2 text-center text-sm font-bold text-brand-dark">
                       {(dados?.municipios ?? []).filter((m) => cobertura(m, c).completo).length} de {total}
                     </td>
                   ))}
@@ -169,6 +174,9 @@ function Entregas() {
               </tfoot>
             </table>
           </div>
+        )}
+        {dados && linhas.length > porPagina && (
+          <div className="mt-2"><RodapeTabela pagina={pagina} total={linhas.length} porPagina={porPagina} onChange={setPagina} /></div>
         )}
       </div>
       {detalhe && (
