@@ -12,15 +12,6 @@ import { FaixaValores, LogoValores } from "@/components/Sol";
 import { Estrela } from "@/components/Desenhos";
 import { useCiclos } from "@/lib/ciclos";
 
-// "Maria de Jesus" -> "MJ" · "maria@gmail.com" -> "M"
-function iniciais(texto?: string | null) {
-  const base = (texto ?? "").split("@")[0].trim();
-  const partes = base.split(/[\s._-]+/).filter(Boolean);
-  if (partes.length === 0) return "?";
-  const letras = partes.length === 1 ? partes[0].slice(0, 1) : partes[0][0] + partes[partes.length - 1][0];
-  return letras.toLocaleUpperCase("pt-BR");
-}
-
 // uma cor para cada item do menu (a mesma do ícone; no item selecionado ela vira o destaque)
 
 export function Sidebar() {
@@ -113,20 +104,11 @@ export function Sidebar() {
         )}
 
         {perfil && (
-          <div
-            className="mt-3 flex flex-col items-center rounded-2xl border border-black/10 bg-[#FFF8EC] px-3 py-3 text-center shadow-sm"
-            title={perfil.email || undefined}
-          >
-            <div
-              className="flex h-11 w-11 shrink-0 items-center justify-center rounded-full bg-[#8E5BB5] text-sm font-bold tracking-wide text-white ring-2 ring-white"
-              aria-hidden
-            >
-              {iniciais(perfil.nome || perfil.email)}
-            </div>
-            <p className="mt-2 w-full break-words text-sm font-bold leading-tight text-brand-dark">{perfil.nome || perfil.email}</p>
-            <p className="mt-1 w-full text-xs leading-snug text-slate-500">{papel}</p>
+          <div className="mt-3 px-2 text-center" title={perfil.email || undefined}>
+            <p className="break-words text-sm font-bold leading-tight text-brand-dark">{perfil.nome || perfil.email}</p>
+            <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{papel}</p>
             {perfil.municipio_nome && (
-              <p className="mt-2 inline-flex max-w-full items-center gap-1 rounded-full bg-white px-2.5 py-0.5 text-[11px] font-semibold leading-tight text-brand-dark/80 ring-1 ring-black/5" title={perfil.municipio_pendente ? "Município escolhido no cadastro (liberado após a aprovação da adesão)" : undefined}>
+              <p className="mt-0.5 inline-flex max-w-full items-center justify-center gap-1 text-[11px] font-semibold leading-tight text-brand-dark/70" title={perfil.municipio_pendente ? "Município escolhido no cadastro (liberado após a aprovação da adesão)" : undefined}>
                 <MapPinIcon className="h-3 w-3 shrink-0" />
                 <span className="truncate">{perfil.municipio_nome}</span>
               </p>
