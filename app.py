@@ -3362,7 +3362,7 @@ def coordenador_foto():
     if em_cache and em_cache[1] > agora:
         return Response(em_cache[0], mimetype="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
     try:
-        file_id = None if versao != "0" else _mapa_fotos_coordenadores().get(alvo)
+        file_id = _mapa_fotos_coordenadores().get(alvo)
         if not file_id and (versao != "0" or _CACHE_FOTOS_SEM.get(alvo, 0) <= agora):
             # Na Vercel cada instância tem a sua própria lista: se a foto foi salva por outra, a lista pode estar velha.
             # Confere direto no Drive só este usuário (consulta pequena) antes de dizer que não tem foto.
@@ -3380,7 +3380,22 @@ def coordenador_foto():
                 _CACHE_FOTOS_SEM[alvo] = agora + 60
         if not file_id:
             return Response(status=404, headers={"Cache-Control": "private, max-age=10"})
-        conteudo = baixar_arquivo(get_drive_service(), file_id)
+        try:
+            conteudo = baixar_arquivo(get_drive_service(), file_id)
+        except Exception:  # noqa: BLE001
+            # o arquivo da lista pode ser de uma foto já trocada (lista velha nesta instância): confere o nome direto
+            service = get_drive_service()
+            r = service.files().list(
+                q=f"'{_pasta_fotos_coordenadores(service)}' in parents and name = '{alvo.replace(chr(39), '').replace(chr(92), '')}.jpg' and trashed = false",
+                fields="files(id)", supportsAllDrives=True, includeItemsFromAllDrives=True,
+            ).execute()
+            achados = r.get("files", [])
+            if not achados:
+                return Response(status=404, headers={"Cache-Control": "private, max-age=10"})
+            file_id = achados[0]["id"]
+            if _CACHE_FOTOS_IDS["mapa"] is not None:
+                _CACHE_FOTOS_IDS["mapa"][alvo] = file_id
+            conteudo = baixar_arquivo(service, file_id)
     except Exception as e:  # noqa: BLE001
         print(f"[foto] {alvo}: {e}")
         return Response(status=404)

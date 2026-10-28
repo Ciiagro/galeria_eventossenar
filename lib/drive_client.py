@@ -58,9 +58,20 @@ def _get_credentials():
     )
 
 
+_servico_local = threading.local()
+
+
 def get_drive_service():
+    # Reaproveita o serviço (por thread, 20 min): montar credenciais + cliente a cada chamada deixava as fotos lentas.
+    # As credenciais renovam o token sozinhas; o cliente do Google não é compartilhado entre threads.
+    agora = time.time()
+    guardado = getattr(_servico_local, "servico", None)
+    if guardado and guardado[1] > agora:
+        return guardado[0]
     creds = _get_credentials()
-    return build("drive", "v3", credentials=creds, cache_discovery=False)
+    servico = build("drive", "v3", credentials=creds, cache_discovery=False)
+    _servico_local.servico = (servico, agora + 1200)
+    return servico
 
 
 _token_guardado: dict = {"token": None, "expira": 0.0}
