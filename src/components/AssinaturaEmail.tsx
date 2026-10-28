@@ -11,7 +11,7 @@ type Pedido = {
 };
 type Estado = {
   configurado: boolean; papeis_ativos?: string[]; pedido: Pedido | null;
-  sugestoes: Record<string, { nome?: string; email?: string; cpf?: string | null }>;
+  sugestoes: Record<string, { nome?: string; email?: string; cpf?: string | null; sindicato_nome?: string | null }>;
 };
 
 const ROTULO: Record<string, string> = {
@@ -351,6 +351,11 @@ export function AssinaturaEmail({
                 )}
                 {pedeSindicato && (
                   <>
+                    {estado.sugestoes?.sindicato?.sindicato_nome && (
+                      <p className="text-sm text-brand-dark/80 sm:col-span-2">
+                        Sindicato Rural de <strong>{estado.sugestoes.sindicato.sindicato_nome}</strong>. Confira nome e e-mail do(a) presidente e informe o CPF.
+                      </p>
+                    )}
                     <label>
                       <span className={ROTULO_CAMPO}>Nome do(a) presidente do sindicato rural</span>
                       <input value={sindNome} onChange={(e) => setSindNome(e.target.value)} className={CAMPO} />

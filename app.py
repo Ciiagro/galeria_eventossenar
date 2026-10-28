@@ -4114,6 +4114,24 @@ def assinatura_status():
         if ultimo:
             antigos = db.table("assinatura_signatarios").select("papel, nome, email, cpf").eq("pedido_id", ultimo[0]["id"]).execute().data or []
             resposta["sugestoes"] = {s["papel"]: {"nome": s["nome"], "email": s["email"], "cpf": s.get("cpf")} for s in antigos}
+        # presidente do sindicato rural do município (cadastro do sindicato): preenche nome e e-mail; o CPF o coordenador informa
+        try:
+            mun = (db.table("municipios").select("presidente_nome, email1, sindicato_id").eq("id", adesao["municipio_id"]).limit(1).execute().data or [{}])[0]
+            sind_nome = None
+            try:
+                sind_nome = (db.table("vw_municipio_sindicato").select("sindicato_nome").eq("municipio_id", adesao["municipio_id"]).limit(1).execute().data or [{}])[0].get("sindicato_nome")
+            except Exception as e_sind:  # noqa: BLE001
+                print(f"[sindicato] não consegui ler o nome do sindicato: {e_sind}")
+            if mun.get("presidente_nome") or sind_nome:
+                atual = resposta["sugestoes"].get("sindicato") or {}
+                resposta["sugestoes"]["sindicato"] = {
+                    "nome": atual.get("nome") or mun.get("presidente_nome"),
+                    "email": atual.get("email") or mun.get("email1"),
+                    "cpf": atual.get("cpf"),
+                    "sindicato_nome": sind_nome,
+                }
+        except Exception as e_mun:  # noqa: BLE001
+            print(f"[sindicato] não consegui ler o presidente do município: {e_mun}")
         return jsonify(resposta)
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500
