@@ -11,7 +11,7 @@ type Pedido = {
 };
 type Estado = {
   configurado: boolean; papeis_ativos?: string[]; pedido: Pedido | null;
-  sugestoes: Record<string, { nome?: string; email?: string; cpf?: string | null; sindicato_nome?: string | null }>;
+  sugestoes: Record<string, { nome?: string; email?: string; cpf?: string | null; sindicato_nome?: string | null; fixo?: boolean }>;
 };
 
 const ROTULO: Record<string, string> = {
@@ -47,6 +47,7 @@ export function AssinaturaEmail({
   const [ocupado, setOcupado] = useState(false);
   const [emailPrefeito, setEmailPrefeito] = useState(prefeitoEmail);
   const [emailSecretario, setEmailSecretario] = useState(secretarioEmail);
+  const sindFixo = Boolean(estado?.sugestoes?.sindicato?.fixo); // nome e e-mail vêm do cadastro do sindicato (definidos pela administração)
   const [sindNome, setSindNome] = useState("");
   const [sindEmail, setSindEmail] = useState("");
   const [sindCpf, setSindCpf] = useState("");
@@ -79,9 +80,9 @@ export function AssinaturaEmail({
     if (!estado) return;
     const s = estado.sugestoes;
     setEmailPrefeito((atual) => atual || s.prefeito?.email || prefeitoEmail || "");
-    setSindNome((atual) => atual || s.sindicato?.nome || "");
+    setSindNome((atual) => (s.sindicato?.fixo ? s.sindicato.nome : atual) || s.sindicato?.nome || "");
     setEmailSecretario((atual) => atual || s.secretario?.email || secretarioEmail || "");
-    setSindEmail((atual) => atual || s.sindicato?.email || "");
+    setSindEmail((atual) => (s.sindicato?.fixo ? s.sindicato.email : atual) || s.sindicato?.email || "");
     setSindCpf((atual) => atual || (s.sindicato?.cpf ? mascaraCpf(s.sindicato.cpf) : ""));
   }, [estado, prefeitoEmail, secretarioEmail]);
 
@@ -353,16 +354,16 @@ export function AssinaturaEmail({
                   <>
                     {estado.sugestoes?.sindicato?.sindicato_nome && (
                       <p className="text-sm text-brand-dark/80 sm:col-span-2">
-                        Sindicato Rural de <strong>{estado.sugestoes.sindicato.sindicato_nome}</strong>. Confira nome e e-mail do(a) presidente e informe o CPF.
+                        Sindicato Rural de <strong>{estado.sugestoes.sindicato.sindicato_nome}</strong>. {sindFixo ? "Nome e e-mail do(a) presidente já vêm do cadastro. Informe só o CPF." : "Informe nome, e-mail e CPF do(a) presidente."}
                       </p>
                     )}
                     <label>
                       <span className={ROTULO_CAMPO}>Nome do(a) presidente do sindicato rural</span>
-                      <input value={sindNome} onChange={(e) => setSindNome(e.target.value)} className={CAMPO} />
+                      <input value={sindNome} onChange={(e) => setSindNome(e.target.value)} readOnly={sindFixo} className={`${CAMPO} ${sindFixo ? "bg-black/[0.03]" : ""}`} />
                     </label>
                     <label>
                       <span className={ROTULO_CAMPO}>E-mail do(a) presidente do sindicato</span>
-                      <input type="email" value={sindEmail} onChange={(e) => setSindEmail(e.target.value)} className={CAMPO} />
+                      <input type="email" value={sindEmail} onChange={(e) => setSindEmail(e.target.value)} readOnly={sindFixo} className={`${CAMPO} ${sindFixo ? "bg-black/[0.03]" : ""}`} />
                     </label>
                     <label>
                       <span className={ROTULO_CAMPO}>CPF do(a) presidente do sindicato</span>
