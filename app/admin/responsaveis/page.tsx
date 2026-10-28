@@ -953,7 +953,7 @@ ${tabelaEscolas}
                         <div className="flex flex-wrap gap-2">
                           {principais.map((i) => (
                             <button key={i.rotulo} type="button" onClick={i.onClick}
-                              className="rounded-xl bg-brand-light px-4 py-2.5 text-sm font-semibold text-white shadow-sm transition hover:bg-brand-accent">{i.rotulo}</button>
+                              className="rounded-xl border border-[#BFE3CC] bg-[#E6F4EB] px-4 py-2.5 text-sm font-semibold text-[#1E6B45] transition hover:bg-[#D5ECDD]">{i.rotulo}</button>
                           ))}
                         </div>
                       </div>
