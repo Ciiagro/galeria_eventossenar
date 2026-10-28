@@ -90,7 +90,7 @@ function ResponsaveisPage() {
   // cadastros feitos pelos próprios coordenadores (em /adesao) que ainda não foram liberados
   const [cadastros, setCadastros] = useState<CadastroRecebido[] | null>(null);
   const [aba, setAba] = useState<"aguardando" | "liberados" | "desativados" | null>(null);
-  type Desativado = { user_id: string; nome: string | null; email: string | null; cpf: string | null; telefone1: string | null; municipio_nome: string | null; ativo: boolean; substituido: boolean; desativado_em: string | null; created_at: string | null };
+  type Desativado = { user_id: string; municipio_id?: number | null; nome: string | null; email: string | null; cpf: string | null; telefone1: string | null; municipio_nome: string | null; ativo: boolean; substituido: boolean; desativado_em: string | null; created_at: string | null };
   const [desativados, setDesativados] = useState<Desativado[]>([]);
   useEffect(() => { apiGet("/api/admin/coordenadores-desativados").then((r) => setDesativados(Array.isArray(r) ? r : [])).catch(() => setDesativados([])); }, [situacao]);
   // municípios contemplados = com escolas no programa do ciclo ativo ("todos" se não for possível consultar)
@@ -126,6 +126,8 @@ function ResponsaveisPage() {
     [municipios, municipioId]
   );
   const responsaveis = municipios.filter((municipio) => municipio.responsavel_nome || municipio.responsavel_email);
+  // Liberados = quem está com acesso; quem foi desativado aparece só na aba "Desativados"
+  const liberadosAtivos = responsaveis.filter((m) => situacao[m.responsavel_id ?? ""]?.ativo !== false);
   // só os municípios contemplados; o que já tem responsável continua na lista para poder ser editado
   const opcoesMunicipio = useMemo(
     () =>
@@ -137,7 +139,7 @@ function ResponsaveisPage() {
   const sit = (id?: string | null) => (id ? situacao[id] : undefined);
   const filtrados = useMemo(() => {
     const termo = normalizarTexto(busca.trim());
-    const lista = responsaveis.filter(
+    const lista = liberadosAtivos.filter(
       (m) =>
         (!filtroMunicipio || String(m.id) === filtroMunicipio) &&
         (!termo || [m.responsavel_nome, m.responsavel_email, m.nome, sit(m.responsavel_id)?.cpf, sit(m.responsavel_id)?.telefone1]
@@ -148,7 +150,7 @@ function ResponsaveisPage() {
       return col === "nome" ? m.responsavel_nome ?? "" : col === "email" ? m.responsavel_email ?? "" : col === "municipio" ? m.nome
         : col === "cpf" ? x?.cpf ?? "" : col === "situacao" ? (x?.ativo === false ? "Desativado" : x?.compromisso_em && x?.adesao_assinada ? "Ativo" : "Pendente") : col === "compromisso" ? x?.compromisso_em ?? "" : "";
     });
-  }, [responsaveis, busca, filtroMunicipio, ordem, situacao]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [liberadosAtivos, busca, filtroMunicipio, ordem, situacao]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const cadastrosFiltrados = useMemo(() => {
     const termo = normalizarTexto(busca.trim());
@@ -648,7 +650,7 @@ ${tabelaEscolas}
               className="mt-5"
               abas={[
                 { valor: "aguardando", rotulo: "Aguardando liberação", contagem: cadastros?.length ?? 0 },
-                { valor: "liberados", rotulo: "Liberados", contagem: responsaveis.length },
+                { valor: "liberados", rotulo: "Liberados", contagem: liberadosAtivos.length },
                 { valor: "desativados", rotulo: "Desativados", contagem: desativados.length },
               ]}
               valor={aba}
@@ -658,7 +660,7 @@ ${tabelaEscolas}
               colunas="grid-cols-1 sm:grid-cols-[minmax(0,1fr)_16rem]"
               mostrarLimpar={Boolean(busca.trim()) || Boolean(filtroMunicipio)}
               onLimpar={() => { setBusca(""); setFiltroMunicipio(""); }}
-              resumo={busca.trim() || filtroMunicipio ? (aba === "aguardando" ? `${cadastrosFiltrados.length} de ${cadastros?.length ?? 0}` : `${filtrados.length} de ${responsaveis.length}`) : undefined}
+              resumo={busca.trim() || filtroMunicipio ? (aba === "aguardando" ? `${cadastrosFiltrados.length} de ${cadastros?.length ?? 0}` : `${filtrados.length} de ${liberadosAtivos.length}`) : undefined}
             >
               <CampoBusca value={busca} onChange={setBusca} placeholder="Pesquisar por nome, e-mail, CPF ou município..." ariaLabel="Pesquisar coordenadores" />
               <select aria-label="Filtrar por município" value={filtroMunicipio} onChange={(e) => setFiltroMunicipio(e.target.value)} className={CLASSE_SELECT}>
@@ -764,7 +766,7 @@ ${tabelaEscolas}
                     </thead>
                     <tbody className="divide-y divide-black/15">
                       {desativados.map((d) => (
-                        <tr key={d.user_id} className="hover:bg-[#F3FAF6]">
+                        <tr key={d.user_id} onClick={() => d.municipio_id && setDetalheId(d.municipio_id)} className="cursor-pointer hover:bg-[#F3FAF6]" title="Clique para ver todos os dados">
                           <td className="px-4 py-[18px]">
                             <div className="flex items-center gap-3">
                               <FotoCoordenador userId={d.user_id} nome={d.nome} />
@@ -782,8 +784,9 @@ ${tabelaEscolas}
                           <td className="px-4 py-[18px]"><Pilula texto={d.substituido ? "Substituído" : "Desativado"} fundo="#F8E1DF" cor="#9B2C25" /></td>
                           <td className="whitespace-nowrap px-4 py-[18px] text-brand-dark/70">{d.desativado_em ? dataCurta(d.desativado_em) : "—"}</td>
                           <td className="whitespace-nowrap px-4 py-[18px] text-brand-dark/70">{d.created_at ? dataCurta(d.created_at) : "—"}</td>
-                          <td className="px-4 py-[18px] text-right">
+                          <td className="px-4 py-[18px] text-right" onClick={(e) => e.stopPropagation()}>
                             <MenuAcoes rotulo={d.nome ?? "coordenador"} itens={[
+                              { rotulo: "Ver todos os dados", oculto: !d.municipio_id, onClick: () => d.municipio_id && setDetalheId(d.municipio_id) },
                               { rotulo: "Ver termo de compromisso", onClick: () => verCompromisso(d.user_id) },
                               { rotulo: "Ativar acesso", oculto: d.substituido, onClick: () => alternarAtivo(d.user_id, d.nome ?? "este coordenador", true) },
                             ]} />
@@ -806,7 +809,7 @@ ${tabelaEscolas}
               Nenhum responsável cadastrado ainda. Clique em &quot;+ Inserir responsável&quot;.
             </div>
           )}
-          {responsaveis.length > 0 && filtrados.length === 0 && (
+          {liberadosAtivos.length > 0 && filtrados.length === 0 && (
             <div className="rounded-xl border border-dashed border-black/10 p-6 text-center text-sm text-brand-dark/75">Nenhum responsável encontrado com esses filtros.</div>
           )}
           {filtrados.length > 0 && (
