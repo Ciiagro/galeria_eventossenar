@@ -562,7 +562,8 @@ ${tabelaEscolas}
           </form>
         )}
 
-        {(responsaveis.length > 0 || (cadastros?.length ?? 0) > 0) && (
+        {aba === null && <p className="mt-5 text-sm text-brand-dark/75">Carregando...</p>}
+        {aba !== null && (responsaveis.length > 0 || (cadastros?.length ?? 0) > 0) && (
           <>
             <Abas<"aguardando" | "liberados" | "desativados">
               className="mt-5"
@@ -714,7 +715,7 @@ ${tabelaEscolas}
           </div>
         )}
 
-        {(aba === "liberados" || aba === null) && (
+        {aba === "liberados" && (
         <div className="mt-3 space-y-3">
           {carregando && <p className="text-sm text-brand-dark/75">Carregando...</p>}
           {!carregando && responsaveis.length === 0 && !mostrarFormulario && (
