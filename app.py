@@ -1946,7 +1946,9 @@ def criar_documento():
                 return jsonify({"error": "Documentos (relatórios, ficha de frequência e portfólio) são enviados em PDF."}), 400
             if not acao.get("exige_pdf") and tipo_nome == "pdf":
                 return jsonify({"error": f"A ação {acao['nome']} aceita só vídeo ou imagem. PDF é só para Documentos."}), 400
-            if acao.get("exige_pdf"):
+            if acao.get("exige_pdf") and perfil_envio.get("role") == "apoiador_visitas":
+                subtipo = None  # o Apoiador de Visitas envia só "Relatório", sem escolher o tipo de formação
+            elif acao.get("exige_pdf"):
                 validos = [x["nome"] for x in _documentos_projeto_abertos()]
                 if subtipo not in validos:
                     return jsonify({"error": "Escolha o tipo de documento na lista (só aparecem os que já estão no período de envio)."}), 400

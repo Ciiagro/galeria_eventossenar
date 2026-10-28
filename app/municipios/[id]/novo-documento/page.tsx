@@ -6,6 +6,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { AcaoPedagogica, apiGet, apiPost, apiUploadDireto, Escola, Municipio, TipoDocumento } from "@/lib/api";
+import { usePerfil } from "@/lib/usePerfil";
 import { comprimirVideoSeNecessario } from "@/lib/comprimirVideoNoNavegador";
 import {
   UploadCloudIcon,
@@ -79,6 +80,8 @@ function formatBytes(bytes: number) {
 export default function NovoDocumentoPage() {
   const { id: municipioIdRota } = useParams<{ id: string }>();
   const router = useRouter();
+  const { perfil } = usePerfil();
+  const ehVisita = perfil?.role === "apoiador_visitas"; // Apoiador de Visitas: só "Relatório" ou "Registro de uma ação"
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [municipios, setMunicipios] = useState<Municipio[]>([]);
@@ -245,7 +248,7 @@ export default function NovoDocumentoPage() {
       setErro(categoria === "documento" ? "Os documentos ainda não estão configurados. Fale com o administrador." : "Escolha a ação pedagógica realizada.");
       return;
     }
-    if (acaoSelecionada?.subtipos?.length && !subtipo) {
+    if (!ehVisita && acaoSelecionada?.subtipos?.length && !subtipo) {
       setErro(`Escolha o tipo de documento: ${acaoSelecionada.subtipos.join(", ")}.`);
       return;
     }
@@ -397,7 +400,7 @@ export default function NovoDocumentoPage() {
               <p className="block text-sm font-medium mb-1.5 text-brand-dark/90">O que você vai enviar? *</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {([
-                  ["documento", "Relatório das Formações", "PDF: relatório e lista de presença de cada formação, e o portfólio final do projeto."],
+                  ["documento", ehVisita ? "Relatório" : "Relatório das Formações", ehVisita ? "PDF: o relatório da sua visita." : "PDF: relatório e lista de presença de cada formação, e o portfólio final do projeto."],
                   ["acao", "Registro de uma ação", "Vídeo ou imagem de uma ação pedagógica realizada."],
                 ] as const).map(([valor, titulo, texto]) => (
                   <button
@@ -432,7 +435,7 @@ export default function NovoDocumentoPage() {
                 </div>
               )}
 
-              {categoria === "documento" && acaoSelecionada?.subtipos?.length ? (
+              {categoria === "documento" && !ehVisita && acaoSelecionada?.subtipos?.length ? (
                 <div className="col-span-2">
                   <label htmlFor="subtipo-acao" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Tipo de documento *</label>
                   <select
