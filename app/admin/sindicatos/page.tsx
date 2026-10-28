@@ -120,11 +120,8 @@ function Pagina() {
                   <thead className="border-b border-black/5 bg-[#F6F9F7]">
                     <tr>
                       <Th col="municipio" ordem={ordem} onOrdem={setOrdem}>Município</Th>
-                      <Th col="regiao" ordem={ordem} onOrdem={setOrdem}>Região</Th>
-                      <Th col="sindicato" ordem={ordem} onOrdem={setOrdem}>Sindicato rural</Th>
-                      <Th col="presidente" ordem={ordem} onOrdem={setOrdem}>Presidente</Th>
-                      <Th>E-mail no termo</Th>
-                      <Th>CPF</Th>
+                      <Th col="presidente" ordem={ordem} onOrdem={setOrdem}>Sindicato e presidente</Th>
+                      <Th>E-mail e CPF no termo</Th>
                       <Th>Situação</Th>
                       <Th className="text-right">Ações</Th>
                     </tr>
@@ -132,17 +129,23 @@ function Pagina() {
                   <tbody className="divide-y divide-black/15">
                     {filtrada.slice((pagina - 1) * POR_PAGINA, pagina * POR_PAGINA).map((l) => (
                       <tr key={l.id} className="hover:bg-[#F3FAF6]">
-                        <td className="px-4 py-[18px] font-bold text-brand-dark">{l.nome}</td>
-                        <td className="px-4 py-[18px] text-brand-dark/85">{l.regiao_faec ?? "—"}</td>
-                        <td className="px-4 py-[18px] text-brand-dark">{l.sindicato_nome ?? "—"}</td>
-                        <td className="px-4 py-[18px] text-brand-dark">{l.presidente_nome ?? "—"}</td>
-                        <td className="px-4 py-[18px] text-brand-dark [overflow-wrap:anywhere]">
-                          {emailEfetivo(l) ?? "—"}
-                          {emailsDe(l).length > 1 && !l.email_termo && <span className="block text-xs text-[#6E4B00]">{emailsDe(l).length} e-mails: escolha um</span>}
+                        <td className="px-4 py-3 align-middle">
+                          <div className="font-bold text-brand-dark">{l.nome}</div>
+                          <div className="text-xs text-brand-dark/65">{l.regiao_faec ?? "—"}</div>
                         </td>
-                        <td className="whitespace-nowrap px-4 py-[18px] text-brand-dark">{l.cpf_termo ? mascaraCpf(l.cpf_termo) : "—"}</td>
-                        <td className="px-4 py-[18px]">{pil(l)}</td>
-                        <td className="px-4 py-[18px] text-right">
+                        <td className="px-4 py-3 align-middle">
+                          <div className="font-semibold text-brand-dark">{l.presidente_nome ?? "—"}</div>
+                          <div className="text-xs text-brand-dark/65">{l.sindicato_nome ? `Sindicato Rural de ${l.sindicato_nome}` : "—"}</div>
+                        </td>
+                        <td className="px-4 py-3 align-middle">
+                          <div className="text-brand-dark [overflow-wrap:anywhere]">{emailEfetivo(l) ?? "—"}</div>
+                          <div className="text-xs text-brand-dark/65">
+                            {l.cpf_termo ? `CPF ${mascaraCpf(l.cpf_termo)}` : "CPF não informado"}
+                            {emailsDe(l).length > 1 && !l.email_termo && <span className="ml-2 font-semibold text-[#6E4B00]">· {emailsDe(l).length} e-mails: escolha um</span>}
+                          </div>
+                        </td>
+                        <td className="whitespace-nowrap px-4 py-3 align-middle">{pil(l)}</td>
+                        <td className="px-4 py-3 text-right align-middle">
                           <MenuAcoes rotulo={l.nome} itens={[{ rotulo: "Escolher e-mail e CPF", oculto: !l.presidente_nome, onClick: () => abrir(l) }]} />
                         </td>
                       </tr>
