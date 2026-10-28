@@ -3274,6 +3274,52 @@ def trocar_coordenador_foto():
         return jsonify({"error": f"Não consegui guardar a foto no Drive: {e}"}), 500
 
 
+@app.get("/api/meus-dados")
+def meus_dados():
+    """Dados do próprio coordenador (telefones e se já tem foto). tem_foto = None quando o Drive não respondeu."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    uid = str(getattr(user, "id", ""))
+    try:
+        db = get_client()
+        cad = (db.table("coordenadores_cadastro").select("nome, email, telefone1, telefone2").eq("user_id", uid).limit(1).execute().data or [{}])[0]
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+    try:
+        tem_foto = uid in _mapa_fotos_coordenadores()
+    except Exception as e:  # noqa: BLE001
+        print(f"[foto] não consegui conferir a foto de {uid}: {e}")
+        tem_foto = None
+    return jsonify({"nome": cad.get("nome"), "email": cad.get("email") or getattr(user, "email", None),
+                    "telefone1": cad.get("telefone1") or "", "telefone2": cad.get("telefone2") or "", "tem_foto": tem_foto})
+
+
+@app.post("/api/meus-dados")
+def salvar_meus_dados():
+    """O coordenador corrige só os próprios telefones (nome, CPF e e-mail ficam com a administração)."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    uid = str(getattr(user, "id", ""))
+    body = request.get_json(force=True, silent=True) or {}
+    telefone1 = _texto(body.get("telefone1"), 20)
+    telefone2 = _texto(body.get("telefone2"), 20)
+    if not telefone1:
+        return jsonify({"error": "Informe o telefone principal."}), 400
+    try:
+        db = get_client()
+        achou = db.table("coordenadores_cadastro").select("user_id").eq("user_id", uid).limit(1).execute().data or []
+        if not achou:
+            return jsonify({"error": "Cadastro de coordenador não encontrado."}), 404
+        db.table("coordenadores_cadastro").update({"telefone1": telefone1, "telefone2": telefone2 or None}).eq("user_id", uid).execute()
+        return jsonify({"ok": True})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
 @app.post("/api/cadastro-coordenador")
 def cadastrar_coordenador():
     """Cadastro PÚBLICO do coordenador (link enviado às pessoas). Cria o login e o perfil

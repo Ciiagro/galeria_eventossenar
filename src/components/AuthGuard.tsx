@@ -61,6 +61,21 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
             if (vivo) setVerificado(null);
             return;
           }
+          // depois do termo: o coordenador precisa ter a foto (página "Meus dados"). Se não der para conferir, não bloqueia.
+          if (c?.assinado) {
+            const chaveFoto = `foto_ok:${usuarioId}`;
+            let temFoto = false;
+            try { temFoto = window.sessionStorage.getItem(chaveFoto) === "1"; } catch { /* ignora */ }
+            if (!temFoto) {
+              const d = await apiGet("/api/meus-dados").catch(() => null);
+              if (d && d.tem_foto === false) {
+                if (vivo && pathname !== "/meus-dados") router.replace("/meus-dados");
+                if (vivo) setVerificado(null);
+                return;
+              }
+              if (d && d.tem_foto === true) { try { window.sessionStorage.setItem(chaveFoto, "1"); } catch { /* ignora */ } }
+            }
+          }
         }
       } catch {
         // sem resposta agora: não bloqueia
@@ -72,6 +87,6 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
 
   if (carregando) return null;
   if (publica) return <>{children}</>;
-  if (sessao) return pathname === "/compromisso" || verificado === usuarioId ? <>{children}</> : null;
+  if (sessao) return pathname === "/compromisso" || pathname === "/meus-dados" || verificado === usuarioId ? <>{children}</> : null;
   return null;
 }

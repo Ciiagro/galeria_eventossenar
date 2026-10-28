@@ -34,6 +34,9 @@ const linkAdesao: LinkMenu = { href: "/adesao/ficha", label: "Ficha de adesão",
 // Coordenador do município: termo de compromisso (acompanhar as escolas e fazer a formação pedagógica)
 const linkCompromisso: LinkMenu = { href: "/compromisso", label: "Termo de compromisso", Icon: FileTextIcon };
 
+// Coordenador do município: foto, telefones e senha
+const linkMeusDados: LinkMenu = { href: "/meus-dados", label: "Meus dados", Icon: UserIcon };
+
 export function montarLinks(perfil: Perfil | null): LinkMenu[] {
   // Responsável municipal: "Documentos" leva à lista de documentos do próprio município
   // (o admin tem o "Documentos" do Painel de Aprovação, em linksAdmin).
@@ -55,7 +58,7 @@ export function montarLinks(perfil: Perfil | null): LinkMenu[] {
   return perfil?.role === "admin"
     ? [linksBase[0], linkComunicados, linkTermo, ...linksBase.slice(1), ...linksAdmin, linkMaterial]
     
-    : [...linkInicio, linkComunicados, ...(perfil?.role === "municipio" ? [linkAdesao, linkCompromisso] : []), ...linkDocumentosMunicipio, ...linkAnalise, ...linkEscolas, linkMaterial];
+    : [...linkInicio, linkComunicados, ...(perfil?.role === "municipio" ? [linkAdesao, linkCompromisso] : []), ...linkDocumentosMunicipio, ...linkAnalise, ...linkEscolas, linkMaterial, ...(perfil?.role === "municipio" ? [linkMeusDados] : [])];
 }
 
 export function linkAtivo(link: LinkMenu, pathname: string | null) {
