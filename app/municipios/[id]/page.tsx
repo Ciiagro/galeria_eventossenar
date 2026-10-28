@@ -4,7 +4,7 @@ import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useParams } from "next/navigation";
 import { apiDelete, apiGet, Documento, ehDocumentoPdf, Municipio } from "@/lib/api";
-import { CalendarIcon, CheckIcon, FolderIcon, SearchIcon, UserIcon, XIcon } from "@/components/icons";
+import { CalendarIcon, CheckIcon, FolderIcon, MapPinIcon, SearchIcon, UserIcon, XIcon } from "@/components/icons";
 import { EscolaIcon, Info, Miniatura, formatarData, formatarDataHora, normalizarTexto } from "@/components/DocumentoUI";
 import PreviewLink from "@/components/PreviewLink";
 import { MESES } from "@/lib/periodo";
@@ -375,6 +375,7 @@ export default function MunicipioDetalhePage() {
               key={doc.id}
               doc={doc}
               nomesEscolas={nomesEscolas}
+              municipioNome={municipio?.nome}
               excluindo={excluindoId === doc.id}
               onExcluir={() => excluirDocumento(doc)}
               onVisualizar={() => setVisualizando(doc)}
@@ -434,12 +435,14 @@ export default function MunicipioDetalhePage() {
 function CartaoDocumento({
   doc,
   nomesEscolas,
+  municipioNome,
   excluindo,
   onExcluir,
   onVisualizar,
 }: {
   doc: Documento;
   nomesEscolas: Record<string, string>;
+  municipioNome?: string;
   excluindo: boolean;
   onExcluir: () => void;
   onVisualizar: () => void;
@@ -466,6 +469,7 @@ function CartaoDocumento({
                 {doc.acao_evento && <span className="font-semibold text-brand-dark/85"> — {doc.acao_evento}</span>}
               </h2>
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-brand-dark/80">
+                {municipioNome && <Info icone={MapPinIcon} texto={municipioNome} forte />}
                 {doc.escolas_ids && doc.escolas_ids.length > 1
                   ? <Info icone={EscolaIcon} texto={doc.escolas_ids.map((i) => nomesEscolas[String(i)] ?? "Escola").join(" · ")} forte />
                   : doc.escolas?.nome && <Info icone={EscolaIcon} texto={doc.escolas.nome} forte />}
