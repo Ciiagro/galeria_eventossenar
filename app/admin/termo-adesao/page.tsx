@@ -20,7 +20,7 @@ type ResumoAssinatura = {
 const PAPEL_ASSINATURA: Record<string, string> = {
   prefeito: "Prefeito(a) Municipal", secretario: "Secretário(a) de Educação", sindicato: "Presidente do Sindicato Rural", coordenador: "Coordenador(a) do Projeto",
 };
-type Filtro = Status | "todas" | "assinando";
+type Filtro = Status | "todas" | "assinando" | "pendente";
 type Linha = {
   id: string; status: Status; municipio_nome?: string | null; coordenador_nome?: string | null;
   coordenador_id?: string | null; coordenador_telefone?: string | null; coordenador_email?: string | null;
@@ -53,6 +53,7 @@ const FILTROS: { valor: Filtro; nome: string }[] = [
   { valor: "assinando", nome: "Em assinatura" },
   { valor: "enviada", nome: "Em análise" },
   { valor: "aprovada", nome: "Válidos" },
+  { valor: "pendente", nome: "Pendentes" },
   { valor: "rascunho", nome: "Rascunhos" },
   { valor: "todas", nome: "Todas" },
 ];
@@ -67,9 +68,24 @@ function faltamPorEmail(a: Linha) {
   return PAPEIS_DO_TERMO.filter((p) => !(a.assinatura?.signatarios ?? []).some((s) => s.papel === p));
 }
 
+// O município só vale (fica "Válido") quando o termo de adesão está assinado por todos E o coordenador assinou o termo de compromisso.
+// Enquanto faltar algo, aparece como "Pendente", mesmo que a adesão já tenha sido aprovada.
+function faltaParaValer(a: Linha): string[] {
+  if (a.status !== "aprovada") return [];
+  const falta: string[] = [];
+  if (!a.termo_assinado_nome) falta.push("termo de adesão assinado");
+  else if (a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0) {
+    falta.push(`assinaturas do termo de adesão (${PAPEIS_DO_TERMO.length - faltamPorEmail(a).length} de ${PAPEIS_DO_TERMO.length})`);
+  }
+  if (!a.compromisso_assinado_em) falta.push("termo de compromisso do coordenador");
+  return falta;
+}
+
 function combina(a: Linha, filtro: Filtro) {
   if (filtro === "todas") return true;
   if (filtro === "assinando") return a.assinatura?.status === "pendente";
+  if (filtro === "aprovada") return a.status === "aprovada" && faltaParaValer(a).length === 0;
+  if (filtro === "pendente") return a.status === "aprovada" && faltaParaValer(a).length > 0;
   return a.status === filtro;
 }
 
@@ -249,8 +265,9 @@ function TermoAdesao() {
                 </button>
                 <div className="flex shrink-0 flex-wrap items-center gap-2">
                   <span className={`${SELO} w-44`}
-                    style={a.status === "rascunho" && a.observacao_admin ? { background: "#FFE8D9", color: "#8A2A00" } : { background: r.fundo, color: r.cor }}>
-                    {a.status === "rascunho" && a.observacao_admin ? "Devolvida para correção" : r.texto}
+                    title={faltaParaValer(a).length > 0 ? `Falta: ${faltaParaValer(a).join("; ")}` : undefined}
+                    style={a.status === "rascunho" && a.observacao_admin ? { background: "#FFE8D9", color: "#8A2A00" } : faltaParaValer(a).length > 0 ? { background: "#FFF3CC", color: "#6E4B00" } : { background: r.fundo, color: r.cor }}>
+                    {a.status === "rascunho" && a.observacao_admin ? "Devolvida para correção" : faltaParaValer(a).length > 0 ? "Pendente" : r.texto}
                   </span>
                   {a.status !== "rascunho" && (
                     a.compromisso_assinado_em && a.coordenador_id ? (
