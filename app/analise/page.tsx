@@ -4,6 +4,7 @@ import { TituloPagina, Indicador } from "@/components/TituloPagina";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
+import { useCiclos } from "@/lib/ciclos";
 import { apiGet, apiPost, Documento, ehDocumentoPdf, Municipio } from "@/lib/api";
 
 // O apoio analisa tudo (relatórios, imagens e vídeos) do mesmo jeito: só escreve uma observação para o administrador.
@@ -73,6 +74,21 @@ function FilaAnalise() {
       })
       .catch((e) => setErro(e.message));
   }, []);
+
+  const { ciclos: ciclosLista } = useCiclos();
+  // só municípios que participam do programa (têm escolas na edição ativa)
+  const cicloAtivoId = useMemo(() => (ciclosLista.find((c) => c.ativo) ?? ciclosLista[0])?.id ?? "", [ciclosLista]);
+  const [idsPrograma, setIdsPrograma] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (!cicloAtivoId) return;
+    apiGet(`/api/escolas-participantes?resumo=1&ciclo_id=${cicloAtivoId}`)
+      .then((r) => setIdsPrograma(new Set(Object.keys(r.por_municipio ?? {}).filter((k) => (r.por_municipio[k] ?? 0) > 0))))
+      .catch(() => null);
+  }, [cicloAtivoId]);
+  const municipiosPrograma = useMemo(
+    () => (idsPrograma ? municipios.filter((m) => idsPrograma.has(String(m.id))) : municipios),
+    [municipios, idsPrograma]
+  );
 
   useEffect(() => {
     carregar();
@@ -231,7 +247,7 @@ function FilaAnalise() {
           <CampoBusca value={busca} onChange={setBusca} placeholder="Buscar escola, ação pedagógica, município..." />
           <select value={filtroMunicipio} onChange={(e) => setFiltroMunicipio(e.target.value)} className={CLASSE_SELECT} aria-label="Município">
             <option value="">Todos os municípios</option>
-            {municipios.map((m) => (
+            {municipiosPrograma.map((m) => (
               <option key={m.id} value={m.id}>{m.nome}</option>
             ))}
           </select>

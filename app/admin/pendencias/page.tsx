@@ -128,6 +128,21 @@ function PainelAprovacao() {
     return () => window.clearInterval(intervalo);
   }, [carregar]);
 
+  const ciclosLista = ciclos;
+  // só municípios que participam do programa (têm escolas na edição ativa)
+  const cicloAtivoId = useMemo(() => (ciclosLista.find((c) => c.ativo) ?? ciclosLista[0])?.id ?? "", [ciclosLista]);
+  const [idsPrograma, setIdsPrograma] = useState<Set<string> | null>(null);
+  useEffect(() => {
+    if (!cicloAtivoId) return;
+    apiGet(`/api/escolas-participantes?resumo=1&ciclo_id=${cicloAtivoId}`)
+      .then((r) => setIdsPrograma(new Set(Object.keys(r.por_municipio ?? {}).filter((k) => (r.por_municipio[k] ?? 0) > 0))))
+      .catch(() => null);
+  }, [cicloAtivoId]);
+  const municipiosPrograma = useMemo(
+    () => (idsPrograma ? municipios.filter((m) => idsPrograma.has(String(m.id))) : municipios),
+    [municipios, idsPrograma]
+  );
+
   useEffect(() => {
     apiGet("/api/municipios").then(setMunicipios).catch(() => null);
     apiGet("/api/tipos-documento").then(setTipos).catch(() => null);
@@ -355,7 +370,7 @@ function PainelAprovacao() {
           </select>
           <select value={filtroMunicipio} onChange={(e) => setFiltroMunicipio(e.target.value)} className={CLASSE_SELECT}>
             <option value="">Todos os municípios</option>
-            {municipios.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
+            {municipiosPrograma.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </select>
           {grupo === "acao" && (
             <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className={CLASSE_SELECT}>
