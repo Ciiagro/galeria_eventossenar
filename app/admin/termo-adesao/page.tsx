@@ -248,8 +248,8 @@ function TermoAdesao() {
             const aberto = abertoId === a.id;
             return (
               <article key={a.id} className={`rounded-xl border bg-white ${aberto ? "border-brand-light/40 ring-2 ring-brand-light/20" : "border-black/5"}`}>
-                <div className="flex flex-col gap-3 p-4 sm:flex-row sm:items-center sm:justify-between">
-                <button type="button" onClick={() => abrir(a.id)} className="min-w-0 flex-1 text-left" aria-expanded={aberto}>
+                <div className="flex flex-col gap-3 p-4 xl:flex-row xl:items-center xl:justify-between">
+                <button type="button" onClick={() => abrir(a.id)} className="min-w-0 flex-1 text-left [overflow-wrap:anywhere]" aria-expanded={aberto}>
                   <div className="min-w-0">
                     <p className="text-lg font-bold text-brand-dark leading-snug">{a.municipio_nome ?? "Município não escolhido"}</p>
                     <p className="text-sm text-brand-dark/75">
