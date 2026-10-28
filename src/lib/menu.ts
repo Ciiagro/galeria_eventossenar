@@ -11,7 +11,7 @@ const linksBase: LinkMenu[] = [
 ];
 
 const linksAdmin: LinkMenu[] = [
-  { href: "/admin/pendencias", label: "Documentos", Icon: AlertIcon },
+  { href: "/admin/pendencias", label: "Relatórios/Ações", Icon: AlertIcon },
   { href: "/admin/entregas", label: "Entregas", Icon: CheckIcon },
   { href: "/admin/responsaveis", label: "Coordenadores", Icon: UserIcon },
   { href: "/admin/equipe", label: "Equipe de apoio", Icon: HeartIcon },
