@@ -96,7 +96,7 @@ export function Sidebar() {
   const papel = perfil?.role ? ROTULO_PAPEL[perfil.role] : "Responsável municipal";
 
   return (
-    <aside className="sticky top-0 h-screen w-60 shrink-0 self-start overflow-y-auto overflow-x-hidden bg-white border-r border-black/10 shadow-[4px_0_24px_-6px_rgba(18,46,32,0.18)] z-10 flex flex-col">
+    <aside className="sticky top-0 h-screen w-60 shrink-0 self-start overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-white border-r border-black/10 shadow-[4px_0_24px_-6px_rgba(18,46,32,0.18)] z-10 flex flex-col">
       <div className="relative flex min-h-full flex-col px-4 pt-5">
         {/* logo */}
         <div className="relative">
@@ -151,7 +151,7 @@ export function Sidebar() {
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className={`relative flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] leading-tight transition-colors ${active ? "font-bold" : "font-medium text-slate-700 hover:bg-black/[0.05]"}`}
+                className={`relative flex items-center gap-3 rounded-xl px-3 py-1.5 text-[14px] leading-tight transition-colors ${active ? "font-bold" : "font-medium text-slate-700 hover:bg-black/[0.05]"}`}
                 style={active ? { background: `${cor}22`, color: "#1B1B2F" } : undefined}
               >
                 {active && <span className="absolute -left-4 top-1 bottom-1 w-1 rounded-r-full" style={{ background: cor }} aria-hidden />}
@@ -179,7 +179,7 @@ export function Sidebar() {
               href="/galeria"
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium leading-tight text-slate-700 transition-colors hover:bg-black/[0.05]"
+              className="flex items-center gap-3 rounded-xl px-3 py-1.5 text-[14px] font-medium leading-tight text-slate-700 transition-colors hover:bg-black/[0.05]"
             >
               <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#D6458F]">
                 <ImageIcon className="h-[18px] w-[18px]" />
@@ -192,7 +192,7 @@ export function Sidebar() {
 
         <button
           onClick={sair}
-          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium leading-tight text-slate-700 transition-colors hover:bg-black/[0.05]"
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-1.5 text-[14px] font-medium leading-tight text-slate-700 transition-colors hover:bg-black/[0.05]"
         >
           <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#6B7280]">
             <LogoutIcon className="h-[18px] w-[18px]" />
@@ -201,21 +201,21 @@ export function Sidebar() {
         </button>
 
         {/* pé da lateral: crianças na grama (só aparece em telas altas) e a marca da FAEC */}
-        <div className="mt-auto pt-4">
-          <svg viewBox="0 0 300 40" preserveAspectRatio="none" className="-mx-4 -mb-px block h-9 w-[calc(100%+2rem)]" aria-hidden="true">
+        <div className="mt-auto pt-2">
+          <svg viewBox="0 0 300 40" preserveAspectRatio="none" className="-mx-4 -mb-px block h-5 w-[calc(100%+2rem)]" aria-hidden="true">
             <path d="M0 40V22C60 2 110 4 170 16C220 26 260 22 300 6V40Z" fill="#2F8F5B" />
             <path d="M0 40V30C70 14 130 18 190 28C235 34 270 30 300 20V40Z" fill="#1E4632" />
           </svg>
-          <div className="-mx-4 bg-brand px-4 py-4">
+          <div className="-mx-4 bg-brand px-4 py-2.5">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img
               src="/logo-sistema.png"
               alt="Sistema FAEC SENAR Ceará — Sindicato Rural"
               width={800}
               height={294}
-              className="h-auto w-36"
+              className="h-auto w-24"
             />
-            <p className="mt-2 text-xs leading-relaxed text-white/80">Brincando e cultivando os valores humanos</p>
+            <p className="mt-1 text-[10px] leading-snug text-white/80">Brincando e cultivando os valores humanos</p>
           </div>
         </div>
       </div>
