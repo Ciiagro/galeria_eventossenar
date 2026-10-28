@@ -221,7 +221,7 @@ export default function MunicipioDetalhePage() {
             </div>
           }
         >
-          {ehCoordenador ? "Ações" : municipio?.nome ?? "Documentos do município"}
+          {ehCoordenador ? "Relatórios/Ações" : municipio?.nome ?? "Documentos do município"}
         </TituloPagina>
 
         {erro && (

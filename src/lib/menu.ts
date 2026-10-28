@@ -39,7 +39,7 @@ export function montarLinks(perfil: Perfil | null): LinkMenu[] {
   // (o admin tem o "Documentos" do Painel de Aprovação, em linksAdmin).
   const linkDocumentosMunicipio: LinkMenu[] =
     perfil?.role === "municipio" && perfil.municipio_id
-      ? [{ href: `/municipios/${perfil.municipio_id}`, label: "Ações", Icon: FileTextIcon, prefixo: "/municipios/" }]
+      ? [{ href: `/municipios/${perfil.municipio_id}`, label: "Relatórios/Ações", Icon: FileTextIcon, prefixo: "/municipios/" }]
       : [];
   // Apoiador de Relatórios: fila de análise dos documentos (o admin valida depois)
   const linkAnalise: LinkMenu[] =
