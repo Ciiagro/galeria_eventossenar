@@ -12,7 +12,7 @@ function dataHora(texto: string) {
 }
 
 // Mostra a análise prévia feita pelo Apoiador de Relatórios (e a origem do envio).
-export function AnaliseBadge({ doc, compacto }: { doc: Pick<Documento, "analise_status" | "analise_obs" | "analise_por_nome" | "analise_em" | "origem">; compacto?: boolean }) {
+export function AnaliseBadge({ doc, compacto, validado }: { doc: Pick<Documento, "analise_status" | "analise_obs" | "analise_por_nome" | "analise_em" | "origem">; compacto?: boolean; validado?: boolean }) {
   const origem = doc.origem ? ORIGEM[doc.origem] : null;
   if (!doc.analise_status && !origem) return null;
 
@@ -27,7 +27,7 @@ export function AnaliseBadge({ doc, compacto }: { doc: Pick<Documento, "analise_
             className="inline-flex items-center gap-1 rounded-full bg-[#E2EFFB] px-2 py-0.5 text-[11px] font-bold text-[#0F4C85]"
           >
             <CheckIcon className="h-3 w-3" />
-            Analisado
+            {validado ? "Validado pelo Apoiador de Relatórios" : "Analisado"}
           </span>
         )}
       </>
@@ -47,7 +47,7 @@ export function AnaliseBadge({ doc, compacto }: { doc: Pick<Documento, "analise_
         >
           <p className="flex flex-wrap items-center gap-1.5 font-bold">
             <CheckIcon className="h-4 w-4" />
-            Analisado pelo apoio
+            {validado ? "Validado pelo Apoiador de Relatórios" : "Analisado pelo apoio"}
             <span className="font-normal opacity-80">
               {doc.analise_por_nome ? `· ${doc.analise_por_nome}` : ""} {doc.analise_em ? `· ${dataHora(doc.analise_em)}` : ""}
             </span>

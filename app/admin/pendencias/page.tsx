@@ -117,7 +117,7 @@ function PainelAprovacao() {
       // abre no grupo que tem algo para validar (Documentos primeiro)
       setGrupo((atual) => {
         const pend = (g: boolean) => lista.some((d) => d.status === "pendente" && !d.arquivado && ehDocumentoPdf(d) === g);
-        return !pend(true) && pend(false) ? "acao" : atual;
+        return pend(false) ? "acao" : atual;
       });
     });
     const intervalo = window.setInterval(() => {
@@ -195,9 +195,9 @@ function PainelAprovacao() {
 
   const pendPorGrupo = useMemo(() => ({
     acao: (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado && !ehDocumentoPdf(d)).length,
-    documento: (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado && ehDocumentoPdf(d)).length,
+    documento: 0, // relatórios em PDF são validados pelo Apoiador de Relatórios, não pelo administrador
   }), [documentos]);
-  const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado).length;
+  const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado && !ehDocumentoPdf(d)).length;
   const pendentesForaDoPeriodo = (documentos ?? []).filter(
     (d) => d.status === "pendente" && !noCicloEMes(d, filtroCiclo, ciclos, filtroMes)
   ).length;
@@ -274,7 +274,7 @@ function PainelAprovacao() {
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
         setSelecionado((i) => Math.max(i - 1, 0));
-      } else if ((e.key === "a" || e.key === "A") && doc?.status === "pendente") {
+      } else if ((e.key === "a" || e.key === "A") && doc?.status === "pendente" && !ehDocumentoPdf(doc)) {
         e.preventDefault();
         abrirAprovacao(doc);
       }
@@ -617,7 +617,7 @@ function CartaoDocumento(p: CartaoProps) {
                 <Info icone={CalendarIcon} texto={`Realizado em ${formatarData(doc.data_realizacao)}`} />
                 {doc.responsavel_nome && <Info icone={UserIcon} texto={`Enviado por ${doc.responsavel_nome}`} />}
                 {ehDocumentoPdf(doc) && descricao && <span className="whitespace-normal">{descricao.replace(/\s*\n\s*/g, " · ")}</span>}
-                {compacto && (doc.status === "pendente" || ehDocumentoPdf(doc)) && <AnaliseBadge doc={doc} compacto />}
+                {compacto && (doc.status === "pendente" || ehDocumentoPdf(doc)) && <AnaliseBadge doc={doc} compacto validado={ehDocumentoPdf(doc)} />}
                 {compacto && !expandido && doc.analise_obs && (
                   <span className="basis-full whitespace-pre-line rounded-lg bg-[#FFF8E1] px-2.5 py-1 text-xs text-[#6E4B00]">
                     <strong>Observação do analista{doc.analise_por_nome ? ` (${doc.analise_por_nome})` : ""}:</strong> {doc.analise_obs}
@@ -626,7 +626,15 @@ function CartaoDocumento(p: CartaoProps) {
               </div>
             </div>
 
-            {doc.status === "pendente" && (
+            {doc.status === "pendente" && ehDocumentoPdf(doc) && (
+              <div className="flex gap-2 shrink-0">
+                <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${doc.analise_status ? "bg-[#E2EFFB] text-[#0F4C85]" : "bg-black/5 text-brand-dark/70"}`}>
+                  {doc.analise_status ? <><CheckIcon className="w-3.5 h-3.5" /> Validado pelo Apoiador de Relatórios</> : "Aguardando o Apoiador de Relatórios"}
+                </span>
+              </div>
+            )}
+
+            {doc.status === "pendente" && !ehDocumentoPdf(doc) && (
               <div className="flex gap-2 shrink-0">
                 <button
                   onClick={(e) => { e.stopPropagation(); p.onSelecionar(); p.onAprovar(); }}
@@ -639,7 +647,7 @@ function CartaoDocumento(p: CartaoProps) {
             )}
           </div>
 
-          {(doc.status === "pendente" || ehDocumentoPdf(doc)) && (!compacto || expandido) && <AnaliseBadge doc={doc} />}
+          {(doc.status === "pendente" || ehDocumentoPdf(doc)) && (!compacto || expandido) && <AnaliseBadge doc={doc} validado={ehDocumentoPdf(doc)} />}
 
           {descricao && !ehDocumentoPdf(doc) && (
             <p className={`${compacto ? "mt-1 text-[13px]" : "mt-2 text-sm"} text-brand-dark/85 whitespace-pre-line ${!expandido && longa ? (compacto ? "line-clamp-1" : "line-clamp-2") : ""}`}>
