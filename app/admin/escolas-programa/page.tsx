@@ -8,6 +8,7 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { normalizarTexto } from "@/components/DocumentoUI";
 import { useCiclos } from "@/lib/ciclos";
 import { CriancasPulando, Estrela } from "@/components/Desenhos";
+import { BuildingIcon, XIcon } from "@/components/icons";
 import { Abas, BarraFiltros, CampoBusca, CLASSE_SELECT } from "@/components/Filtros";
 
 const POR_PAGINA = 40; // dá para ver ~40 escolas por vez (20 linhas em 2 colunas)
@@ -224,7 +225,12 @@ function Conteudo() {
         {/* ============ topo (mesmo padrão das outras páginas) ============ */}
         <TituloPagina
           descricao="Marque as escolas que participam desta edição. Só as marcadas aparecem para o envio de documentos."
-          acao={<Indicador valor={totalCiclo.toLocaleString("pt-BR")} rotulo={`${totalCiclo === 1 ? "escola" : "escolas"} em ${municipiosNoCiclo} ${municipiosNoCiclo === 1 ? "município" : "municípios"}`} />}
+          acao={
+            <div className="flex flex-wrap items-center gap-3">
+              <a href="/admin/relatorio-participantes" className="rounded-lg border border-brand-light/30 bg-white px-4 py-2 text-sm font-semibold text-brand-light shadow-sm hover:bg-brand-light/5">Relatório de participantes</a>
+              <Indicador valor={totalCiclo.toLocaleString("pt-BR")} rotulo={`${totalCiclo === 1 ? "escola" : "escolas"} em ${municipiosNoCiclo} ${municipiosNoCiclo === 1 ? "município" : "municípios"}`} />
+            </div>
+          }
         >Escolas do programa</TituloPagina>
 
         {/* ============ município e busca numa linha só ============ */}
@@ -281,9 +287,9 @@ function Conteudo() {
                 <CampoBusca value={busca} onChange={(v) => { setBusca(v); setPagina(1); }} placeholder="Buscar escola ou município..." />
                 <select id="municipio-escolas" value={municipioId} onChange={(e) => setMunicipioId(e.target.value)} className={CLASSE_SELECT} aria-label="Município">
                   <option value="">Todos os municípios</option>
-                  {municipios.map((m) => (
+                  {municipios.filter((m) => visao !== "no_programa" || Number(porMunicipio[String(m.id)] ?? 0) > 0).map((m) => (
                     <option key={m.id} value={m.id}>
-                      {m.nome}{porMunicipio[String(m.id)] ? ` · ${porMunicipio[String(m.id)]} no programa` : ""}
+                      {m.nome}{porMunicipio[String(m.id)] ? ` (${String(porMunicipio[String(m.id)]).padStart(2, "0")})` : ""}
                     </option>
                   ))}
                 </select>
@@ -314,7 +320,45 @@ function Conteudo() {
 
               {!precisaMunicipio && !(visao === "no_programa" ? carregandoPrograma : !!municipioId && !escolas) && !(municipioId && escolas && escolas.length === 0) && (
                 <>
-                  <ul className="mt-3 grid gap-1.5 lg:grid-cols-2">
+                  {visao === "no_programa" && !municipioId && lista.length > 0 && (
+                    <div className="mt-3 space-y-3">
+                      {Array.from(
+                        lista.reduce((mapa, e) => {
+                          const nome = nomeMunicipio.get(String(e.municipio_id)) ?? "Sem município";
+                          mapa.set(nome, [...(mapa.get(nome) ?? []), e]);
+                          return mapa;
+                        }, new Map<string, typeof lista>())
+                      ).sort((a, b) => a[0].localeCompare(b[0])).map(([nomeMun, escolasMun]) => (
+                        <section key={nomeMun} className="overflow-hidden rounded-xl border border-black/10 bg-white">
+                          <header className="flex items-center justify-between bg-brand-light/[0.06] px-4 py-2.5">
+                            <h3 className="text-sm font-bold text-brand-dark">{nomeMun}</h3>
+                            <span className="text-xs font-semibold text-brand-dark/75">{escolasMun.length} {escolasMun.length === 1 ? "escola" : "escolas"}</span>
+                          </header>
+                          <ul className="divide-y divide-black/5">
+                            {escolasMun.map((escola) => (
+                              <li key={escola.id} className="flex items-center justify-between gap-3 px-4 py-2 text-sm text-brand-dark">
+                                <span className="flex min-w-0 items-center gap-2.5">
+                                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#E3F4EA] text-[#2F9E62]"><BuildingIcon className="h-4 w-4" /></span>
+                                  <span className="min-w-0 truncate capitalize" title={escola.nome}>{escola.nome.toLowerCase()}</span>
+                                </span>
+                                <button
+                                  type="button"
+                                  disabled={salvando}
+                                  onClick={() => aplicar([escola.id], false)}
+                                  title="Tirar do programa"
+                                  aria-label={`Tirar ${escola.nome} do programa`}
+                                  className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-black/10 bg-white text-brand-dark/55 transition-colors hover:border-[#E03A3E]/40 hover:bg-[#FDE8E8] hover:text-[#E03A3E] disabled:opacity-50"
+                                >
+                                  <XIcon className="h-4 w-4" />
+                                </button>
+                              </li>
+                            ))}
+                          </ul>
+                        </section>
+                      ))}
+                    </div>
+                  )}
+                  <ul className={`mt-3 grid gap-1.5 lg:grid-cols-2 ${visao === "no_programa" && !municipioId && lista.length > 0 ? "hidden" : ""}`}>
                     {lista.length === 0 && (
                       <li className="rounded-2xl border-2 border-dashed border-black/10 p-8 text-center text-sm text-brand-dark/80 lg:col-span-2">
                         {visao === "no_programa" && marcadas === 0 && !busca.trim()
@@ -339,21 +383,21 @@ function Conteudo() {
                       return (
                         <li key={escola.id}>
                           <label
-                            className="flex cursor-pointer items-center gap-2 rounded-lg border px-2.5 py-1 transition-colors hover:border-brand-light/50"
-                            style={marcada ? { background: "#EEF5F1", borderColor: "rgba(47,107,79,0.45)" } : { background: "#fff", borderColor: "rgba(0,0,0,0.09)" }}
+                            className="flex cursor-pointer items-center gap-3 rounded-xl border border-l-4 px-3 py-2.5 shadow-sm transition-all hover:-translate-y-px hover:shadow-md"
+                            style={marcada ? { background: "#F3F9F5", borderColor: "rgba(0,0,0,0.06)", borderLeftColor: "#2F9E62" } : { background: "#fff", borderColor: "rgba(0,0,0,0.06)", borderLeftColor: "rgba(0,0,0,0.12)" }}
                           >
                             <input
                               type="checkbox"
                               checked={marcada}
                               disabled={salvando}
                               onChange={(e) => aplicar([escola.id], e.target.checked)}
-                              className="h-4 w-4 shrink-0 cursor-pointer"
+                              className="h-[18px] w-[18px] shrink-0 cursor-pointer"
                               style={{ accentColor: "#2F6B4F" }}
                             />
-                            <span className="min-w-0 flex-1 truncate text-sm font-semibold text-brand-dark" title={escola.nome}>{escola.nome}</span>
+                            <span className="min-w-0 flex-1 truncate text-sm font-medium capitalize text-brand-dark" title={escola.nome}>{escola.nome.toLowerCase()}</span>
                             {/* o município só aparece quando a lista mistura vários (com um município escolhido seria repetição) */}
                             {nomeMun && !municipioId && (
-                              <span className="max-w-[40%] shrink-0 truncate text-xs text-brand-dark/65" title={nomeMun}>{nomeMun}</span>
+                              <span className="max-w-[40%] shrink-0 truncate rounded-full bg-black/[0.05] px-2.5 py-0.5 text-xs font-semibold text-brand-dark/70" title={nomeMun}>{nomeMun}</span>
                             )}
                           </label>
                         </li>
@@ -361,7 +405,7 @@ function Conteudo() {
                     })}
                   </ul>
 
-                  {lista.length > POR_PAGINA && (
+                  {lista.length > POR_PAGINA && !(visao === "no_programa" && !municipioId) && (
                     <nav className="mt-3 flex flex-col items-center gap-2 sm:flex-row sm:justify-between" aria-label="Paginação">
                       <p className="text-xs text-brand-dark/70">
                         Mostrando {inicio + 1}–{Math.min(inicio + POR_PAGINA, lista.length)} de {lista.length}

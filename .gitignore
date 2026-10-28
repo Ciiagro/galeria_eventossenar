@@ -39,3 +39,5 @@ api/upload.py
 api/upload-iniciar.py
 api/upload-pedaco.py
 api/validar.py
+*.bak_*
+sql/_zerar_*

@@ -167,3 +167,36 @@ def montar_comunicado(nome: str, titulo: str, mensagem: str, link: str | None, q
     )
     html = _caixa(e(titulo), corpo, "Abrir link" if link else None, e(link, quote=True) if link else None)
     return assunto, texto, html
+
+
+def montar_compromisso_assinado(nome: str, municipio: str):
+    assunto = f"Termo de Compromisso assinado - {municipio}"
+    texto = (
+        f"Olá, {nome}.\n\nSeu Termo de Compromisso como coordenador(a) do Projeto Valores em {municipio} foi assinado. "
+        "O PDF segue em anexo.\n"
+    )
+    html = _caixa(
+        "Termo de Compromisso assinado",
+        f"<p>Olá, <strong>{_html.escape(nome)}</strong>.</p>"
+        f"<p>Seu Termo de Compromisso como coordenador(a) do Projeto Valores em <strong>{_html.escape(municipio)}</strong> foi assinado. "
+        "O PDF segue em anexo.</p>",
+    )
+    return assunto, texto, html
+
+
+def montar_convite_compromisso(nome: str, municipio: str, email_login: str, link: str, quem_enviou: str):
+    assunto = f"Seu acesso ao Projeto Valores - {municipio}: assine o Termo de Compromisso"
+    texto = (
+        f"Olá, {nome}.\n\n{quem_enviou} cadastrou você como coordenador(a) do Projeto Valores em {municipio}.\n"
+        f"Entre com este e-mail ({email_login}) e a senha informada pela administração e assine o Termo de Compromisso:\n{link}\n"
+    )
+    html = _caixa(
+        "Você é o(a) novo(a) coordenador(a)",
+        f"<p>Olá, <strong>{_html.escape(nome)}</strong>.</p>"
+        f"<p>{_html.escape(quem_enviou)} cadastrou você como coordenador(a) do Projeto Valores em <strong>{_html.escape(municipio)}</strong>.</p>"
+        f"<p>Entre com este e-mail (<strong>{_html.escape(email_login)}</strong>) e a senha informada pela administração. "
+        "O primeiro passo é ler e assinar o <strong>Termo de Compromisso</strong>.</p>",
+        "Assinar o Termo de Compromisso",
+        link,
+    )
+    return assunto, texto, html

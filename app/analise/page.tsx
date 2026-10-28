@@ -4,7 +4,10 @@ import { TituloPagina, Indicador } from "@/components/TituloPagina";
 
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
-import { apiGet, apiPost, Documento, Municipio } from "@/lib/api";
+import { apiGet, apiPost, Documento, ehDocumentoPdf, Municipio } from "@/lib/api";
+
+// O apoio analisa tudo (relatórios, imagens e vídeos) do mesmo jeito: só escreve uma observação para o administrador.
+const SO_OBSERVACAO = true as boolean;
 import { usePerfil } from "@/lib/usePerfil";
 import { normalizarLink } from "@/lib/linkIncorporavel";
 import PreviewLink from "@/components/PreviewLink";
@@ -57,6 +60,7 @@ function FilaAnalise() {
   const [ordem, setOrdem] = useState<Ordem>("data_acao"); // padrão: data de realização, da mais recente para a mais antiga
   const [visualizando, setVisualizando] = useState<Documento | null>(null);
   const [ajustesId, setAjustesId] = useState<string | null>(null);
+  const [grupo, setGrupo] = useState<"acao" | "documento">("documento"); // Relatórios primeiro; Ações (imagens/vídeos) × Documentos (relatórios em PDF)
   const [alterandoId, setAlterandoId] = useState<string | null>(null); // documento já analisado cujo parecer está sendo mudado
   const [observacao, setObservacao] = useState("");
   const [salvandoId, setSalvandoId] = useState<string | null>(null);
@@ -101,6 +105,7 @@ function FilaAnalise() {
   const doFiltro = useMemo(() => {
     const termo = semAcento(busca.trim());
     return (documentos ?? []).filter((d) => {
+      if (ehDocumentoPdf(d) !== (grupo === "documento")) return false;
       if (filtroMunicipio && String(d.municipio_id) !== filtroMunicipio) return false;
       const data = d.data_realizacao ?? "";
       if (filtroAno && data.slice(0, 4) !== filtroAno) return false;
@@ -109,7 +114,7 @@ function FilaAnalise() {
       return [d.acao_evento, d.descricao, d.responsavel_nome, d.escolas?.nome, d.acoes_pedagogicas?.nome, nomeMunicipio.get(d.municipio_id)]
         .some((campo) => semAcento(campo).includes(termo));
     });
-  }, [documentos, filtroMunicipio, filtroMes, filtroAno, busca, nomeMunicipio]);
+  }, [documentos, grupo, filtroMunicipio, filtroMes, filtroAno, busca, nomeMunicipio]);
 
   const contagem = useMemo(() => {
     const ativos = doFiltro.filter((d) => !d.arquivado);
@@ -118,6 +123,10 @@ function FilaAnalise() {
   }, [doFiltro]);
 
   // o número do cabeçalho não muda com os filtros: é tudo o que está esperando análise
+  const paraAnalisarPorGrupo = useMemo(() => ({
+    acao: (documentos ?? []).filter((d) => !d.arquivado && !d.analise_status && !ehDocumentoPdf(d)).length,
+    documento: (documentos ?? []).filter((d) => !d.arquivado && !d.analise_status && ehDocumentoPdf(d)).length,
+  }), [documentos]);
   const totalParaAnalisar = useMemo(
     () => (documentos ?? []).filter((d) => !d.arquivado && !d.analise_status).length,
     [documentos]
@@ -154,7 +163,7 @@ function FilaAnalise() {
     }
   }
 
-  async function enviarAnalise(doc: Documento, status: "recomendado" | "ajustes", obs = "") {
+  async function enviarAnalise(doc: Documento, status: "recomendado" | "ajustes" | "analisado", obs = "") {
     setSalvandoId(doc.id);
     setErro(null);
     try {
@@ -174,11 +183,27 @@ function FilaAnalise() {
     <div className="p-4 sm:p-8 max-w-6xl">
       <div className="rounded-2xl border border-black/5 bg-white p-5 shadow-sm sm:p-7">
         <TituloPagina
-          descricao="Confira os documentos e os registros das ações (imagens e vídeos). Recomende a aprovação ou peça ajustes: o administrador faz a validação final com a sua análise."
+          descricao="Confira os relatórios e os registros das ações (imagens e vídeos) e escreva suas observações: o administrador faz a validação final com a sua análise."
           acao={<Indicador valor={totalParaAnalisar} rotulo="para analisar" alerta={totalParaAnalisar > 0} />}
         >Análise de documentos</TituloPagina>
 
         {erro && <div className="mt-4 rounded-lg bg-status-pendente/10 px-4 py-3 text-sm text-status-pendente" role="alert">{erro}</div>}
+
+        <div className="mt-5 inline-flex rounded-xl bg-black/[0.05] p-1" role="tablist" aria-label="Tipo de envio">
+          {([["documento", "Relatórios"], ["acao", "Ações pedagógicas"]] as ["acao" | "documento", string][]).map(([valor, rotulo]) => (
+            <button
+              key={valor}
+              type="button"
+              role="tab"
+              aria-selected={grupo === valor}
+              onClick={() => setGrupo(valor)}
+              className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${grupo === valor ? "bg-white text-brand-dark shadow-sm" : "text-brand-dark/70 hover:text-brand-dark"}`}
+            >
+              {rotulo}
+              {paraAnalisarPorGrupo[valor] > 0 && <span className="rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white">{paraAnalisarPorGrupo[valor]}</span>}
+            </button>
+          ))}
+        </div>
 
         <Abas<Aba>
           abas={[
@@ -244,8 +269,8 @@ function FilaAnalise() {
               onObservacao={setObservacao}
               onVisualizar={() => setVisualizando(doc)}
               onRecomendar={() => enviarAnalise(doc, "recomendado")}
-              onPedirAjustes={() => { setAjustesId(doc.id); setObservacao(doc.analise_status === "ajustes" ? doc.analise_obs ?? "" : ""); }}
-              onEnviarAjustes={() => enviarAnalise(doc, "ajustes", observacao)}
+              onPedirAjustes={() => { setAjustesId(doc.id); setObservacao(doc.analise_status === "ajustes" || doc.analise_status === "analisado" ? doc.analise_obs ?? "" : ""); }}
+              onEnviarAjustes={() => enviarAnalise(doc, SO_OBSERVACAO ? "analisado" : "ajustes", observacao)}
               onCancelarAjustes={() => setAjustesId(null)}
               onArquivar={(valor) => arquivar(doc, valor)}
             />
@@ -316,19 +341,21 @@ function CartaoAnalise({
   return (
     <article className="rounded-xl border border-black/5 bg-white p-3 transition-shadow hover:shadow-sm sm:p-4">
       <div className="flex flex-col gap-4 sm:flex-row">
-        <Miniatura doc={doc} onClick={temArquivo ? onVisualizar : undefined} />
+        {!ehDocumentoPdf(doc) && <Miniatura doc={doc} onClick={temArquivo ? onVisualizar : undefined} />}
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
             <div className="min-w-0">
               <h2 className="text-lg font-bold leading-snug text-brand-dark">
-                {doc.tipos_documento?.nome ?? "Documento"}
+                {ehDocumentoPdf(doc) && doc.subtipo ? doc.subtipo.replace("Relatório de Formação", "Relatório") : doc.tipos_documento?.nome ?? "Documento"}
                 {doc.acao_evento && <span className="font-semibold text-brand-dark/85"> — {doc.acao_evento}</span>}
               </h2>
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-brand-dark/80">
                 <Info icone={MapPinIcon} texto={municipio} forte />
-                {doc.escolas?.nome && <Info icone={EscolaIcon} texto={doc.escolas.nome} forte />}
-                {doc.acoes_pedagogicas?.nome && <Info icone={FolderIcon} texto={`${doc.acoes_pedagogicas.nome}${doc.subtipo ? ` · ${doc.subtipo}` : ""}`} forte />}
+                {doc.escolas_ids && doc.escolas_ids.length > 1
+                  ? <Info icone={EscolaIcon} texto={(doc.escolas_nomes ?? []).join(" · ") || `${doc.escolas_ids.length} escolas`} forte />
+                  : doc.escolas?.nome && <Info icone={EscolaIcon} texto={doc.escolas.nome} forte />}
+                {!ehDocumentoPdf(doc) && doc.acoes_pedagogicas?.nome && <Info icone={FolderIcon} texto={`${doc.acoes_pedagogicas.nome}${doc.subtipo ? ` · ${doc.subtipo}` : ""}`} forte />}
                 <Info icone={CalendarIcon} texto={`Realizado em ${formatarData(doc.data_realizacao)}`} />
                 {doc.responsavel_nome && <Info icone={UserIcon} texto={`Enviado por ${doc.responsavel_nome}`} />}
               </div>
@@ -336,6 +363,9 @@ function CartaoAnalise({
 
             {!abrindoAjustes && (
               <div className="flex shrink-0 flex-wrap gap-2">
+                {ehDocumentoPdf(doc) && temArquivo && (
+                  <button onClick={onVisualizar} className={`${BOTAO} border border-brand-light text-brand-light hover:bg-brand-light/5`}>Abrir PDF</button>
+                )}
                 {doc.arquivado ? (
                   <button onClick={() => onArquivar(false)} disabled={salvando} className={`${BOTAO} bg-black/5 text-brand-dark hover:bg-black/10`}>
                     <FolderIcon className="h-4 w-4" /> Desarquivar
@@ -353,14 +383,9 @@ function CartaoAnalise({
                   </>
                 ) : (
                   <>
-                    <button onClick={onRecomendar} disabled={salvando || doc.analise_status === "recomendado"}
-                      title={doc.analise_status === "recomendado" ? "Já está como recomendado" : "Recomendar ao administrador que aprove este documento"}
+                    <button onClick={onPedirAjustes} disabled={salvando} title="Escrever suas observações para o administrador"
                       className={`${BOTAO} bg-[#2F9E62] text-white shadow-sm hover:brightness-110`}>
-                      <CheckIcon className="h-4 w-4" /> Recomendar
-                    </button>
-                    <button onClick={onPedirAjustes} disabled={salvando} title="Explicar o que precisa ser corrigido antes de aprovar"
-                      className={`${BOTAO} bg-[#FFF3CC] text-[#6E4B00] hover:bg-[#FFE9A6]`}>
-                      <AlertIcon className="h-4 w-4" /> Pedir ajustes
+                      <CheckIcon className="h-4 w-4" /> Analisar
                     </button>
                     {alterando ? (
                       <button onClick={onCancelarAlterar} disabled={salvando} className={`${BOTAO} text-brand-dark/80 hover:bg-black/5`}>
@@ -391,7 +416,7 @@ function CartaoAnalise({
 
           {abrindoAjustes && (
             <div className="mt-3 rounded-xl border border-[#F2B705]/50 bg-[#FFF8E1] p-3">
-              <label htmlFor={`obs-${doc.id}`} className="block text-sm font-bold text-[#6E4B00]">O que precisa ser ajustado?</label>
+              <label htmlFor={`obs-${doc.id}`} className="block text-sm font-bold text-[#6E4B00]">Suas observações para o administrador (opcional)</label>
               <textarea
                 id={`obs-${doc.id}`}
                 value={observacao}
@@ -399,11 +424,11 @@ function CartaoAnalise({
                 rows={3}
                 maxLength={1000}
                 autoFocus
-                placeholder="Ex.: A imagem está escura; envie outra. O relatório não cita a escola."
+                placeholder={SO_OBSERVACAO ? "Ex.: Conferi. Falta a assinatura na última página do relatório. / A imagem está escura." : "Ex.: A imagem está escura; envie outra."}
                 className="mt-1.5 w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-[#F2B705]/40"
               />
               <div className="mt-2 flex gap-2">
-                <button onClick={onEnviarAjustes} disabled={salvando || !observacao.trim()}
+                <button onClick={onEnviarAjustes} disabled={salvando || (!SO_OBSERVACAO && !observacao.trim())}
                   className="rounded-lg bg-[#F26122] px-4 py-2 text-sm font-bold text-white shadow-sm hover:brightness-110 disabled:opacity-50">
                   {salvando ? "Salvando..." : "Enviar análise"}
                 </button>

@@ -6,7 +6,7 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { apiDelete, apiGet, apiPost, MembroEquipe, Municipio, ROTULO_PAPEL } from "@/lib/api";
 import { AdminGuard } from "@/components/AdminGuard";
 import { LockIcon, MailIcon, MapPinIcon, SearchIcon, UserIcon, XIcon } from "@/components/icons";
-import { BotaoEditar, BotaoExcluir } from "@/components/BotoesIcone";
+import { MenuAcoes, Ordem, Pilula, RodapeTabela, Th, ordenar } from "@/components/TabelaCoordenadores";
 import { BarraFiltros, CampoBusca } from "@/components/Filtros";
 
 type PapelApoio = MembroEquipe["role"];
@@ -34,6 +34,15 @@ const PAPEIS: { valor: PapelApoio; titulo: string; descricao: string; cor: strin
     fundo: "#F0E8F7",
   },
 ];
+
+function iniciais(nome: string) {
+  const partes = (nome || "?").trim().split(/\s+/).filter(Boolean);
+  const a = partes[0]?.[0] ?? "?";
+  const b = partes.length > 1 ? partes[partes.length - 1][0] : "";
+  return (a + b).toUpperCase();
+}
+
+const POR_PAGINA_TABELA = 10;
 
 const CAMPO =
   "w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30";
@@ -67,6 +76,9 @@ function EquipePage() {
   const [escolhidos, setEscolhidos] = useState<Set<number>>(new Set());
   const [buscaMunicipio, setBuscaMunicipio] = useState("");
   const [buscaEquipe, setBuscaEquipe] = useState(""); // pesquisa na lista da equipe
+  const [ordemTabela, setOrdemTabela] = useState<Ordem | undefined>(undefined);
+  const [paginaTabela, setPaginaTabela] = useState(1);
+  useEffect(() => { setPaginaTabela(1); }, [buscaEquipe, ordemTabela]);
   const [salvando, setSalvando] = useState(false);
 
   const carregar = useCallback(() => {
@@ -329,31 +341,58 @@ function EquipePage() {
               Ninguém cadastrado ainda. Clique em &quot;+ Novo usuário&quot;.
             </div>
           )}
-          {equipeFiltrada?.map((m) => {
-            const info = PAPEIS.find((p) => p.valor === m.role)!;
-            return (
-              <article key={m.id} className="rounded-xl border border-black/5 bg-white px-4 py-2.5 transition-shadow hover:shadow-sm">
-                <div className="flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                  <div className="min-w-0 sm:w-60 sm:shrink-0">
-                    <h2 className="truncate text-base font-bold leading-tight text-brand-dark" title={m.nome}>{m.nome}</h2>
-                    <p className="truncate text-xs text-brand-dark/75" title={m.email ?? undefined}>{m.email ?? "sem e-mail"}</p>
-                  </div>
-                  <span className="w-fit shrink-0 rounded-full px-2.5 py-0.5 text-xs font-bold sm:w-44 sm:text-center" style={{ background: info.fundo, color: info.cor }}>
-                    {info.titulo}
-                  </span>
-                  {m.role === "admin" ? (
-                    <span className="min-w-0 flex-1 text-xs font-semibold text-brand-dark/70">Acesso a todos os municípios</span>
-                  ) : (
-                    <MunicipiosDoApoiador ids={m.municipio_ids} nomes={nomes} />
-                  )}
-                  <div className="flex shrink-0 gap-2 sm:ml-auto">
-                    <BotaoEditar onClick={() => editar(m)} rotulo={m.nome} />
-                    <BotaoExcluir onClick={() => excluir(m)} rotulo={m.nome} />
-                  </div>
-                </div>
-              </article>
-            );
-          })}
+          {equipeFiltrada && equipeFiltrada.length > 0 && (
+            <div className="overflow-hidden rounded-2xl border border-black/5 bg-white">
+              <div className="overflow-x-auto">
+                <table className="w-full text-left text-sm">
+                  <thead className="border-b border-black/5 bg-[#F6F9F7]">
+                    <tr>
+                      <Th col="nome" ordem={ordemTabela} onOrdem={setOrdemTabela}>Nome</Th>
+                      <Th col="email" ordem={ordemTabela} onOrdem={setOrdemTabela}>E-mail</Th>
+                      <Th col="funcao" ordem={ordemTabela} onOrdem={setOrdemTabela}>Função</Th>
+                      <Th>Municípios</Th>
+                      <Th className="text-right">Ações</Th>
+                    </tr>
+                  </thead>
+                  <tbody className="divide-y divide-black/5">
+                    {ordenar(equipeFiltrada, ordemTabela, (m, col) => col === "email" ? m.email ?? "" : col === "funcao" ? PAPEIS.find((p) => p.valor === m.role)?.titulo ?? "" : m.nome)
+                      .slice((paginaTabela - 1) * POR_PAGINA_TABELA, paginaTabela * POR_PAGINA_TABELA)
+                      .map((m) => {
+                        const info = PAPEIS.find((p) => p.valor === m.role)!;
+                        return (
+                          <tr key={m.id} className="hover:bg-[#F3FAF6]">
+                            <td className="px-3 py-3">
+                              <div className="flex items-center gap-3">
+                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ background: info.fundo, color: info.cor }} aria-hidden="true">
+                                  {iniciais(m.nome)}
+                                </span>
+                                <span className="block font-bold text-brand-dark">{m.nome}</span>
+                              </div>
+                            </td>
+                            <td className="whitespace-nowrap px-3 py-3 text-brand-dark">{m.email ?? "sem e-mail"}</td>
+                            <td className="px-3 py-3"><Pilula texto={info.titulo} fundo={info.fundo} cor={info.cor} /></td>
+                            <td className="px-3 py-3">
+                              {m.role === "admin" ? (
+                                <span className="text-xs font-semibold text-brand-dark/70">Todos os municípios</span>
+                              ) : (
+                                <MunicipiosDoApoiador ids={m.municipio_ids} nomes={nomes} />
+                              )}
+                            </td>
+                            <td className="px-3 py-3 text-right">
+                              <MenuAcoes rotulo={m.nome} itens={[
+                                { rotulo: "Editar dados", onClick: () => editar(m) },
+                                { rotulo: "Excluir", perigo: true, onClick: () => excluir(m) },
+                              ]} />
+                            </td>
+                          </tr>
+                        );
+                      })}
+                  </tbody>
+                </table>
+              </div>
+              <div className="border-t border-black/5"><RodapeTabela pagina={paginaTabela} total={equipeFiltrada.length} porPagina={POR_PAGINA_TABELA} onChange={setPaginaTabela} /></div>
+            </div>
+          )}
         </div>
       </div>
     </div>

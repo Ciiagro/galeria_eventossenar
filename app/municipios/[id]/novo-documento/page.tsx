@@ -1,5 +1,7 @@
 "use client";
 
+import { TituloPagina } from "@/components/TituloPagina";
+
 import { useEffect, useMemo, useRef, useState } from "react";
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
@@ -43,7 +45,7 @@ const INFO_TIPOS: Record<
     Icone: FileTextIcon,
     cor: "bg-emerald-50 text-emerald-600",
     badge: "bg-emerald-50 text-emerald-700",
-    finalidade: "Só para Documentos: relatórios, ficha de frequência e portfólio.",
+    finalidade: "Só para os documentos do projeto: relatórios e listas de presença das formações e o portfólio.",
   },
   "Vídeo": {
     Icone: VideoIcon,
@@ -62,7 +64,7 @@ const INFO_TIPOS: Record<
 const ehPdf = (arquivo: File) => /\.pdf$/i.test(arquivo.name) || arquivo.type === "application/pdf";
 
 const DICAS = [
-  "Escolha primeiro o que vai enviar: o registro de uma ação (vídeo ou imagem) ou um documento (PDF: relatório, ficha de frequência ou portfólio).",
+  "Escolha primeiro o que vai enviar: o registro de uma ação (vídeo ou imagem) ou um documento (PDF: relatório ou lista de presença das formações, ou o portfólio).",
   "Use descrições claras e objetivas.",
   "Prefira salvar os arquivos em boa qualidade.",
   "Vídeo longo ou muito pesado? Em vez de enviar o arquivo, cole o link (YouTube, Google Drive ou Instagram) no campo de link, mais abaixo.",
@@ -91,11 +93,16 @@ export default function NovoDocumentoPage() {
   const [subtipo, setSubtipo] = useState("");
   const [acaoEvento, setAcaoEvento] = useState("");
   const [escolaId, setEscolaId] = useState("");
-  const [dataRealizacao, setDataRealizacao] = useState("");
+  const [jaEnviadas, setJaEnviadas] = useState<string[]>([]); // escolas que já tiveram este documento enviado antes
+  const [escolasSel, setEscolasSel] = useState<string[]>([]); // formações: o relatório pode valer para várias escolas
+  // a data de realização já vem com o dia de hoje (pode voltar para um dia anterior, mas não para o futuro)
+  const hojeISO = () => { const d = new Date(); return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}-${String(d.getDate()).padStart(2, "0")}`; };
+  const [dataRealizacao, setDataRealizacao] = useState(hojeISO);
   const [descricao, setDescricao] = useState("");
   const [arquivos, setArquivos] = useState<File[]>([]);
   const [linkExterno, setLinkExterno] = useState("");
   const [arrastando, setArrastando] = useState(false);
+  const [arquivoLista, setArquivoLista] = useState<File | null>(null); // formações: a lista de presença vai no mesmo envio do relatório
 
   const [enviando, setEnviando] = useState(false);
   const [progresso, setProgresso] = useState<number | null>(null);
@@ -142,6 +149,24 @@ export default function NovoDocumentoPage() {
   const acaoSelecionada = useMemo(() => acoes.find((a) => a.id === acaoId) ?? null, [acoes, acaoId]);
   const tipoPdf = useMemo(() => tipos.find((t) => t.nome === "PDF") ?? null, [tipos]);
   const exigePdf = Boolean(acaoSelecionada?.exige_pdf);
+  const ehFormacao = subtipo.startsWith("Relatório de Formação") || subtipo.startsWith("Lista de Presença"); // vale para várias escolas
+  // o "par" da formação: quem escolheu o relatório pode mandar junto a lista de presença (e vice-versa), se quiser
+  const subtipoPar = subtipo.startsWith("Relatório de Formação")
+    ? subtipo.replace("Relatório de Formação", "Lista de Presença")
+    : subtipo.startsWith("Lista de Presença") ? subtipo.replace("Lista de Presença", "Relatório de Formação") : "";
+  const parDisponivel = Boolean(subtipoPar) && Boolean(acaoSelecionada?.subtipos?.includes(subtipoPar));
+  const rotuloCurto = (t: string) => t.replace("Relatório de Formação", "Relatório");
+  useEffect(() => {
+    if (!ehFormacao || !municipioId || !subtipo) { setJaEnviadas([]); return; }
+    apiGet(`/api/entregas-escolas?municipio_id=${municipioId}&subtipo=${encodeURIComponent(subtipo)}`)
+      .then((r: { escola_ids: string[] }) => {
+        const ids = (r.escola_ids ?? []).map(String);
+        setJaEnviadas(ids);
+        setEscolasSel((atual) => atual.filter((x) => !ids.includes(x)));
+      })
+      .catch(() => setJaEnviadas([]));
+  }, [ehFormacao, municipioId, subtipo]);
+  const faltam = escolas.filter((e) => !jaEnviadas.includes(String(e.id)));
   const apenasMidia = categoria === "acao"; // registro de ação: vídeo ou imagem, sem PDF
   const grupoDocumentos = useMemo(() => acoes.find((a) => a.exige_pdf) ?? null, [acoes]); // "Documentos" (PDF)
 
@@ -182,9 +207,12 @@ export default function NovoDocumentoPage() {
     const foraDoTipo = todos.length - doTipo.length;
     const novos = doTipo.filter((f) => f.size <= MAX_FILE_MB * 1024 * 1024);
     const grandes = doTipo.length - novos.length;
-    setArquivos((atual) => [...atual, ...novos]);
+    // formação: aqui vai um PDF só (o do tipo escolhido). O outro documento da formação vai no campo "Também enviar".
+    const soUm = ehFormacao;
+    setArquivos((atual) => (soUm ? novos.slice(0, 1) : [...atual, ...novos]));
     if (fileInputRef.current) fileInputRef.current.value = "";
     const avisos = [
+      soUm && novos.length > 1 ? "Neste campo vai um PDF só: o do tipo escolhido. O outro documento da formação vai no campo \"Também enviar\"." : "",
       foraDoTipo > 0
         ? `${foraDoTipo} arquivo(s) ignorado(s): ${exigePdf ? "documentos aceitam só PDF" : "o registro de ação aceita só vídeo ou imagem (PDF é para Documentos)"}.`
         : "",
@@ -201,7 +229,7 @@ export default function NovoDocumentoPage() {
     e.preventDefault();
     setErro(null);
 
-    if (!municipioId || !tipoId || !dataRealizacao || !descricao) {
+    if (!municipioId || !tipoId || !dataRealizacao || (!exigePdf && !descricao)) {
       setErro("Preencha os campos obrigatórios.");
       return;
     }
@@ -209,8 +237,8 @@ export default function NovoDocumentoPage() {
       setErro("Escolha o que vai enviar: o registro de uma ação ou um documento.");
       return;
     }
-    if (!escolaId) {
-      setErro("Escolha a escola do programa a que este envio se refere.");
+    if (ehFormacao ? escolasSel.length === 0 : !escolaId) {
+      setErro(ehFormacao ? "Marque ao menos uma escola do programa a que o relatório se refere." : "Escolha a escola do programa a que este envio se refere.");
       return;
     }
     if (!acaoId) {
@@ -229,7 +257,11 @@ export default function NovoDocumentoPage() {
       setErro("PDF é só para Documentos. No registro de uma ação, envie vídeo ou imagem.");
       return;
     }
-    if (arquivos.length === 0 && !linkExterno) {
+    if (ehFormacao && parDisponivel && arquivoLista && !ehPdf(arquivoLista)) {
+      setErro("A lista de presença deve ser enviada em PDF.");
+      return;
+    }
+    if (arquivos.length === 0 && !linkExterno && !(ehFormacao && parDisponivel && arquivoLista)) {
       setErro("Selecione ao menos um arquivo ou informe um link alternativo.");
       return;
     }
@@ -251,6 +283,24 @@ export default function NovoDocumentoPage() {
         data_realizacao: dataRealizacao,
       };
 
+      // formações: um envio só, valendo para todas as escolas marcadas
+      const idsEscolas = ehFormacao ? escolasSel : [escolaId];
+      const registrar = async (extra: Record<string, unknown>) => {
+        // um envio só, valendo para todas as escolas marcadas
+        await apiPost("/api/documentos", { ...metadados, escola_id: idsEscolas[0], escolas_ids: idsEscolas.length > 1 ? idsEscolas : undefined, ...extra });
+      };
+
+      if (ehFormacao && parDisponivel && arquivoLista) {
+        setEtapa("enviando");
+        setProgresso(0);
+        const envioLista = await apiUploadDireto(arquivoLista, municipioId, tipoNome, (percentual) => setProgresso(percentual));
+        await registrar({
+          subtipo: subtipoPar,
+          drive_file_id: envioLista.drive_file_id,
+          drive_file_link: envioLista.drive_file_link,
+        });
+      }
+
       if (arquivos.length > 0) {
         for (const arquivoOriginal of arquivos) {
           setEtapa("compactando");
@@ -263,14 +313,13 @@ export default function NovoDocumentoPage() {
             setProgresso(percentual)
           );
 
-          await apiPost("/api/documentos", {
-            ...metadados,
+          await registrar({
             drive_file_id: uploadResult.drive_file_id,
             drive_file_link: uploadResult.drive_file_link,
           });
         }
-      } else {
-        await apiPost("/api/documentos", { ...metadados, link_externo: linkExterno });
+      } else if (!(ehFormacao && parDisponivel && arquivoLista)) {
+        await registrar({ link_externo: linkExterno });
       }
 
       router.push(`/municipios/${municipioId}`);
@@ -297,17 +346,7 @@ export default function NovoDocumentoPage() {
         <span className="text-brand-dark font-medium">Adicionar Documento</span>
       </div>
 
-      <div className="flex items-start gap-4 mb-7">
-        <div className="w-12 h-12 rounded-xl bg-brand-light/10 text-brand-light flex items-center justify-center shrink-0">
-          <UploadCloudIcon className="w-6 h-6" />
-        </div>
-        <div>
-          <h1 className="text-2xl font-semibold text-brand-dark leading-tight">Adicionar Documento</h1>
-          <p className="text-sm text-brand-dark/80 mt-0.5">
-            Preencha as informações abaixo para inserir o documento no município.
-          </p>
-        </div>
-      </div>
+      <TituloPagina className="mb-6" descricao="Preencha as informações abaixo para inserir o documento no município.">Adicionar Documento</TituloPagina>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Coluna principal: formulário */}
@@ -358,8 +397,8 @@ export default function NovoDocumentoPage() {
               <p className="block text-sm font-medium mb-1.5 text-brand-dark/90">O que você vai enviar? *</p>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                 {([
+                  ["documento", "Relatório das Formações", "PDF: relatório e lista de presença de cada formação, e o portfólio final do projeto."],
                   ["acao", "Registro de uma ação", "Vídeo ou imagem de uma ação pedagógica realizada."],
-                  ["documento", "Documento", "PDF: relatório de formação, relatório de visita, ficha de frequência ou portfólio."],
                 ] as const).map(([valor, titulo, texto]) => (
                   <button
                     key={valor}
@@ -394,7 +433,7 @@ export default function NovoDocumentoPage() {
               )}
 
               {categoria === "documento" && acaoSelecionada?.subtipos?.length ? (
-                <div>
+                <div className="col-span-2">
                   <label htmlFor="subtipo-acao" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Tipo de documento *</label>
                   <select
                     id="subtipo-acao"
@@ -403,13 +442,17 @@ export default function NovoDocumentoPage() {
                     onChange={(e) => setSubtipo(e.target.value)}
                   >
                     <option value="">Selecione</option>
-                    {acaoSelecionada.subtipos.map((t) => (
-                      <option key={t} value={t}>{t}</option>
-                    ))}
+                    {acaoSelecionada.subtipos.map((t) => {
+                      const info = acaoSelecionada.subtipos_info?.find((x) => x.nome === t);
+                      const prazo = info?.prazo ? ` — até ${info.prazo.split("-").reverse().join("/")}${info.atrasado ? " (prazo vencido)" : ""}` : info ? " — sem prazo (documento final)" : "";
+                      return <option key={t} value={t}>{t.replace("Relatório de Formação", "Relatório")}{prazo}</option>;
+                    })}
                   </select>
                 </div>
               ) : null}
 
+              {/* Documentos são sempre PDF: o tipo já fica escolhido e a pergunta some */}
+              {!exigePdf && (
               <div>
                 <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Tipo de arquivo *</label>
                 <select
@@ -428,9 +471,11 @@ export default function NovoDocumentoPage() {
                   ))}
                 </select>
               </div>
+              )}
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              {!exigePdf && (
               <div>
                 <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Título da atividade (opcional)</label>
                 <input
@@ -440,13 +485,14 @@ export default function NovoDocumentoPage() {
                   placeholder="Ex: Roda de conversa sobre respeito"
                 />
               </div>
+              )}
 
               <div>
                 <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Data de realização *</label>
                 <input
                   type="date"
                   min="2000-01-01"
-                  max={`${new Date().getFullYear() + 1}-12-31`}
+                  max={hojeISO()}
                   className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
                   value={dataRealizacao}
                   onChange={(e) => setDataRealizacao(e.target.value)}
@@ -456,6 +502,41 @@ export default function NovoDocumentoPage() {
             </div>
 
             <div className="grid grid-cols-2 gap-4">
+              {ehFormacao ? (
+                <div className="col-span-2">
+                  <div className="mb-1.5 flex items-center justify-between">
+                    <span className="block text-sm font-medium text-brand-dark/90">Escolas do programa * <span className="font-normal text-brand-dark/70">(marque uma ou mais)</span></span>
+                    {escolas.length > 0 && (
+                      <button type="button" className="text-xs font-semibold text-brand-light hover:underline" onClick={() => setEscolasSel(escolasSel.length === faltam.length ? [] : faltam.map((e) => String(e.id)))}>
+                        {escolasSel.length === faltam.length && faltam.length > 0 ? "Limpar" : "Marcar todas"}
+                      </button>
+                    )}
+                  </div>
+                  <div className="max-h-60 overflow-y-auto rounded-lg border border-black/10 bg-white p-3">
+                    {escolas.length > 0 && jaEnviadas.length > 0 && (
+                      <p className="mb-2 rounded-lg bg-[#E3F4EA] px-3 py-2 text-xs font-semibold text-[#17613B]">
+                        {escolas.length - faltam.length} {escolas.length - faltam.length === 1 ? "escola já enviou" : "escolas já enviaram"} este documento e {escolas.length - faltam.length === 1 ? "saiu" : "saíram"} da lista.{faltam.length === 0 ? " Todas as escolas já enviaram!" : ""}
+                      </p>
+                    )}
+                    {faltam.map((esc) => {
+                      const enviada = false;
+                      return (
+                      <label key={esc.id} className={`flex items-start gap-2 rounded px-2 py-2 text-sm ${enviada ? "cursor-not-allowed opacity-60" : "cursor-pointer hover:bg-black/[0.03]"}`}>
+                        <input
+                          type="checkbox"
+                          className="mt-0.5"
+                          disabled={enviada}
+                          checked={escolasSel.includes(String(esc.id))}
+                          onChange={(e) => setEscolasSel((atual) => (e.target.checked ? [...atual, String(esc.id)] : atual.filter((x) => x !== String(esc.id))))}
+                        />
+                        <span>{esc.nome}{enviada && <span className="ml-2 rounded-full bg-[#E3F4EA] px-2 py-0.5 text-[11px] font-bold text-[#17613B]">✓ já enviado</span>}</span>
+                      </label>
+                      );
+                    })}
+                    {escolas.length === 0 && <p className="p-2 text-xs text-brand-dark/70">Nenhuma escola deste município foi incluída no programa neste ciclo. Peça ao administrador para incluí-las.</p>}
+                  </div>
+                </div>
+              ) : (
               <div>
                 <label htmlFor="escola-programa" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Escola do programa *</label>
                 <select
@@ -478,10 +559,11 @@ export default function NovoDocumentoPage() {
                   </p>
                 )}
               </div>
+              )}
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Descrição *</label>
+              <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">{exigePdf ? "Observação (opcional)" : "Descrição *"}</label>
               <textarea
                 className="w-full border border-black/10 rounded-lg px-3 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 focus:border-brand-light"
                 rows={3}
@@ -495,7 +577,7 @@ export default function NovoDocumentoPage() {
             </div>
 
             <div>
-              <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Arquivos *</label>
+              <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">{ehFormacao ? `${rotuloCurto(subtipo)} (PDF) *` : "Arquivos *"}</label>
               <div className="grid grid-cols-2 gap-4">
                 <div
                   onDragOver={(e) => {
@@ -527,7 +609,7 @@ export default function NovoDocumentoPage() {
                   <input
                     ref={fileInputRef}
                     type="file"
-                    multiple
+                    multiple={!ehFormacao}
                     accept={exigePdf ? FORMATOS_PDF : apenasMidia ? FORMATOS_MIDIA : FORMATOS_ACEITOS}
                     onChange={(e) => e.target.files && adicionarArquivos(e.target.files)}
                     className="hidden"
@@ -573,6 +655,22 @@ export default function NovoDocumentoPage() {
               </div>
             </div>
 
+            {ehFormacao && parDisponivel && (
+              <div>
+                <label htmlFor="arquivo-par" className="block text-sm font-medium mb-1.5 text-brand-dark/90">Também enviar: {rotuloCurto(subtipoPar)} (PDF, opcional)</label>
+                <input
+                  id="arquivo-par"
+                  type="file"
+                  accept="application/pdf,.pdf"
+                  onChange={(e) => setArquivoLista(e.target.files?.[0] ?? null)}
+                  className="w-full border border-black/10 rounded-lg px-3 py-2 text-sm bg-white"
+                />
+                <p className="mt-1 text-xs text-brand-dark/70">Se quiser, anexe aqui o outro documento da mesma formação. Os dois vão no mesmo envio, cada um com o seu nome.</p>
+              </div>
+            )}
+
+            {/* vídeo grande por link: só para registro de ação (documento é sempre PDF) */}
+            {!exigePdf && (
             <div>
               <label className="block text-sm font-medium mb-1.5 text-brand-dark/90">Vídeo grande? Cole o link aqui (opcional)</label>
               <div className="relative">
@@ -595,6 +693,7 @@ export default function NovoDocumentoPage() {
                 </ul>
               </details>
             </div>
+            )}
 
             <div className="rounded-lg bg-brand-light/10 text-brand-dark/85 text-xs px-4 py-3">
               Após o envio, o documento ficará disponível na aba correspondente deste município, com status{" "}

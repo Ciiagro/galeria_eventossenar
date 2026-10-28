@@ -189,17 +189,11 @@ export function Grama({ className = "" }: Props) {
   );
 }
 
-// Cenário do pé da página: grama, árvores e flores (pequeno, para não poluir)
+// Pé da página: só a faixa de grama
 export function CenarioRodape() {
   return (
-    <div className="relative mt-6 select-none" aria-hidden="true">
-      <div className="relative mx-auto flex max-w-xl items-end justify-center gap-1 px-4">
-        <Arvore className="hidden w-10 -mr-1 sm:block" />
-        <Flor className="hidden w-5 sm:block" petala="#F49AC1" />
-        <Flor className="hidden w-5 sm:block" petala="#A98BC9" />
-        <Arvore className="hidden w-10 -ml-1 sm:block" />
-      </div>
-      <div className="-mt-2">
+    <div className="relative mt-3 select-none" aria-hidden="true">
+      <div>
         <Grama className="!h-5 sm:!h-6" />
       </div>
     </div>

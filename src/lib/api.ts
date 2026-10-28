@@ -247,7 +247,7 @@ export type Projeto = { id: string; nome: string; descricao?: string; cor?: stri
 
 // Ação pedagógica (Acolhimento, Meditação, Hora do Conto...). A linha com exige_pdf = true é o grupo
 // "Documentos" (relatórios, ficha de frequência, portfólio): não é uma ação pedagógica.
-export type AcaoPedagogica = { id: string; nome: string; ordem?: number | null; exige_pdf?: boolean; subtipos?: string[] | null };
+export type AcaoPedagogica = { id: string; nome: string; ordem?: number | null; exige_pdf?: boolean; subtipos?: string[] | null; subtipos_info?: { nome: string; prazo: string | null; atrasado: boolean }[] };
 
 export type DocumentoResumo = { nome: string; total: number; aprovados?: number };
 
@@ -328,6 +328,7 @@ export type DocumentoGaleria = {
   subtipo?: string | null;
   tipos_documento?: { nome: string };
   escolas?: { nome: string };
+  escolas_ids?: string[] | null;
   projetos?: { nome: string; cor?: string | null };
   acoes_pedagogicas?: { nome: string } | null;
 };
@@ -358,7 +359,7 @@ export type Documento = {
   validado_por_nome?: string | null;
   validado_em?: string | null;
   origem?: "municipio" | "visita" | "apoio_relatorios" | "admin" | null;
-  analise_status?: "recomendado" | "ajustes" | null;
+  analise_status?: "recomendado" | "ajustes" | "analisado" | null;
   analise_obs?: string | null;
   analise_por_nome?: string | null;
   analise_em?: string | null;
@@ -370,7 +371,9 @@ export type Documento = {
   descricao_galeria?: string | null;
   publicado_galeria_em?: string | null;
   tipos_documento?: { nome: string };
+  escolas_nomes?: string[] | null;
   escolas?: { nome: string; endereco?: string };
+  escolas_ids?: string[] | null;
   projetos?: { nome: string; cor?: string | null };
   acoes_pedagogicas?: { nome: string; exige_pdf?: boolean } | null;
 };
@@ -406,3 +409,28 @@ export type EnvioEmail = {
   erro?: string | null;
   enviado_em?: string | null;
 };
+
+
+// Busca uma imagem protegida (precisa do login) e devolve um endereço temporário para usar em <img src>.
+// Guarda o resultado em memória: a mesma foto não é baixada duas vezes. null = não existe.
+const _blobs = new Map<string, Promise<string | null>>();
+export function apiBlobUrl(path: string): Promise<string | null> {
+  let p = _blobs.get(path);
+  if (!p) {
+    p = (async () => {
+      try {
+        const headers = await authHeader();
+        const res = await fetch(API_BASE + path, { headers });
+        if (!res.ok) return null;
+        return URL.createObjectURL(await res.blob());
+      } catch {
+        return null;
+      }
+    })();
+    _blobs.set(path, p);
+  }
+  return p;
+}
+export function esquecerBlobUrl(path: string) {
+  _blobs.delete(path);
+}

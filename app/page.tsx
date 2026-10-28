@@ -113,16 +113,16 @@ export default function HomePage() {
 
   return (
     <div className="p-8">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold text-brand-dark">Projeto Valores Humanos</h1>
-        <p className="text-brand-dark/80 text-sm mt-1">
-          {perfil?.role === "apoiador_visitas"
+      <TituloPagina
+        className="mb-6"
+        descricao={
+          perfil?.role === "apoiador_visitas"
             ? "Escolha o município que você visitou para enviar o relatório, as imagens e os vídeos das suas visitas."
             : perfil?.role === "apoiador_relatorios"
               ? "Envie relatórios ou, na Análise de documentos, confira o que foi enviado antes da validação do administrador."
-              : "Selecione o seu município para enviar as imagens, vídeos e relatórios das ações pedagógicas realizadas."}
-        </p>
-      </header>
+              : "Selecione o seu município para enviar as imagens, vídeos e relatórios das ações pedagógicas realizadas."
+        }
+      >Projeto Valores Humanos</TituloPagina>
 
       {perfil?.role === "apoiador_relatorios" && (
         <Link
@@ -134,7 +134,7 @@ export default function HomePage() {
           </span>
           <span>
             <span className="block font-bold">Análise de documentos</span>
-            <span className="block text-xs">Veja os envios pendentes e recomende a aprovação ou peça ajustes.</span>
+            <span className="block text-xs">Veja os envios pendentes e escreva suas observações para o administrador.</span>
           </span>
         </Link>
       )}
@@ -411,8 +411,8 @@ function Dashboard({ resumo, acoes, ciclos, cicloEfetivo, filtros, onFiltrosChan
         </div>
         <div className="overflow-x-auto">
           <table className="w-full text-sm min-w-[620px]">
-            <thead className="bg-brand-light/[0.05] text-xs text-brand-dark/80 uppercase tracking-wide"><tr><th className="text-left font-medium px-5 py-3">Município</th><th className="text-left font-medium px-3 py-3">Documentos</th><th className="text-left font-medium px-3 py-3">Validados</th><th className="text-left font-medium px-3 py-3">Aguardando Validação</th><th className="text-left font-medium px-3 py-3">Progresso</th></tr></thead>
-            <tbody className="divide-y divide-black/5">{municipios.filter((municipio) => (municipio.total_documentos ?? 0) > 0).map((municipio) => { const total = municipio.total_documentos ?? 0; const aprovados = municipio.aprovados ?? 0; const pendentes = municipio.pendentes ?? 0; const progresso = total ? Math.round((aprovados / total) * 100) : 0; return <tr key={municipio.id} className="hover:bg-brand-light/[0.03] cursor-pointer" onClick={() => window.location.href = `/municipios/${municipio.id}${filtrosNaUrl}`}><td className="px-5 py-3 font-medium text-brand-dark">{municipio.nome}<span className="block text-xs font-normal text-brand-dark/70">{municipio.escolas_participantes} de {municipio.escolas_total} escolas participantes</span></td><td className="px-3 py-3 text-brand-dark/85">{total}</td><td className="px-3 py-3 text-status-completo">{aprovados}</td><td className="px-3 py-3 text-status-pendente">{pendentes}</td><td className="px-3 py-3 min-w-[150px]"><div className="flex items-center gap-2"><div className="h-1.5 flex-1 rounded-full bg-brand-light/10 overflow-hidden"><div className="h-full rounded-full bg-brand-light" style={{ width: `${progresso}%` }} /></div><span className="text-xs text-brand-dark/75 w-8">{progresso}%</span></div></td></tr>; })}</tbody>
+            <thead className="bg-brand-light/[0.05] text-xs text-brand-dark/80 uppercase tracking-wide"><tr><th className="text-left font-medium px-5 py-3">Município</th><th className="text-left font-medium px-3 py-3">Documentos</th><th className="text-left font-medium px-3 py-3">Validados</th><th className="text-left font-medium px-3 py-3">Aguardando Validação</th><th className="text-left font-medium px-3 py-3" title="Escolas do município que já enviaram documentos">Escolas que enviaram</th></tr></thead>
+            <tbody className="divide-y divide-black/5">{municipios.filter((municipio) => (municipio.total_documentos ?? 0) > 0).map((municipio) => { const total = municipio.total_documentos ?? 0; const aprovados = municipio.aprovados ?? 0; const pendentes = municipio.pendentes ?? 0; const progresso = municipio.escolas_total ? Math.round((municipio.escolas_participantes / municipio.escolas_total) * 100) : 0; return <tr key={municipio.id} className="hover:bg-brand-light/[0.03] cursor-pointer" onClick={() => window.location.href = `/municipios/${municipio.id}${filtrosNaUrl}`}><td className="px-5 py-3 font-medium text-brand-dark">{municipio.nome}<span className="block text-xs font-normal text-brand-dark/70">{municipio.escolas_participantes} de {municipio.escolas_total} {municipio.escolas_total === 1 ? "escola enviou" : "escolas já enviaram"} documentos</span></td><td className="px-3 py-3 text-brand-dark/85">{total}</td><td className="px-3 py-3 text-status-completo">{aprovados}</td><td className="px-3 py-3 text-status-pendente">{pendentes}</td><td className="px-3 py-3 min-w-[150px]"><div className="flex items-center gap-2"><div className="h-1.5 flex-1 rounded-full bg-brand-light/10 overflow-hidden"><div className="h-full rounded-full bg-brand-light" style={{ width: `${progresso}%` }} /></div><span className="text-xs text-brand-dark/75 w-8">{progresso}%</span></div></td></tr>; })}</tbody>
           </table>
         </div>
       </section>

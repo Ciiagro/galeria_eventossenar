@@ -54,6 +54,7 @@ function PainelAprovacao() {
   const [filtroMes, setFiltroMes] = useState("");
   const [filtroMunicipio, setFiltroMunicipio] = useState("");
   const [filtroTipo, setFiltroTipo] = useState("");
+  const [grupo, setGrupo] = useState<"acao" | "documento">("documento"); // Documentos (PDF) primeiro, depois Ações (imagens/vídeos)
   const [busca, setBusca] = useState("");
 
   // Interação
@@ -84,7 +85,7 @@ function PainelAprovacao() {
     setCompacto(valor);
     try { window.localStorage.setItem("painel_visual", valor ? "compacto" : "detalhado"); } catch { /* ignora */ }
   }
-  useEffect(() => { setPagina(1); }, [aba, filtroMes, filtroMunicipio, filtroTipo, filtroCiclo, busca, ordem]);
+  useEffect(() => { setPagina(1); }, [aba, grupo, filtroMes, filtroMunicipio, filtroTipo, filtroCiclo, busca, ordem]);
   const [visualizando, setVisualizando] = useState<Documento | null>(null);
   const [documentoParaAprovar, setDocumentoParaAprovar] = useState<Documento | null>(null);
   const [publicarNaGaleria, setPublicarNaGaleria] = useState<boolean | null>(null);
@@ -111,9 +112,14 @@ function PainelAprovacao() {
   }, [filtroMunicipio, filtroTipo]);
 
   useEffect(() => {
-    carregar().then((lista) =>
-      setAba((atual) => (atual === null ? (lista.some((d) => d.status === "pendente") ? "pendente" : "") : atual))
-    );
+    carregar().then((lista) => {
+      setAba((atual) => (atual === null ? (lista.some((d) => d.status === "pendente") ? "pendente" : "") : atual));
+      // abre no grupo que tem algo para validar (Documentos primeiro)
+      setGrupo((atual) => {
+        const pend = (g: boolean) => lista.some((d) => d.status === "pendente" && !d.arquivado && ehDocumentoPdf(d) === g);
+        return !pend(true) && pend(false) ? "acao" : atual;
+      });
+    });
     const intervalo = window.setInterval(() => {
       // não recarrega enquanto a pessoa está aprovando (evita "pular" a tela)
       // nem com a aba em segundo plano (economiza o servidor)
@@ -137,12 +143,13 @@ function PainelAprovacao() {
     const termo = normalizar(busca.trim());
     return (documentos ?? []).filter(
       (doc) =>
+        ehDocumentoPdf(doc) === (grupo === "documento") &&
         noCicloEMes(doc, filtroCiclo, ciclos, filtroMes) &&
         (!termo ||
           [doc.descricao, doc.acao_evento, doc.acoes_pedagogicas?.nome, doc.subtipo, doc.tipos_documento?.nome, doc.escolas?.nome, doc.responsavel_nome, nomeMunicipio(doc.municipio_id)]
             .some((v) => normalizar(v).includes(termo)))
     );
-  }, [documentos, filtroCiclo, ciclos, filtroMes, busca, nomeMunicipio]);
+  }, [documentos, grupo, filtroCiclo, ciclos, filtroMes, busca, nomeMunicipio]);
 
   const contagem = useMemo(
     () => ({
@@ -171,6 +178,10 @@ function PainelAprovacao() {
     [lista, pagina, porPagina]
   );
 
+  const pendPorGrupo = useMemo(() => ({
+    acao: (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado && !ehDocumentoPdf(d)).length,
+    documento: (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado && ehDocumentoPdf(d)).length,
+  }), [documentos]);
   const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado).length;
   const pendentesForaDoPeriodo = (documentos ?? []).filter(
     (d) => d.status === "pendente" && !noCicloEMes(d, filtroCiclo, ciclos, filtroMes)
@@ -182,7 +193,20 @@ function PainelAprovacao() {
   }, [itensDaPagina.length]);
 
   // ---------- ações ----------
-  function abrirAprovacao(doc: Documento) {
+  async function abrirAprovacao(doc: Documento) {
+    // Documento em PDF (relatório, lista, portfólio): valida direto, sem galeria
+    if (ehDocumentoPdf(doc) && doc.status === "pendente") {
+      setProcessando(doc.id);
+      try {
+        await apiPost("/api/validar", { documento_id: doc.id, status: "aprovado", na_galeria: false });
+        await carregar();
+      } catch (e) {
+        setErro(e instanceof Error ? e.message : "Erro ao validar documento.");
+      } finally {
+        setProcessando(null);
+      }
+      return;
+    }
     const tipo = (doc.tipos_documento?.nome ?? "").toLowerCase();
     const ehMidia = /imagem|foto|v[ií]deo/.test(tipo);
     setDocumentoParaAprovar(doc);
@@ -259,6 +283,25 @@ function PainelAprovacao() {
           acao={<Indicador valor={pendentesTotal} rotulo="aguardando validação" alerta={pendentesTotal > 0} />}
         >Painel de Aprovação</TituloPagina>
 
+        {/* Ações (imagens e vídeos) × Documentos (PDF) */}
+        <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
+        <div className="inline-flex rounded-xl bg-black/[0.05] p-1" role="tablist" aria-label="Tipo de envio">
+          {([["documento", "Documentos"], ["acao", "Ações pedagógicas"]] as ["acao" | "documento", string][]).map(([valor, rotulo]) => (
+            <button
+              key={valor}
+              type="button"
+              role="tab"
+              aria-selected={grupo === valor}
+              onClick={() => { setGrupo(valor); setSelecionado(0); if (valor === "documento") setFiltroTipo(""); }}
+              className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${grupo === valor ? "bg-white text-brand-dark shadow-sm" : "text-brand-dark/70 hover:text-brand-dark"}`}
+            >
+              {rotulo}
+              {pendPorGrupo[valor] > 0 && <span className="rounded-full bg-status-pendente px-2 py-0.5 text-xs font-bold text-white">{pendPorGrupo[valor]}</span>}
+            </button>
+          ))}
+        </div>
+        </div>
+
         {/* Abas + ordenação */}
         <Abas<Aba>
           abas={[
@@ -301,7 +344,7 @@ function PainelAprovacao() {
 
         {/* Filtros */}
         <BarraFiltros
-          colunas="grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.3fr]"
+          colunas={grupo === "documento" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr]" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.3fr]"}
           mostrarLimpar={temFiltro}
           onLimpar={() => { setFiltroCiclo(null); setFiltroMes(""); setFiltroMunicipio(""); setFiltroTipo(""); setBusca(""); }}
         >
@@ -314,10 +357,12 @@ function PainelAprovacao() {
             <option value="">Todos os municípios</option>
             {municipios.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </select>
-          <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className={CLASSE_SELECT}>
-            <option value="">Todos os tipos</option>
-            {tipos.map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
-          </select>
+          {grupo === "acao" && (
+            <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className={CLASSE_SELECT}>
+              <option value="">Todos os tipos</option>
+              {tipos.filter((t) => t.nome !== "PDF").map((t) => <option key={t.id} value={t.id}>{t.nome}</option>)}
+            </select>
+          )}
         </BarraFiltros>
 
         {pendentesForaDoPeriodo > 0 && (aba === "pendente" || aba === "") && (
@@ -539,22 +584,30 @@ function CartaoDocumento(p: CartaoProps) {
       }`}
     >
       <div className={compacto ? "flex gap-3" : "flex flex-col sm:flex-row gap-4"}>
-        <Miniatura doc={p.doc} onClick={p.onVisualizar} pequena={compacto} />
+        {!ehDocumentoPdf(doc) && <Miniatura doc={p.doc} onClick={p.onVisualizar} pequena={compacto} />}
 
         <div className="min-w-0 flex-1">
           <div className={`flex ${compacto ? "flex-row items-start justify-between gap-2" : "flex-col lg:flex-row lg:items-start lg:justify-between gap-3"}`}>
             <div className="min-w-0">
               <h2 className={`${compacto ? "text-[15px]" : "text-lg"} font-bold text-brand-dark leading-snug`}>
-                {doc.tipos_documento?.nome ?? "Documento"}
+                {ehDocumentoPdf(doc) && doc.subtipo ? doc.subtipo.replace("Relatório de Formação", "Relatório") : doc.tipos_documento?.nome ?? "Documento"}
                 {doc.acao_evento && <span className="font-semibold text-brand-dark/85"> — {doc.acao_evento}</span>}
               </h2>
               <div className={`${compacto ? "mt-0.5 text-xs" : "mt-1.5 text-[13px]"} flex flex-wrap items-center gap-x-3 gap-y-1 text-brand-dark/80`}>
                 <Info icone={MapPinIcon} texto={p.municipio} forte />
-                {doc.escolas?.nome && <Info icone={HomeEscola} texto={doc.escolas.nome} />}
-                {doc.acoes_pedagogicas?.nome && <Info icone={FolderIcon} texto={`${doc.acoes_pedagogicas.nome}${doc.subtipo ? ` · ${doc.subtipo}` : ""}`} forte />}
+                {doc.escolas_ids && doc.escolas_ids.length > 1
+                  ? <Info icone={HomeEscola} texto={(doc.escolas_nomes ?? []).join(" · ") || `${doc.escolas_ids.length} escolas`} forte />
+                  : doc.escolas?.nome && <Info icone={HomeEscola} texto={doc.escolas.nome} />}
+                {!ehDocumentoPdf(doc) && doc.acoes_pedagogicas?.nome && <Info icone={FolderIcon} texto={`${doc.acoes_pedagogicas.nome}${doc.subtipo ? ` · ${doc.subtipo}` : ""}`} forte />}
                 <Info icone={CalendarIcon} texto={`Realizado em ${formatarData(doc.data_realizacao)}`} />
                 {doc.responsavel_nome && <Info icone={UserIcon} texto={`Enviado por ${doc.responsavel_nome}`} />}
+                {ehDocumentoPdf(doc) && descricao && <span className="whitespace-normal">{descricao.replace(/\s*\n\s*/g, " · ")}</span>}
                 {compacto && (doc.status === "pendente" || ehDocumentoPdf(doc)) && <AnaliseBadge doc={doc} compacto />}
+                {compacto && !expandido && doc.analise_obs && (
+                  <span className="basis-full whitespace-pre-line rounded-lg bg-[#FFF8E1] px-2.5 py-1 text-xs text-[#6E4B00]">
+                    <strong>Observação do analista{doc.analise_por_nome ? ` (${doc.analise_por_nome})` : ""}:</strong> {doc.analise_obs}
+                  </span>
+                )}
               </div>
             </div>
 
@@ -573,12 +626,12 @@ function CartaoDocumento(p: CartaoProps) {
 
           {(doc.status === "pendente" || ehDocumentoPdf(doc)) && (!compacto || expandido) && <AnaliseBadge doc={doc} />}
 
-          {descricao && (
+          {descricao && !ehDocumentoPdf(doc) && (
             <p className={`${compacto ? "mt-1 text-[13px]" : "mt-2 text-sm"} text-brand-dark/85 whitespace-pre-line ${!expandido && longa ? (compacto ? "line-clamp-1" : "line-clamp-2") : ""}`}>
               {descricao}
             </p>
           )}
-          {longa && (
+          {longa && !ehDocumentoPdf(doc) && (
             <button onClick={(e) => { e.stopPropagation(); setExpandido((v) => !v); }} className="mt-1 text-sm font-semibold text-brand-light hover:underline">
               {expandido ? "ver menos" : "ver mais"}
             </button>

@@ -14,6 +14,8 @@ import { normalizarLink } from "@/lib/linkIncorporavel";
 import { BotaoExcluir } from "@/components/BotoesIcone";
 import { AnaliseBadge } from "@/components/AnaliseBadge";
 import { usePerfil } from "@/lib/usePerfil";
+import { Paginacao } from "@/components/Paginacao";
+import { Indicador, TituloPagina } from "@/components/TituloPagina";
 
 type Aba = "" | "pendente" | "aprovado" | "arquivado";
 type Ordem = "recentes" | "antigos" | "data_acao";
@@ -34,6 +36,8 @@ export default function MunicipioDetalhePage() {
 
   // Filtros (padrão: ciclo ativo, todos os meses)
   const [aba, setAba] = useState<Aba>("");
+  const [grupo, setGrupo] = useState<"acao" | "documento">("documento"); // Documentos (PDF) primeiro, depois Ações (imagens/vídeos)
+  const [grupoEscolhido, setGrupoEscolhido] = useState(false);
   const [ordem, setOrdem] = useState<Ordem>("recentes");
   const { ciclos, cicloId: filtroCiclo, setCicloId: setFiltroCiclo, ehPadrao: cicloPadrao } = useFiltroCiclo();
   const [filtroMes, setFiltroMes] = useState("");
@@ -41,6 +45,8 @@ export default function MunicipioDetalhePage() {
   const [filtroAcao, setFiltroAcao] = useState("");
   const [filtroEscola, setFiltroEscola] = useState("");
   const [busca, setBusca] = useState("");
+  const [pagina, setPagina] = useState(1);
+  const [porPagina, setPorPagina] = useState(10);
 
   // Chegando do painel com ?ciclo=<id>&mes=9, já abre filtrado
   useEffect(() => {
@@ -82,6 +88,14 @@ export default function MunicipioDetalhePage() {
     () => Array.from(new Map((documentos ?? []).filter((d) => d.acoes_pedagogicas?.nome).map((d) => [d.acao_pedagogica_id, d.acoes_pedagogicas!.nome])).entries()),
     [documentos]
   );
+  // nomes das escolas do município (um relatório de formação pode valer para várias escolas)
+  const [nomesEscolas, setNomesEscolas] = useState<Record<string, string>>({});
+  useEffect(() => {
+    if (!id) return;
+    apiGet(`/api/escolas?municipio_id=${id}`)
+      .then((lista: { id: string; nome: string }[]) => setNomesEscolas(Object.fromEntries((lista ?? []).map((e) => [String(e.id), e.nome]))))
+      .catch(() => null);
+  }, [id]);
   const escolasDisponiveis = useMemo(
     () => Array.from(new Map((documentos ?? []).filter((d) => d.escolas?.nome).map((d) => [d.escola_id, d.escolas!.nome])).entries()),
     [documentos]
@@ -93,14 +107,24 @@ export default function MunicipioDetalhePage() {
     () =>
       (documentos ?? []).filter(
         (d) =>
+          ehDocumentoPdf(d) === (grupo === "documento") &&
           (!filtroEscola || d.escola_id === filtroEscola) &&
           (!filtroAcao || d.acao_pedagogica_id === filtroAcao) &&
           (!filtroTipo || d.tipo_id === filtroTipo) &&
           noCicloEMes(d, filtroCiclo, ciclos, filtroMes) &&
           correspondeBusca(d, busca)
       ),
-    [documentos, filtroEscola, filtroAcao, filtroTipo, filtroCiclo, ciclos, filtroMes, busca]
+    [documentos, grupo, filtroEscola, filtroAcao, filtroTipo, filtroCiclo, ciclos, filtroMes, busca]
   );
+
+  const totalPorGrupo = useMemo(() => ({
+    acao: (documentos ?? []).filter((d) => !ehDocumentoPdf(d)).length,
+    documento: (documentos ?? []).filter((d) => ehDocumentoPdf(d)).length,
+  }), [documentos]);
+  // se não há nenhum documento enviado, abre direto em Ações
+  useEffect(() => {
+    if (!grupoEscolhido && documentos && totalPorGrupo.documento === 0 && totalPorGrupo.acao > 0) setGrupo("acao");
+  }, [documentos, totalPorGrupo, grupoEscolhido]);
 
   const contagem = useMemo(
     () => ({
@@ -119,6 +143,10 @@ export default function MunicipioDetalhePage() {
     const chave = (d: Documento) => (ordem === "data_acao" ? d.data_realizacao ?? "" : d.created_at ?? d.data_realizacao ?? "");
     return [...itens].sort((a, b) => (ordem === "antigos" ? chave(a).localeCompare(chave(b)) : chave(b).localeCompare(chave(a))));
   }, [doFiltro, aba, ordem]);
+
+  // volta para a primeira página quando muda o filtro, a aba ou a ordem
+  useEffect(() => { setPagina(1); }, [grupo, filtroEscola, filtroAcao, filtroTipo, filtroCiclo, filtroMes, busca, aba, ordem, porPagina]);
+  const listaDaPagina = useMemo(() => lista.slice((pagina - 1) * porPagina, pagina * porPagina), [lista, pagina, porPagina]);
 
   const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente").length;
   const pendentesForaDoPeriodo = (documentos ?? []).filter(
@@ -167,30 +195,34 @@ export default function MunicipioDetalhePage() {
   return (
     <div className="p-4 sm:p-8 max-w-6xl">
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
-        {/* Cabeçalho */}
-        <Link href="/" className="text-sm text-brand-dark/75 hover:underline">
-          ← Municípios
-        </Link>
-        <div className="mt-1 flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4">
-          <div>
-            <h1 className="text-2xl sm:text-3xl font-bold text-brand-dark">{municipio?.nome ?? "Documentos do município"}</h1>
-            <p className="text-sm text-brand-dark/80 mt-1">
+        {/* Cabeçalho (mesmo padrão das outras telas: faixa colorida com o ícone do menu) */}
+        {!ehCoordenador && (
+          <Link href="/" className="mb-2 inline-block text-sm text-brand-dark/75 hover:underline">
+            ← Municípios
+          </Link>
+        )}
+        <TituloPagina
+          descricao={
+            <>
+              {ehCoordenador && municipio?.nome ? <strong className="text-brand-dark/90">{municipio.nome}</strong> : null}
+              {ehCoordenador && municipio?.nome ? " · " : ""}
               Período das ações (data da realização): <strong className="text-brand-dark/90">{textoPeriodo}</strong>
-            </p>
-          </div>
-          <div className="flex items-center gap-3 shrink-0">
-            <Link
-              href={`/municipios/${id}/novo-documento`}
-              className="bg-brand-light text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-sm hover:bg-brand-accent transition-colors"
-            >
-              + Adicionar documento
-            </Link>
-            <div className="rounded-xl bg-brand-light/[0.06] border border-brand-light/10 px-5 py-3 text-center">
-              <p className={`text-3xl font-bold leading-none ${pendentesTotal ? "text-status-pendente" : "text-brand-dark"}`}>{pendentesTotal}</p>
-              <p className="text-xs text-brand-dark/75 mt-1">{pendentesTotal === 1 ? "pendente" : "pendentes"}</p>
+            </>
+          }
+          acao={
+            <div className="flex items-center gap-3">
+              <Link
+                href={`/municipios/${id}/novo-documento`}
+                className="bg-brand-light text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-sm hover:bg-brand-accent transition-colors"
+              >
+                + Adicionar documento
+              </Link>
+              <Indicador valor={pendentesTotal} rotulo={pendentesTotal === 1 ? "pendente" : "pendentes"} alerta={pendentesTotal > 0} />
             </div>
-          </div>
-        </div>
+          }
+        >
+          {ehCoordenador ? "Ações" : municipio?.nome ?? "Documentos do município"}
+        </TituloPagina>
 
         {erro && (
           <div className="mt-5 rounded-lg bg-status-pendente/10 text-status-pendente px-4 py-3 text-sm">{erro}</div>
@@ -198,8 +230,25 @@ export default function MunicipioDetalhePage() {
 
         {documentos && documentos.length > 0 && (
           <>
+            {/* Ações (imagens e vídeos) × Documentos (PDF) */}
+            <div className="mt-6 inline-flex rounded-xl bg-black/[0.05] p-1" role="tablist" aria-label="Tipo de envio">
+              {([["documento", "Documentos"], ["acao", "Ações pedagógicas"]] as ["acao" | "documento", string][]).map(([valor, rotulo]) => (
+                <button
+                  key={valor}
+                  type="button"
+                  role="tab"
+                  aria-selected={grupo === valor}
+                  onClick={() => { setGrupo(valor); setGrupoEscolhido(true); setFiltroTipo(""); setFiltroAcao(""); }}
+                  className={`flex items-center gap-2 rounded-lg px-4 py-1.5 text-sm font-semibold transition-colors ${grupo === valor ? "bg-white text-brand-dark shadow-sm" : "text-brand-dark/70 hover:text-brand-dark"}`}
+                >
+                  {rotulo}
+                  <span className="rounded-full bg-black/[0.07] px-2 py-0.5 text-xs font-bold text-brand-dark/80">{totalPorGrupo[valor]}</span>
+                </button>
+              ))}
+            </div>
+
             {/* Abas + ordenação */}
-            <div className="mt-6 flex flex-col-reverse sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-black/10">
+            <div className="mt-4 flex flex-col-reverse sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-black/10">
               <nav className="flex gap-1 overflow-x-auto -mb-px">
                 {(
                   [
@@ -254,18 +303,22 @@ export default function MunicipioDetalhePage() {
                   <option key={mes} value={String(i + 1)}>{mes}</option>
                 ))}
               </select>
-              <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className={`${SELECT} lg:col-span-4`}>
-                <option value="">Todos os tipos</option>
-                {tiposDisponiveis.map(([tid, nome]) => (
-                  <option key={tid} value={tid}>{nome}</option>
-                ))}
-              </select>
-              <select value={filtroAcao} onChange={(e) => setFiltroAcao(e.target.value)} className={`${SELECT} lg:col-span-6`}>
-                <option value="">Todas as ações pedagógicas</option>
-                {acoesDisponiveis.map(([pid, nome]) => (
-                  <option key={pid} value={pid ?? ""}>{nome}</option>
-                ))}
-              </select>
+              {grupo === "acao" && (
+                <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className={`${SELECT} lg:col-span-4`}>
+                  <option value="">Todos os tipos</option>
+                  {tiposDisponiveis.filter(([, nome]) => nome !== "PDF").map(([tid, nome]) => (
+                    <option key={tid} value={tid}>{nome}</option>
+                  ))}
+                </select>
+              )}
+              {grupo === "acao" && (
+                <select value={filtroAcao} onChange={(e) => setFiltroAcao(e.target.value)} className={`${SELECT} lg:col-span-6`}>
+                  <option value="">Todas as ações pedagógicas</option>
+                  {acoesDisponiveis.filter(([pid]) => (documentos ?? []).some((d) => d.acao_pedagogica_id === pid && !ehDocumentoPdf(d))).map(([pid, nome]) => (
+                    <option key={pid} value={pid ?? ""}>{nome}</option>
+                  ))}
+                </select>
+              )}
               <select value={filtroEscola} onChange={(e) => setFiltroEscola(e.target.value)} className={`${SELECT} lg:col-span-6`}>
                 <option value="">Todas as escolas</option>
                 {escolasDisponiveis.map(([eid, nome]) => (
@@ -312,15 +365,17 @@ export default function MunicipioDetalhePage() {
             </div>
           )}
 
-          {lista.map((doc) => (
+          {listaDaPagina.map((doc) => (
             <CartaoDocumento
               key={doc.id}
               doc={doc}
+              nomesEscolas={nomesEscolas}
               excluindo={excluindoId === doc.id}
               onExcluir={() => excluirDocumento(doc)}
               onVisualizar={() => setVisualizando(doc)}
             />
           ))}
+          <Paginacao pagina={pagina} total={lista.length} porPagina={porPagina} onChange={setPagina} onChangePorPagina={setPorPagina} opcoesPorPagina={[5, 10, 20, 50]} />
         </div>
       </div>
 
@@ -373,11 +428,13 @@ export default function MunicipioDetalhePage() {
 // ================================================================
 function CartaoDocumento({
   doc,
+  nomesEscolas,
   excluindo,
   onExcluir,
   onVisualizar,
 }: {
   doc: Documento;
+  nomesEscolas: Record<string, string>;
   excluindo: boolean;
   onExcluir: () => void;
   onVisualizar: () => void;
@@ -391,46 +448,59 @@ function CartaoDocumento({
   return (
     <article className="rounded-xl border border-black/5 bg-white p-3 sm:p-4 transition-shadow hover:shadow-sm">
       <div className="flex flex-col sm:flex-row gap-4">
-        <Miniatura doc={doc} onClick={temArquivo ? onVisualizar : undefined} />
+        {/* a imagem de prévia é só para ações (vídeo/imagem); documentos PDF mostram só o botão de abrir */}
+        {!ehDoc && <Miniatura doc={doc} onClick={temArquivo ? onVisualizar : undefined} />}
 
         <div className="min-w-0 flex-1">
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
             <div className="min-w-0">
               <h2 className="text-lg font-bold text-brand-dark leading-snug">
-                {doc.tipos_documento?.nome ?? "Documento"}
+                {ehDoc && doc.subtipo ? doc.subtipo.replace("Relatório de Formação", "Relatório") : doc.tipos_documento?.nome ?? "Documento"}
                 {doc.acao_evento && <span className="font-semibold text-brand-dark/85"> — {doc.acao_evento}</span>}
               </h2>
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-brand-dark/80">
-                {doc.escolas?.nome && <Info icone={EscolaIcon} texto={doc.escolas.nome} forte />}
-                {doc.acoes_pedagogicas?.nome && <Info icone={FolderIcon} texto={`${doc.acoes_pedagogicas.nome}${doc.subtipo ? ` · ${doc.subtipo}` : ""}`} forte />}
+                {doc.escolas_ids && doc.escolas_ids.length > 1
+                  ? <Info icone={EscolaIcon} texto={doc.escolas_ids.map((i) => nomesEscolas[String(i)] ?? "Escola").join(" · ")} forte />
+                  : doc.escolas?.nome && <Info icone={EscolaIcon} texto={doc.escolas.nome} forte />}
+                {!ehDoc && doc.acoes_pedagogicas?.nome && <Info icone={FolderIcon} texto={`${doc.acoes_pedagogicas.nome}${doc.subtipo ? ` · ${doc.subtipo}` : ""}`} forte />}
                 <Info icone={CalendarIcon} texto={`Realizado em ${formatarData(doc.data_realizacao)}`} />
                 {doc.responsavel_nome && <Info icone={UserIcon} texto={`Enviado por ${doc.responsavel_nome}`} />}
+                {ehDoc && descricao && <span className="whitespace-normal">{descricao.replace(/\s*\n\s*/g, " · ")}</span>}
               </div>
             </div>
 
             {(doc.status === "pendente" || ehDoc) && (
               <div className="flex items-center gap-2 shrink-0">
-                <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-900">
-                  ✓ Enviado
-                </span>
-                <BotaoExcluir onClick={onExcluir} disabled={excluindo} rotulo="documento" />
+                {ehDoc && temArquivo && (
+                  <button type="button" onClick={onVisualizar} className="rounded-lg border border-brand-light px-3 py-1.5 text-xs font-semibold text-brand-light hover:bg-brand-light/5">
+                    Abrir PDF
+                  </button>
+                )}
+                {doc.status === "aprovado" ? (
+                  <span className="rounded-full bg-emerald-50 border border-emerald-200 px-2.5 py-1 text-xs font-semibold text-emerald-900">
+                    ✓ Validado
+                  </span>
+                ) : (
+                  <span className="rounded-full bg-[#FFF3CC] border border-[#F2B705]/50 px-2.5 py-1 text-xs font-semibold text-[#6E4B00]">
+                    Aguardando validação
+                  </span>
+                )}
+                {doc.status === "pendente" && <BotaoExcluir onClick={onExcluir} disabled={excluindo} rotulo="documento" />}
               </div>
             )}
           </div>
 
-          {descricao && (
+          {descricao && !ehDoc && (
             <p className={`mt-2 text-sm text-brand-dark/85 whitespace-pre-line ${!expandido && longa ? "line-clamp-2" : ""}`}>
               {descricao}
             </p>
           )}
-          {longa && (
+          {longa && !ehDoc && (
             <button onClick={() => setExpandido((v) => !v)} className="mt-1 text-sm font-semibold text-brand-light hover:underline">
               {expandido ? "ver menos" : "ver mais"}
             </button>
           )}
 
-          {/* Documento com ajustes pedidos pelo apoio: o coordenador precisa saber */}
-          {ehDoc && doc.analise_status === "ajustes" && <AnaliseBadge doc={{ ...doc, origem: null }} />}
 
           {/* Situação */}
           {doc.status === "aprovado" && !ehDoc && (

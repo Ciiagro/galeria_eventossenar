@@ -1,7 +1,6 @@
 // Itens do menu lateral por perfil. Fica num arquivo só porque a barra lateral e os títulos das
 // páginas usam a MESMA cor: cada página pega a cor do seu item no menu (veja TituloPagina).
 import { HomeIcon, AlertIcon, UserIcon, CalendarIcon, CheckIcon, BuildingIcon, FileTextIcon, HeartIcon, ClipboardListIcon, BookOpenIcon, MegaphoneIcon } from "@/components/icons";
-import { CORES_ALEGRES } from "@/components/Desenhos";
 import type { Perfil } from "@/lib/api";
 
 export type LinkMenu = { href: string; label: string; Icon: (p: { className?: string }) => JSX.Element; prefixo?: string };
@@ -13,6 +12,7 @@ const linksBase: LinkMenu[] = [
 
 const linksAdmin: LinkMenu[] = [
   { href: "/admin/pendencias", label: "Documentos", Icon: AlertIcon },
+  { href: "/admin/entregas", label: "Entregas", Icon: CheckIcon },
   { href: "/admin/responsaveis", label: "Coordenadores", Icon: UserIcon },
   { href: "/admin/equipe", label: "Equipe de apoio", Icon: HeartIcon },
   { href: "/admin/escolas-programa", label: "Escolas do programa", Icon: CheckIcon },
@@ -31,12 +31,15 @@ const linkTermo: LinkMenu = { href: "/admin/termo-adesao", label: "Termo de Ades
 // Coordenador do município: ficha de adesão ao programa
 const linkAdesao: LinkMenu = { href: "/adesao/ficha", label: "Ficha de adesão", Icon: ClipboardListIcon };
 
+// Coordenador do município: termo de compromisso (acompanhar as escolas e fazer a formação pedagógica)
+const linkCompromisso: LinkMenu = { href: "/compromisso", label: "Termo de compromisso", Icon: FileTextIcon };
+
 export function montarLinks(perfil: Perfil | null): LinkMenu[] {
   // Responsável municipal: "Documentos" leva à lista de documentos do próprio município
   // (o admin tem o "Documentos" do Painel de Aprovação, em linksAdmin).
   const linkDocumentosMunicipio: LinkMenu[] =
     perfil?.role === "municipio" && perfil.municipio_id
-      ? [{ href: `/municipios/${perfil.municipio_id}`, label: "Documentos", Icon: FileTextIcon, prefixo: "/municipios/" }]
+      ? [{ href: `/municipios/${perfil.municipio_id}`, label: "Ações", Icon: FileTextIcon, prefixo: "/municipios/" }]
       : [];
   // Apoiador de Relatórios: fila de análise dos documentos (o admin valida depois)
   const linkAnalise: LinkMenu[] =
@@ -52,14 +55,17 @@ export function montarLinks(perfil: Perfil | null): LinkMenu[] {
   return perfil?.role === "admin"
     ? [linksBase[0], linkComunicados, linkTermo, ...linksBase.slice(1), ...linksAdmin, linkMaterial]
     
-    : [...linkInicio, linkComunicados, ...(perfil?.role === "municipio" ? [linkAdesao] : []), ...linkDocumentosMunicipio, ...linkAnalise, ...linkEscolas, linkMaterial];
+    : [...linkInicio, linkComunicados, ...(perfil?.role === "municipio" ? [linkAdesao, linkCompromisso] : []), ...linkDocumentosMunicipio, ...linkAnalise, ...linkEscolas, linkMaterial];
 }
 
 export function linkAtivo(link: LinkMenu, pathname: string | null) {
   return pathname === link.href || Boolean(link.prefixo && pathname?.startsWith(link.prefixo));
 }
 
-// Cor de cada item = posição dele no menu (igual à barra lateral)
+// Cor de cada item = posição dele no menu (a MESMA da barra lateral, para o título da página combinar com o item escolhido)
+export const CORES_ICONES = ["#8E5BB5", "#E03A3E", "#2F9E62", "#C98A00", "#2678C4", "#D6458F", "#14909E", "#E0702B", "#4F5BD5", "#6B9E1A"];
+
 export function corDoItem(indice: number) {
-  return CORES_ALEGRES[indice % CORES_ALEGRES.length];
+  const c = CORES_ICONES[indice % CORES_ICONES.length];
+  return { barra: c, fundo: `${c}22`, texto: `color-mix(in srgb, ${c} 62%, #000)`, sobre: "#FFFFFF" };
 }

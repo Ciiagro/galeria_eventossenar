@@ -24,10 +24,10 @@ export function AnaliseBadge({ doc, compacto }: { doc: Pick<Documento, "analise_
         {doc.analise_status && (
           <span
             title={doc.analise_obs ?? undefined}
-            className={`inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-[11px] font-bold ${doc.analise_status === "recomendado" ? "bg-[#E3F4EA] text-[#17613B]" : "bg-[#FFF3CC] text-[#6E4B00]"}`}
+            className="inline-flex items-center gap-1 rounded-full bg-[#E2EFFB] px-2 py-0.5 text-[11px] font-bold text-[#0F4C85]"
           >
-            {doc.analise_status === "recomendado" ? <CheckIcon className="h-3 w-3" /> : <AlertIcon className="h-3 w-3" />}
-            {doc.analise_status === "recomendado" ? "Recomendado" : "Pede ajustes"}
+            <CheckIcon className="h-3 w-3" />
+            Analisado
           </span>
         )}
       </>
@@ -43,15 +43,11 @@ export function AnaliseBadge({ doc, compacto }: { doc: Pick<Documento, "analise_
       )}
       {doc.analise_status && (
         <div
-          className={`rounded-xl border px-3 py-2 text-[13px] ${
-            doc.analise_status === "recomendado"
-              ? "border-[#2F9E62]/30 bg-[#E3F4EA] text-[#17613B]"
-              : "border-[#F2B705]/50 bg-[#FFF3CC] text-[#6E4B00]"
-          }`}
+          className="rounded-xl border border-[#2678C4]/30 bg-[#E2EFFB] px-3 py-2 text-[13px] text-[#0F4C85]"
         >
           <p className="flex flex-wrap items-center gap-1.5 font-bold">
-            {doc.analise_status === "recomendado" ? <CheckIcon className="h-4 w-4" /> : <AlertIcon className="h-4 w-4" />}
-            {doc.analise_status === "recomendado" ? "Análise: recomendado aprovar" : "Análise: pede ajustes"}
+            <CheckIcon className="h-4 w-4" />
+            Analisado pelo apoio
             <span className="font-normal opacity-80">
               {doc.analise_por_nome ? `· ${doc.analise_por_nome}` : ""} {doc.analise_em ? `· ${dataHora(doc.analise_em)}` : ""}
             </span>

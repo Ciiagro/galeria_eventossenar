@@ -10,10 +10,11 @@ import { Arvore, CORES_ALEGRES, CriancasPulando, Escolinha, Estrela, Flor, Grama
 import { FundoLogin } from "@/components/FundoLogin";
 import { mascaraCpf, mascaraTelefone } from "@/lib/mascaras";
 import { esquecerPerfilSalvo } from "@/lib/usePerfil";
+import { reduzirFoto } from "@/lib/reduzirFoto";
 
 const CAMPO =
-  "w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm text-brand-dark placeholder:text-brand-dark/40 transition focus:outline-none focus:border-brand-light focus:ring-4 focus:ring-brand-light/15";
-const ROTULO = "block text-[13px] font-semibold text-brand-dark mb-1";
+  "w-full rounded-lg border border-black/10 bg-white px-3.5 py-2.5 text-base text-brand-dark placeholder:text-brand-dark/40 transition focus:outline-none focus:border-brand-light focus:ring-4 focus:ring-brand-light/15";
+const ROTULO = "block text-sm font-semibold text-brand-dark mb-1";
 
 const PASSOS = [
   { titulo: "Cadastre-se", texto: "Escolha o município e crie o acesso.", cor: CORES_ALEGRES[0] },
@@ -44,6 +45,17 @@ export default function AdesaoPublicaPage() {
   });
   const [erro, setErro] = useState<string | null>(null);
   const [enviando, setEnviando] = useState(false);
+  const [foto, setFoto] = useState<string>(""); // foto do(a) coordenador(a), já reduzida (JPEG em texto)
+
+  async function escolherFoto(arquivo: File | null) {
+    if (!arquivo) return;
+    setErro(null);
+    try {
+      setFoto(await reduzirFoto(arquivo));
+    } catch (e: any) {
+      setErro(e.message ?? "Não foi possível usar esta foto.");
+    }
+  }
 
   // Quem já está logado como coordenador(a) vai direto para a ficha.
   // Outros perfis (ex.: administrador testando o link) continuam vendo esta página,
@@ -83,6 +95,7 @@ export default function AdesaoPublicaPage() {
     e.preventDefault();
     setErro(null);
     if (!form.municipio_id) return setErro("Escolha o município em que você vai atuar.");
+    if (!foto) return setErro("Envie a sua foto (rosto bem visível).");
     if (form.senha.length < 6) return setErro("A senha deve ter pelo menos 6 caracteres.");
     if (form.senha !== form.confirmar) return setErro("As senhas não são iguais.");
 
@@ -90,7 +103,7 @@ export default function AdesaoPublicaPage() {
     try {
       await apiPost("/api/cadastro-coordenador", {
         municipio_id: Number(form.municipio_id), nome: form.nome, cpf: form.cpf, rg: form.rg, telefone1: form.telefone1,
-        telefone2: form.telefone2, email: form.email, senha: form.senha, website: form.website,
+        telefone2: form.telefone2, email: form.email, senha: form.senha, website: form.website, foto,
       });
       // já entra com a conta recém-criada e segue para a ficha de adesão
     esquecerPerfilSalvo();
@@ -108,7 +121,7 @@ export default function AdesaoPublicaPage() {
 
   return (
     <FundoLogin className="min-h-screen">
-      <div className="mx-auto flex min-h-screen w-full max-w-4xl flex-col items-center gap-2.5 px-4 py-3 sm:px-6">
+      <div className="mx-auto flex min-h-screen w-full max-w-6xl flex-col items-center gap-3 px-4 py-3 sm:px-6">
         {/* cabeçalho compacto: mesma identidade do login */}
         <header className="text-center">
           <div className="flex items-center justify-center gap-3 sm:gap-5">
@@ -151,23 +164,10 @@ export default function AdesaoPublicaPage() {
               ))}
             </ol>
 
-            {/* cenário baixinho: escolinha, crianças, árvores e flor */}
-            <div className="relative select-none bg-[#FFF6EA] pt-1" aria-hidden="true">
-              <Nuvem className="absolute left-[10%] top-1 w-10 opacity-90 sm:w-14" />
-              <Nuvem className="absolute right-[12%] top-2 w-9 opacity-80 sm:w-12" />
-              <div className="relative mx-auto flex max-w-md items-end justify-center gap-1 px-4 sm:gap-2">
-                <Arvore className="hidden w-7 sm:block" />
-                <Escolinha className="w-20 sm:w-24" />
-                <CriancasPulando tamanho="w-8 sm:w-10" />
-                <Flor className="hidden w-4 sm:block" petala="#F49AC1" />
-                <Arvore className="w-7" />
-              </div>
-              <div className="-mt-1"><Grama className="!h-5" /></div>
-            </div>
           </aside>
 
           {/* formulário */}
-          <form onSubmit={enviar} className="space-y-2.5 rounded-2xl border border-black/5 bg-white p-4 shadow-lg sm:p-5">
+          <form onSubmit={enviar} className="space-y-3 rounded-2xl border border-black/5 bg-white p-4 shadow-lg sm:p-6">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4">
               <h2 className="inline-block border-b-2 border-brand-light pb-0.5 text-lg font-bold text-brand-dark">Cadastro do(a) coordenador(a)</h2>
               <p className="text-xs text-brand-dark/70">Leva poucos minutos. Depois você já preenche a ficha.</p>
@@ -181,6 +181,8 @@ export default function AdesaoPublicaPage() {
             <input type="text" name="website" tabIndex={-1} autoComplete="off" value={form.website}
               onChange={(e) => campo("website", e.target.value)} className="hidden" aria-hidden />
 
+            <div className="grid gap-4 lg:grid-cols-2">
+            <div className="space-y-4">
             <Bloco n={1} titulo="Município em que você vai atuar" cor={CORES_ALEGRES[0]}>
               <label htmlFor="municipio" className="sr-only">Município</label>
               <select id="municipio" required value={form.municipio_id} onChange={(e) => campo("municipio_id", e.target.value)} className={CAMPO}>
@@ -192,12 +194,30 @@ export default function AdesaoPublicaPage() {
             </Bloco>
 
             <Bloco n={2} titulo="Seus dados" cor={CORES_ALEGRES[2]}>
-              <div className="space-y-2">
-                <div>
-                  <label htmlFor="nome" className={ROTULO}>Nome completo</label>
-                  <input id="nome" required autoComplete="name" value={form.nome} onChange={(e) => campo("nome", e.target.value)} className={CAMPO} />
+              <div className="space-y-3">
+                <div className="flex items-center gap-4">
+                  <div className="shrink-0 text-center">
+                    <div className="flex h-20 w-20 items-center justify-center overflow-hidden rounded-full border border-black/10 bg-white">
+                      {foto ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={foto} alt="Sua foto" className="h-full w-full object-cover" />
+                      ) : (
+                        <span className="text-[11px] font-semibold text-brand-dark/50">Foto</span>
+                      )}
+                    </div>
+                    <label htmlFor="foto" className="mt-1 inline-block cursor-pointer text-xs font-bold text-brand-light underline">
+                      {foto ? "Trocar foto" : "Escolher foto *"}
+                    </label>
+                    <input id="foto" type="file" accept="image/*" className="sr-only"
+                      onChange={(ev) => { escolherFoto(ev.target.files?.[0] ?? null); ev.target.value = ""; }} />
+                  </div>
+                  <div className="min-w-0 flex-1">
+                    <label htmlFor="nome" className={ROTULO}>Nome completo</label>
+                    <input id="nome" required autoComplete="name" value={form.nome} onChange={(e) => campo("nome", e.target.value)} className={CAMPO} />
+                    <p className="mt-0.5 text-xs text-brand-dark/60">Foto do rosto, de frente (obrigatória).</p>
+                  </div>
                 </div>
-                <div className="grid gap-2 sm:grid-cols-4">
+                <div className="grid gap-3 sm:grid-cols-2">
                   <div>
                     <label htmlFor="cpf" className={ROTULO}>CPF</label>
                     <input id="cpf" required inputMode="numeric" placeholder="000.000.000-00" value={form.cpf}
@@ -221,8 +241,10 @@ export default function AdesaoPublicaPage() {
               </div>
             </Bloco>
 
+            </div>
+            <div className="space-y-4">
             <Bloco n={3} titulo="Acesso ao sistema" cor={CORES_ALEGRES[4]}>
-              <div className="grid gap-2 sm:grid-cols-3">
+              <div className="grid gap-3">
                 <div>
                   <label htmlFor="email" className={ROTULO}>E-mail <span className="font-normal text-brand-dark/60">(login)</span></label>
                   <input id="email" type="email" required autoComplete="email" value={form.email}
@@ -242,19 +264,18 @@ export default function AdesaoPublicaPage() {
             </Bloco>
 
             <button type="submit" disabled={enviando}
-              className="w-full rounded-lg bg-brand-light py-2.5 text-sm font-bold text-white shadow-md transition hover:bg-brand-accent hover:shadow-lg disabled:opacity-50">
+              className="w-full rounded-lg bg-brand-light py-3 text-base font-bold text-white shadow-md transition hover:bg-brand-accent hover:shadow-lg disabled:opacity-50">
               {enviando ? "Cadastrando..." : "Cadastrar e continuar →"}
             </button>
             <p className="text-center text-sm text-brand-dark/80">
               Já tem cadastro? <Link href="/login" className="font-bold text-brand-light underline">Entrar</Link>
             </p>
             <FaixaValores />
+            </div>
+            </div>
           </form>
         </div>
 
-        {/* Logo colorida do Sistema FAEC/SENAR Ceará (fundo transparente, fica direto sobre o creme) */}
-        {/* eslint-disable-next-line @next/next/no-img-element */}
-        <img src="/logo-sistema-colorida.png" alt="Sistema FAEC SENAR Ceará — Sindicato Rural" width={800} height={294} className="h-auto w-32" />
       </div>
     </FundoLogin>
   );

@@ -5,6 +5,7 @@ import { TituloPagina, Indicador } from "@/components/TituloPagina";
 import { useCallback, useEffect, useState } from "react";
 import { apiDelete, apiGet, apiPost } from "@/lib/api";
 import { AdminGuard } from "@/components/AdminGuard";
+import { PrazosDocumentos } from "@/components/PrazosDocumentos";
 import type { Ciclo } from "@/lib/ciclos";
 import { formatarData } from "@/components/DocumentoUI";
 import { BotaoEditar, BotaoExcluir } from "@/components/BotoesIcone";
@@ -16,6 +17,7 @@ export default function CiclosPageGuarded() {
   return (
     <AdminGuard>
       <CiclosPage />
+      <div className="px-4 pb-8 sm:px-8"><PrazosDocumentos /></div>
     </AdminGuard>
   );
 }

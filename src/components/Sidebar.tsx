@@ -1,15 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { supabaseBrowser } from "@/lib/supabaseBrowserClient";
 import { esquecerPerfilSalvo, usePerfil } from "@/lib/usePerfil";
 import { LogoutIcon, ImageIcon, MapPinIcon } from "@/components/icons";
-import { montarLinks, linkAtivo } from "@/lib/menu";
+import { montarLinks, linkAtivo, CORES_ICONES } from "@/lib/menu";
 import { apiGet, ROTULO_PAPEL } from "@/lib/api";
 import { FaixaValores, LogoValores } from "@/components/Sol";
-import { CORES_ALEGRES, CriancasPulando, Estrela, Grama } from "@/components/Desenhos";
+import { Estrela } from "@/components/Desenhos";
 import { useCiclos } from "@/lib/ciclos";
 
 // "Maria de Jesus" -> "MJ" · "maria@gmail.com" -> "M"
@@ -20,6 +20,8 @@ function iniciais(texto?: string | null) {
   const letras = partes.length === 1 ? partes[0].slice(0, 1) : partes[0][0] + partes[partes.length - 1][0];
   return letras.toLocaleUpperCase("pt-BR");
 }
+
+// uma cor para cada item do menu (a mesma do ícone; no item selecionado ela vira o destaque)
 
 export function Sidebar() {
   const pathname = usePathname();
@@ -64,8 +66,26 @@ export function Sidebar() {
     };
   }, [recebeComunicados, pathname]);
 
+  // Coordenador liberado que ainda não assinou o termo de compromisso: o menu mostra só o termo.
+  const [semCompromisso, setSemCompromisso] = useState<boolean | null>(null); // null = ainda conferindo
+  const ehCoordLiberado = perfil?.role === "municipio" && Boolean(perfil.municipio_id);
+  const quemConferiu = useRef<string | null>(null);
+  useEffect(() => {
+    if (!perfil) return; // ainda não sabemos quem é: continua "conferindo" (menu escondido)
+    if (!ehCoordLiberado) { setSemCompromisso(false); return; }
+    if (quemConferiu.current !== perfil.email) { quemConferiu.current = perfil.email ?? null; setSemCompromisso(null); }
+    let vivo = true;
+    let jaAssinou = false;
+    try { jaAssinou = window.sessionStorage.getItem(`compromisso_ok:${perfil.email}`) === "1"; } catch { /* ignora */ }
+    if (jaAssinou) { setSemCompromisso(false); return; }
+    apiGet("/api/compromisso")
+      .then((c) => { if (c?.assinado) { try { window.sessionStorage.setItem(`compromisso_ok:${perfil.email}`, "1"); } catch { /* ignora */ } } if (vivo) setSemCompromisso(Boolean(c) && c.sem_edicao === false && c.assinado === false); })
+      .catch(() => { if (vivo) setSemCompromisso(false); });
+    return () => { vivo = false; };
+  }, [perfil, ehCoordLiberado, pathname]);
+
   const aguardandoPerfil = carregandoPerfil && !perfil; // ainda não sabemos quem é: não mostra um menu que pode estar errado
-  const links = aguardandoPerfil ? [] : montarLinks(perfil);
+  const links = aguardandoPerfil || (ehCoordLiberado && semCompromisso === null) ? [] : semCompromisso ? montarLinks(perfil).filter((l) => l.href === "/compromisso") : montarLinks(perfil);
 
   async function sair() {
     esquecerPerfilSalvo();
@@ -76,13 +96,7 @@ export function Sidebar() {
   const papel = perfil?.role ? ROTULO_PAPEL[perfil.role] : "Responsável municipal";
 
   return (
-    <aside className="sticky top-0 h-screen w-64 shrink-0 self-start overflow-y-auto overflow-x-hidden bg-sol-creme border-r border-black/5 flex flex-col">
-      {/* manchas pastel de fundo */}
-      <div aria-hidden="true" className="pointer-events-none absolute inset-0">
-        <span className="absolute -left-16 top-52 h-40 w-40 rounded-full bg-[#E4D7F0]/30" />
-        <span className="absolute -right-16 top-[58%] h-40 w-40 rounded-full bg-[#CFE8F7]/30" />
-      </div>
-
+    <aside className="sticky top-0 h-screen w-60 shrink-0 self-start overflow-y-auto overflow-x-hidden bg-white border-r border-black/10 shadow-[4px_0_24px_-6px_rgba(18,46,32,0.18)] z-10 flex flex-col">
       <div className="relative flex min-h-full flex-col px-4 pt-5">
         {/* logo */}
         <div className="relative">
@@ -100,7 +114,7 @@ export function Sidebar() {
 
         {perfil && (
           <div
-            className="mt-3 flex items-center gap-2.5 rounded-xl border border-black/5 bg-white px-2.5 py-2 shadow-sm"
+            className="mt-3 flex items-center gap-2.5 rounded-2xl border border-black/10 bg-[#FFF8EC] px-3 py-2.5 shadow-sm"
             title={perfil.email || undefined}
           >
             <div
@@ -110,11 +124,8 @@ export function Sidebar() {
               {iniciais(perfil.nome || perfil.email)}
             </div>
             <div className="min-w-0">
-              <p className="truncate text-sm font-semibold leading-tight text-brand-dark">{perfil.nome || perfil.email}</p>
-              <p className="mt-0.5 flex items-center gap-1.5 truncate text-[11px] font-bold leading-tight text-[#0F4C85]">
-                <span className="h-1.5 w-1.5 shrink-0 rounded-full bg-[#2678C4]" aria-hidden />
-                {papel}
-              </p>
+              <p className="truncate text-sm font-bold leading-tight text-brand-dark">{perfil.nome || perfil.email}</p>
+              <p className="mt-0.5 truncate text-xs leading-tight text-slate-500">{papel}</p>
               {perfil.municipio_nome && (
                 <p className="mt-0.5 flex items-center gap-1 truncate text-[11px] font-semibold leading-tight text-brand-dark/75" title={perfil.municipio_pendente ? "Município escolhido no cadastro (liberado após a aprovação da adesão)" : undefined}>
                   <MapPinIcon className="h-3 w-3 shrink-0" />
@@ -134,17 +145,18 @@ export function Sidebar() {
           )}
           {links.map(({ href, label, Icon, prefixo }, i) => {
             const active = linkAtivo({ href, label, Icon, prefixo }, pathname);
-            const cor = CORES_ALEGRES[i % CORES_ALEGRES.length];
+            const cor = CORES_ICONES[i % CORES_ICONES.length];
             return (
               <Link
                 key={href}
                 href={href}
                 aria-current={active ? "page" : undefined}
-                className="flex items-center gap-2.5 rounded-xl border-2 px-2 py-1.5 text-sm font-semibold leading-tight transition-colors hover:shadow-sm"
-                style={active ? { background: cor.fundo, borderColor: cor.barra, color: cor.texto } : { background: "transparent", borderColor: "transparent", color: "#122E20" }}
+                className={`relative flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] leading-tight transition-colors ${active ? "font-bold" : "font-medium text-slate-700 hover:bg-black/[0.05]"}`}
+                style={active ? { background: `${cor}22`, color: "#1B1B2F" } : undefined}
               >
-                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={{ background: cor.barra, color: cor.sobre }}>
-                  <Icon className="h-4 w-4" />
+                {active && <span className="absolute -left-4 top-1 bottom-1 w-1 rounded-r-full" style={{ background: cor }} aria-hidden />}
+                <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg" style={active ? { background: cor, color: "#fff" } : { color: cor }}>
+                  <Icon className="h-[18px] w-[18px]" />
                 </span>
                 {label}
                 {href === "/analise" && paraAnalisar > 0 && (
@@ -167,10 +179,10 @@ export function Sidebar() {
               href="/galeria"
               target="_blank"
               rel="noreferrer"
-              className="flex items-center gap-2.5 rounded-xl border-2 border-transparent px-2 py-1.5 text-sm font-semibold leading-tight text-brand-dark transition-colors hover:shadow-sm"
+              className="flex items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium leading-tight text-slate-700 transition-colors hover:bg-black/[0.05]"
             >
-              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-[#F49AC1] text-[#4B1528]">
-                <ImageIcon className="h-4 w-4" />
+              <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#D6458F]">
+                <ImageIcon className="h-[18px] w-[18px]" />
               </span>
               Ver galeria pública
               <span className="ml-auto text-xs text-brand-dark/60" aria-hidden>↗</span>
@@ -180,20 +192,20 @@ export function Sidebar() {
 
         <button
           onClick={sair}
-          className="mt-0.5 flex w-full items-center gap-2.5 rounded-xl border-2 border-transparent px-2 py-1.5 text-sm font-semibold leading-tight text-brand-dark/80 transition-colors hover:bg-white hover:text-brand-dark"
+          className="flex w-full items-center gap-3 rounded-xl px-3 py-2 text-[14px] font-medium leading-tight text-slate-700 transition-colors hover:bg-black/[0.05]"
         >
-          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-black/10 text-brand-dark">
-            <LogoutIcon className="h-4 w-4" />
+          <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg text-[#6B7280]">
+            <LogoutIcon className="h-[18px] w-[18px]" />
           </span>
           Sair
         </button>
 
         {/* pé da lateral: crianças na grama (só aparece em telas altas) e a marca da FAEC */}
         <div className="mt-auto pt-4">
-          <div className="-mx-4 hidden select-none [@media(min-height:860px)]:block" aria-hidden="true">
-            <CriancasPulando tamanho="w-12" />
-            <div className="-mt-2"><Grama className="!h-8" /></div>
-          </div>
+          <svg viewBox="0 0 300 40" preserveAspectRatio="none" className="-mx-4 -mb-px block h-9 w-[calc(100%+2rem)]" aria-hidden="true">
+            <path d="M0 40V22C60 2 110 4 170 16C220 26 260 22 300 6V40Z" fill="#2F8F5B" />
+            <path d="M0 40V30C70 14 130 18 190 28C235 34 270 30 300 20V40Z" fill="#1E4632" />
+          </svg>
           <div className="-mx-4 bg-brand px-4 py-4">
             {/* eslint-disable-next-line @next/next/no-img-element */}
             <img

@@ -51,7 +51,8 @@ export default function AssinarPage() {
     try {
       const r = await chamar("/api/assinar/codigo", { t: token });
       setCodigoEnviado(true);
-      setAviso(`Enviamos um código de 6 dígitos para ${r.email_mascarado}. Ele vale por ${r.validade_minutos} minutos.`);
+      if (r.codigo_teste) setCodigo(String(r.codigo_teste));
+      setAviso(r.codigo_teste ? `MODO TESTE: o código ${r.codigo_teste} já foi preenchido (nenhum e-mail foi enviado).` : `Enviamos um código de 6 dígitos para ${r.email_mascarado}. Ele vale por ${r.validade_minutos} minutos.`);
     } catch (e: any) {
       setErro(e.message);
     } finally {

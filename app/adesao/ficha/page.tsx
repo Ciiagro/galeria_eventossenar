@@ -9,12 +9,13 @@ import { usePerfil } from "@/lib/usePerfil";
 import { FileTextIcon } from "@/components/icons";
 import { estaCompleta, FormularioEscola } from "@/components/FormularioEscola";
 import { AssinaturaEmail } from "@/components/AssinaturaEmail";
+import { TermoCompromisso } from "@/components/TermoCompromisso";
 import type { Escola } from "@/lib/api";
 import { mascaraCep, mascaraCpf, mascaraTelefone } from "@/lib/mascaras";
 
 const CAMPO =
-  "w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 disabled:bg-black/[0.03] disabled:text-brand-dark/70";
-const ROTULO = "block text-sm font-medium text-brand-dark mb-1.5";
+  "w-full rounded-lg border border-black/10 bg-white px-3 py-1.5 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30 disabled:bg-black/[0.03] disabled:text-brand-dark/70";
+const ROTULO = "block text-sm font-medium text-brand-dark mb-1";
 
 type MunicipioOpcao = { id: number; nome: string; ocupado?: boolean };
 type EscolaLista = { id: string; nome: string; tipo?: string | null; endereco?: string | null; latitude?: number | null; longitude?: number | null };
@@ -47,7 +48,7 @@ type Resposta = {
   adesao: AdesaoApi | null;
 };
 
-const ABAS = ["Município e prefeitura", "Secretaria de Educação", "Coordenador(a)", "Escolas", "Termo assinado"];
+const ABAS = ["Município e prefeitura", "Secretaria de Educação", "Coordenador(a)", "Escolas", "Termo assinado", "Termo de compromisso"];
 
 export default function AdesaoPage() {
   const { perfil, carregando: carregandoPerfil } = usePerfil();
@@ -69,6 +70,7 @@ export default function AdesaoPage() {
   const [termo, setTermo] = useState<TermoAssinado | null>(null); // PDF do termo assinado digitalmente
   const [vistoAssinado, setVistoAssinado] = useState(false); // o coordenador abriu/baixou o termo assinado antes de enviar a adesão
   const [declaracao, setDeclaracao] = useState(false); // ciência da cláusula de veracidade e uso dos dados
+  const [compromissoAssinado, setCompromissoAssinado] = useState<boolean | null>(null); // termo de compromisso do coordenador
   const [editando, setEditando] = useState(false); // enviada/aprovada abre em modo consulta; "Corrigir" volta ao formulário
 
   // preenche a tela com o que está salvo no servidor
@@ -117,6 +119,12 @@ export default function AdesaoPage() {
       })
       .catch((e) => setErro(e.message));
   }, [carregandoPerfil, perfil?.role]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // o termo de compromisso é exigido para enviar a adesão: confere se já foi assinado
+  useEffect(() => {
+    if (carregandoPerfil || perfil?.role !== "municipio") return;
+    apiGet("/api/compromisso").then((r) => setCompromissoAssinado(r?.sem_edicao ? null : Boolean(r?.assinado))).catch(() => setCompromissoAssinado(null));
+  }, [carregandoPerfil, perfil?.role]);
 
   // Enquanto a adesão aguarda aprovação, confere a resposta do administrador sozinho (a cada 20 s e
   // ao voltar para a aba): devolvida -> volta ao formulário com o recado; aprovada -> recarrega a página.
@@ -204,6 +212,12 @@ export default function AdesaoPage() {
     setMensagem(null);
     if (acao === "enviar" && !declaracao) {
       setErro("Marque a declaração de veracidade (na aba Termo assinado) para enviar a adesão.");
+      window.scrollTo({ top: 0, behavior: "smooth" });
+      return;
+    }
+    if (acao === "enviar" && compromissoAssinado === false) {
+      setErro("Assine o termo de compromisso (última aba) para enviar a adesão.");
+      setAba(5);
       window.scrollTo({ top: 0, behavior: "smooth" });
       return;
     }
@@ -351,7 +365,7 @@ export default function AdesaoPage() {
   if (carregandoPerfil) return null;
   if (perfil?.role !== "municipio") {
     return (
-      <div className="p-4 sm:p-8 max-w-3xl">
+      <div className="p-3 sm:p-5 max-w-7xl">
         <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-6 text-sm text-brand-dark/80">
           A ficha de adesão é preenchida pelo(a) coordenador(a) do município.{" "}
           {perfil?.role === "admin" && <Link href="/admin/termo-adesao" className="font-semibold text-brand-light underline">Ver as adesões recebidas (Termo de Adesão)</Link>}
@@ -374,14 +388,14 @@ export default function AdesaoPage() {
   // Depois de enviada, a ficha vira consulta: só as escolas escolhidas e o acesso ao termo (PDF)
   if ((status === "enviada" || status === "aprovada") && !editando) {
     return (
-      <div className="p-4 sm:p-8 max-w-5xl">
+      <div className="p-3 sm:p-5 max-w-7xl">
         <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
           <TituloPagina
             descricao="Acompanhe a situação da adesão e consulte o termo assinado."
             acao={<Indicador valor={totais.escolas} rotulo={totais.escolas === 1 ? "escola participante" : "escolas participantes"} />}
           >Ficha de adesão — Projeto Valores</TituloPagina>
 
-          <div className="mt-5 rounded-lg px-4 py-3 text-sm font-semibold" style={{ background: faixa.fundo, color: faixa.cor }}>
+          <div className="mt-2 rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: faixa.fundo, color: faixa.cor }}>
             {resp?.ciclo && <span className="mr-2 rounded-full bg-white/70 px-2 py-0.5 text-xs">Ano de referência: {resp.ciclo.nome}</span>}
             {status === "enviada" ? "Adesão enviada — aguardando a aprovação do administrador." : faixa.texto}
           </div>
@@ -447,7 +461,7 @@ export default function AdesaoPage() {
   }
 
   return (
-    <div className="p-4 sm:p-8 max-w-5xl">
+    <div className="p-3 sm:p-5 max-w-7xl">
       <div className="bg-white rounded-2xl border border-black/5 shadow-sm p-5 sm:p-7">
         <TituloPagina
           descricao="Escolha o município, informe os dados da prefeitura e da secretaria e marque as escolas que vão participar."
@@ -458,11 +472,11 @@ export default function AdesaoPage() {
           <div className="mt-5 rounded-lg bg-[#FFF3CC] text-[#6E4B00] px-4 py-3 text-sm">Não há uma edição ativa no momento. Fale com o administrador.</div>
         )}
 
-        <div className="mt-5 rounded-lg px-4 py-3 text-sm font-semibold" style={{ background: faixa.fundo, color: faixa.cor }}>
+        <div className="mt-2 rounded-lg px-4 py-2 text-sm font-semibold" style={{ background: faixa.fundo, color: faixa.cor }}>
           {resp?.ciclo && <span className="mr-2 rounded-full bg-white/70 px-2 py-0.5 text-xs">Ano de referência: {resp.ciclo.nome}</span>}
           {faixa.texto}
         </div>
-        <ol className="mt-3 grid gap-2 rounded-lg bg-black/[0.03] px-4 py-3 text-sm text-brand-dark sm:grid-cols-4">
+        <ol className="mt-2 grid gap-2 rounded-lg bg-black/[0.03] px-4 py-2 text-sm text-brand-dark sm:grid-cols-4">
           <li><strong>1.</strong> Preencha as etapas 1 a 4.</li>
           <li><strong>2.</strong> Na etapa 5, abra o termo e confira os dados.</li>
           <li><strong>3.</strong> Envie o termo para assinatura por e-mail e aguarde as 3 assinaturas.</li>
@@ -479,51 +493,46 @@ export default function AdesaoPage() {
         {mensagem && <div className="mt-3 rounded-lg bg-status-completo/10 text-status-completo px-4 py-3 text-sm">{mensagem}</div>}
 
         {/* abas */}
-        <div className="mt-6 flex flex-nowrap gap-1.5 overflow-x-auto pb-1" role="tablist">
+        <div className="mt-3 flex flex-wrap gap-1.5" role="tablist">
           {ABAS.map((nome, i) => (
             <button key={nome} type="button" role="tab" aria-selected={aba === i} onClick={() => setAba(i)}
-              className={`shrink-0 whitespace-nowrap rounded-lg px-3 py-2 text-sm font-semibold transition-colors ${aba === i ? "bg-brand-light text-white" : "bg-black/5 text-brand-dark hover:bg-black/10"}`}>
+              className={`flex-1 whitespace-nowrap rounded-lg px-2.5 py-2 text-[13px] font-semibold transition-colors ${aba === i ? "bg-brand-light text-white" : "bg-black/5 text-brand-dark hover:bg-black/10"}`}>
               <span className="mr-1.5 inline-flex h-5 w-5 items-center justify-center rounded-full bg-white/80 text-xs text-brand-dark">{i + 1}</span>
               {nome}
             </button>
           ))}
         </div>
 
-        <fieldset disabled={somenteLeitura} className="mt-5">
+        <fieldset disabled={somenteLeitura} className="mt-3">
           {aba === 0 && (
-            <div className="space-y-4">
-              <div>
-                <label className={ROTULO}>Município</label>
+            <div className="grid gap-x-4 gap-y-2.5 sm:grid-cols-2 lg:grid-cols-4">
+              <div className="lg:col-span-2" title={resp?.municipio_fixo ? "Escolhido no cadastro. Para trocar, fale com o administrador." : undefined}>
+                <label className={ROTULO}>Município{resp?.municipio_fixo ? " (do cadastro)" : ""}</label>
                 <select value={municipioId} onChange={(e) => trocarMunicipio(e.target.value)} disabled={somenteLeitura || Boolean(resp?.municipio_fixo)} className={CAMPO}>
                   <option value="">Selecione o município...</option>
                   {municipios.map((m) => (
                     <option key={m.id} value={m.id} disabled={m.ocupado}>{m.nome}{m.ocupado ? " (já possui adesão)" : ""}</option>
                   ))}
                 </select>
-                {resp?.municipio_fixo ? <p className="mt-1 text-xs text-brand-dark/70">Município escolhido no seu cadastro. Para trocar, fale com o administrador.</p> : null}
               </div>
-              <div><label className={ROTULO}>Prefeito(a)</label><input className={CAMPO} value={dados.prefeito_nome} onChange={(e) => campo("prefeito_nome", e.target.value)} /></div>
-              <div className="grid gap-4 sm:grid-cols-2">
-                <div><label className={ROTULO}>CPF do prefeito(a)</label><input className={CAMPO} placeholder="000.000.000-00" inputMode="numeric" value={dados.prefeito_cpf} onChange={(e) => campo("prefeito_cpf", mascaraCpf(e.target.value))} /></div>
-                <div><label className={ROTULO}>RG do prefeito(a)</label><input className={CAMPO} value={dados.prefeito_rg} onChange={(e) => campo("prefeito_rg", e.target.value)} /></div>
-              </div>
-              <div><label className={ROTULO}>Endereço da prefeitura</label><input className={CAMPO} value={dados.prefeitura_endereco} onChange={(e) => campo("prefeitura_endereco", e.target.value)} /></div>
-              <div className="grid gap-4 sm:grid-cols-3">
-                <div><label className={ROTULO}>CEP</label><input className={CAMPO} placeholder="00000-000" inputMode="numeric" value={dados.prefeitura_cep} onChange={(e) => campo("prefeitura_cep", mascaraCep(e.target.value))} /></div>
-                <div><label className={ROTULO}>Telefone</label><input className={CAMPO} placeholder="(00) 00000-0000" inputMode="tel" value={dados.prefeitura_telefone} onChange={(e) => campo("prefeitura_telefone", mascaraTelefone(e.target.value))} /></div>
-                <div><label className={ROTULO}>E-mail</label><input type="email" className={CAMPO} value={dados.prefeitura_email} onChange={(e) => campo("prefeitura_email", e.target.value)} /></div>
-              </div>
+              <div className="lg:col-span-2"><label className={ROTULO}>Prefeito(a)</label><input className={CAMPO} value={dados.prefeito_nome} onChange={(e) => campo("prefeito_nome", e.target.value)} /></div>
+              <div><label className={ROTULO}>CPF do prefeito(a)</label><input className={CAMPO} placeholder="000.000.000-00" inputMode="numeric" value={dados.prefeito_cpf} onChange={(e) => campo("prefeito_cpf", mascaraCpf(e.target.value))} /></div>
+              <div><label className={ROTULO}>RG do prefeito(a)</label><input className={CAMPO} value={dados.prefeito_rg} onChange={(e) => campo("prefeito_rg", e.target.value)} /></div>
+              <div className="lg:col-span-2"><label className={ROTULO}>Endereço da prefeitura</label><input className={CAMPO} value={dados.prefeitura_endereco} onChange={(e) => campo("prefeitura_endereco", e.target.value)} /></div>
+              <div><label className={ROTULO}>CEP</label><input className={CAMPO} placeholder="00000-000" inputMode="numeric" value={dados.prefeitura_cep} onChange={(e) => campo("prefeitura_cep", mascaraCep(e.target.value))} /></div>
+              <div><label className={ROTULO}>Telefone</label><input className={CAMPO} placeholder="(00) 00000-0000" inputMode="tel" value={dados.prefeitura_telefone} onChange={(e) => campo("prefeitura_telefone", mascaraTelefone(e.target.value))} /></div>
+              <div className="lg:col-span-2"><label className={ROTULO}>E-mail</label><input type="email" className={CAMPO} value={dados.prefeitura_email} onChange={(e) => campo("prefeitura_email", e.target.value)} /></div>
             </div>
           )}
 
           {aba === 1 && (
-            <div className="space-y-4">
-              <div className="grid gap-4 sm:grid-cols-2">
+            <div className="space-y-2.5">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div><label className={ROTULO}>Secretário(a) de Educação</label><input className={CAMPO} value={dados.secretario_nome} onChange={(e) => campo("secretario_nome", e.target.value)} /></div>
                 <div><label className={ROTULO}>CPF</label><input className={CAMPO} placeholder="000.000.000-00" inputMode="numeric" value={dados.secretario_cpf} onChange={(e) => campo("secretario_cpf", mascaraCpf(e.target.value))} /></div>
               </div>
               <div><label className={ROTULO}>Endereço da secretaria</label><input className={CAMPO} value={dados.secretaria_endereco} onChange={(e) => campo("secretaria_endereco", e.target.value)} /></div>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div><label className={ROTULO}>Telefone</label><input className={CAMPO} placeholder="(00) 00000-0000" inputMode="tel" value={dados.secretaria_telefone} onChange={(e) => campo("secretaria_telefone", mascaraTelefone(e.target.value))} /></div>
                 <div><label className={ROTULO}>E-mail</label><input type="email" className={CAMPO} value={dados.secretaria_email} onChange={(e) => campo("secretaria_email", e.target.value)} /></div>
               </div>
@@ -531,9 +540,9 @@ export default function AdesaoPage() {
           )}
 
           {aba === 2 && (
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               <p className="text-sm text-brand-dark/75">Estes dados vêm do seu cadastro. Para alterar, fale com o administrador.</p>
-              <div className="grid gap-4 sm:grid-cols-2">
+              <div className="grid gap-3 sm:grid-cols-2">
                 <div><label className={ROTULO}>Nome</label><input className={CAMPO} disabled value={c?.nome ?? ""} readOnly /></div>
                 <div><label className={ROTULO}>E-mail</label><input className={CAMPO} disabled value={c?.email ?? ""} readOnly /></div>
                 <div><label className={ROTULO}>CPF</label><input className={CAMPO} disabled value={c?.cpf ? mascaraCpf(c.cpf) : ""} readOnly /></div>
@@ -549,7 +558,7 @@ export default function AdesaoPage() {
           )}
 
           {aba === 3 && (
-            <div className="space-y-5">
+            <div className="space-y-3">
               {!municipioId ? (
                 <div className="rounded-lg bg-[#FFF3CC] text-[#6E4B00] px-4 py-3 text-sm">
                   Escolha o município na aba 1 para ver as escolas.
@@ -674,14 +683,20 @@ export default function AdesaoPage() {
             </div>
           )}
           {aba === 4 && (
-            <div className="space-y-4">
+            <div className="space-y-2.5">
               <AssinaturaEmail
                 prefeitoNome={dados.prefeito_nome}
                 prefeitoEmail={dados.prefeitura_email}
                 coordenadorNome={c?.nome ?? ""}
                 coordenadorEmail={c?.email ?? ""}
                 pronto={Boolean(resp?.ciclo && municipioId && totais.escolas > 0 && dados.prefeito_nome.trim())}
-                motivoBloqueio="Para enviar, preencha o nome do(a) prefeito(a) (aba Município e prefeitura) e marque ao menos uma escola."
+                motivoBloqueio={
+                  !resp?.ciclo ? "Não há uma edição ativa. O administrador precisa criar e ativar uma edição (menu Edições)."
+                  : !municipioId ? "Escolha o município na aba 1."
+                  : !dados.prefeito_nome.trim() ? "Falta o nome do(a) prefeito(a) (aba 1) e salvar o rascunho."
+                  : totais.escolas === 0 ? "Marque ao menos uma escola na aba 4 (se a lista estiver vazia, o administrador precisa marcar as escolas do programa)."
+                  : ""
+                }
                 somenteLeitura={somenteLeitura}
                 salvarAntes={salvarRascunhoParaAssinatura}
                 secretarioNome={dados.secretario_nome}
@@ -698,7 +713,7 @@ export default function AdesaoPage() {
 
               <details className="group rounded-xl border border-black/5 bg-black/[0.02] p-4" open={Boolean(termo) && !termo?.atualizado ? true : undefined}>
                 <summary className="cursor-pointer text-sm font-semibold text-brand-dark/80">Prefiro assinar fora do sistema (gov.br, certificado digital) e anexar o PDF</summary>
-                <div className="mt-3 space-y-4">
+                <div className="mt-3 space-y-2.5">
               <div className="rounded-xl border border-black/5 bg-black/[0.02] p-4">
                 <h3 className="text-base font-bold text-brand-dark">1. Abra o termo e salve em PDF</h3>
                 <p className="mt-0.5 text-sm text-brand-dark/75">O termo é montado com os dados que você preencheu. Confira e use <em>Salvar em PDF</em> na página que abrir.</p>
@@ -757,9 +772,14 @@ export default function AdesaoPage() {
 
             </div>
           )}
+          {aba === 5 && (
+            <div className="space-y-2.5">
+              <TermoCompromisso onMudou={setCompromissoAssinado} />
+            </div>
+          )}
         </fieldset>
 
-        <div className="mt-7 flex flex-col-reverse gap-2 border-t border-black/5 pt-5 sm:flex-row sm:items-center sm:justify-between">
+        <div className="mt-4 flex flex-col-reverse gap-2 border-t border-black/5 pt-3 sm:flex-row sm:items-center sm:justify-between">
           <div className="flex gap-2">
             {aba > 0 && <button type="button" onClick={() => setAba(aba - 1)} className="rounded-lg border border-black/10 px-4 py-2 text-sm font-semibold text-brand-dark hover:bg-black/5">← Voltar</button>}
             {aba < ABAS.length - 1 && <button type="button" onClick={() => setAba(aba + 1)} className="rounded-lg border border-black/10 px-4 py-2 text-sm font-semibold text-brand-dark hover:bg-black/5">Próximo: {ABAS[aba + 1]} →</button>}
@@ -770,8 +790,8 @@ export default function AdesaoPage() {
                 className="rounded-lg border border-brand-light px-4 py-2 text-sm font-semibold text-brand-light hover:bg-brand-light/5 disabled:opacity-50">
                 Salvar rascunho
               </button>
-              <button type="button" disabled={salvando || !resp?.ciclo || !termo?.atualizado || !declaracao || !vistoAssinado} onClick={() => salvar("enviar")}
-                title={!termo?.atualizado ? "Envie o termo para assinatura (etapa 5) para enviar" : !declaracao ? "Marque a declaração de veracidade (na aba Termo assinado) para enviar" : !vistoAssinado ? "Abra ou baixe o termo assinado (PDF) para conferir antes de enviar" : undefined}
+              <button type="button" disabled={salvando || !resp?.ciclo || !termo?.atualizado || !declaracao || !vistoAssinado || compromissoAssinado === false} onClick={() => salvar("enviar")}
+                title={!termo?.atualizado ? "Envie o termo para assinatura (etapa 5) para enviar" : !declaracao ? "Marque a declaração de veracidade (na aba Termo assinado) para enviar" : !vistoAssinado ? "Abra ou baixe o termo assinado (PDF) para conferir antes de enviar" : compromissoAssinado === false ? "Assine o termo de compromisso (última aba) para enviar" : undefined}
                 className="rounded-lg bg-brand-light px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-brand-accent disabled:opacity-50">
                 {status === "enviada" ? "Reenviar adesão" : "Enviar adesão"}
               </button>

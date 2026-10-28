@@ -32,8 +32,9 @@ load_dotenv()
 from lib.supabase_client import get_client, get_client_as_user, get_user_from_jwt
 from lib.drive_client import upload_arquivo_privado, baixar_arquivo, apagar_arquivo, get_drive_service, upload_file, create_municipio_folder, get_or_create_subfolder, iniciar_upload_resumavel, enviar_pedaco_resumavel, liberar_link_publico, baixar_miniatura
 from lib.video_compress import comprimir_video_se_necessario
-from lib.email_client import enviar_email, email_configurado, montar_convite, montar_codigo, montar_concluido, montar_comunicado, url_base
+from lib.email_client import enviar_email, email_configurado, montar_convite, montar_codigo, montar_concluido, montar_comunicado, url_base, montar_compromisso_assinado, montar_convite_compromisso
 from lib.termo_pdf import gerar_pdf_termo
+from lib.termo_compromisso import montar_texto as montar_texto_compromisso, hash_texto as hash_texto_compromisso, gerar_pdf_compromisso
 
 app = Flask(__name__)
 CORS(app)  # em produção, restrinja origins conforme necessário
@@ -87,6 +88,34 @@ _CACHE_ADMIN = {}     # user_id -> (é_admin, expira_em)
 _CACHE_SEGUNDOS = 120
 
 
+_CACHE_ATIVO = {}     # user_id -> (ativo, expira_em)
+
+
+def _usuario_ativo(user_id):
+    """False se o administrador desativou este usuário (perfis.ativo). Se a coluna ainda não existe ou
+    der erro, ninguém é bloqueado."""
+    if not user_id:
+        return True
+    agora = time.time()
+    em_cache = _CACHE_ATIVO.get(user_id)
+    if em_cache and em_cache[1] > agora:
+        return em_cache[0]
+    try:
+        linhas = get_client().table("perfis").select("ativo").eq("id", user_id).limit(1).execute().data or []
+        ativo = not (linhas and linhas[0].get("ativo") is False)
+    except Exception:  # noqa: BLE001
+        ativo = True
+    if len(_CACHE_ATIVO) > 1000:
+        _CACHE_ATIVO.clear()
+    _CACHE_ATIVO[user_id] = (ativo, agora + 60)
+    return ativo
+
+
+def _usuario_ativo_fresco(user_id):
+    _CACHE_ATIVO.pop(user_id, None)
+    return _usuario_ativo(user_id)
+
+
 def require_user():
     """
     Retorna (user, jwt) se autenticado.
@@ -104,14 +133,14 @@ def require_user():
     agora = time.time()
     em_cache = _CACHE_USUARIO.get(jwt)
     if em_cache and em_cache[1] > agora:
-        return em_cache[0], jwt
+        return (em_cache[0], jwt) if _usuario_ativo(getattr(em_cache[0], "id", None)) else None
     user = get_user_from_jwt(jwt)
     if not user:
         return None
     if len(_CACHE_USUARIO) > 500:
         _CACHE_USUARIO.clear()
     _CACHE_USUARIO[jwt] = (user, agora + _CACHE_SEGUNDOS)
-    return user, jwt
+    return (user, jwt) if _usuario_ativo(user.id) else None
 
 
 def _com_tentativas(funcao, tentativas=4):
@@ -250,6 +279,8 @@ def carregar_perfil(user):
 
 
 def limpar_caches_perfil():
+    _CACHE_ATIVO.clear()
+    _CACHE_USUARIO.clear()
     _CACHE_PERFIL.clear()
     _CACHE_MUN_NOME.clear()
     _CACHE_ADMIN.clear()
@@ -463,6 +494,7 @@ def resumo_dashboard():
             dados = _resumo_lento(acao_id, ano, mes, ciclo_id)
 
         resultado = _separar_documentos(_montar_resumo(dados), ano, mes, ciclo_id)
+        _contar_escolas_multiplas(resultado, ano, mes, ciclo_id, acao_id)
         if len(_CACHE_RESUMO) > 100:
             _CACHE_RESUMO.clear()
         _CACHE_RESUMO[chave_resumo] = (time.time(), resultado)
@@ -473,6 +505,81 @@ def resumo_dashboard():
         return resposta
     except Exception as e:
         return jsonify({"error": str(e)}), 500
+
+
+def _contar_escolas_multiplas(resultado, ano, mes, ciclo_id, acao_id):
+    """Um envio pode valer para várias escolas (escolas_ids). O resumo do banco só vê a primeira;
+    aqui contamos também as outras, para o painel mostrar quantas escolas realmente enviaram."""
+    try:
+        db = get_client()
+        # total de escolas do município = as da adesão aprovada (as que o coordenador pode usar)
+        try:
+            ades = db.table("adesoes").select("id, municipio_id").eq("status", "aprovada").execute().data or []
+            if ades:
+                por_ades = {a["id"]: a["municipio_id"] for a in ades}
+                vinc = fetch_all(lambda: db.table("adesao_escolas").select("adesao_id, escola_id").order("escola_id"))
+                total_mun = {}
+                for v in vinc:
+                    mid = por_ades.get(v["adesao_id"])
+                    if mid is not None:
+                        total_mun.setdefault(mid, set()).add(v["escola_id"])
+                for m in resultado.get("municipios", []):
+                    if m["id"] in total_mun:
+                        m["escolas_total"] = len(total_mun[m["id"]])
+                if isinstance(resultado.get("indicadores"), dict):
+                    resultado["indicadores"]["escolas_total"] = sum(m["escolas_total"] for m in resultado.get("municipios", []))
+        except Exception as e:  # noqa: BLE001
+            print(f"[resumo] não consegui usar as escolas da adesão: {e}")
+        docs = fetch_all(lambda: db.table("documentos").select(
+            "id, municipio_id, escola_id, escolas_ids, data_realizacao, ciclo_id, acao_pedagogica_id"
+        ).not_.is_("escolas_ids", "null").order("id"))
+        if not docs:
+            return
+        lista = resultado.get("escolas_participantes_lista") or []
+        por_id = {e["id"]: e for e in lista}
+        extras = {}
+        for d in docs:
+            data = d.get("data_realizacao") or ""
+            if ciclo_id:
+                if d.get("ciclo_id") != ciclo_id:
+                    continue
+            elif ano and data[:4] != str(ano):
+                continue
+            if mes and data[5:7] != f"{mes:02d}":
+                continue
+            if acao_id == "sem":
+                if d.get("acao_pedagogica_id"):
+                    continue
+            elif acao_id and d.get("acao_pedagogica_id") != acao_id:
+                continue
+            for eid in d.get("escolas_ids") or []:
+                if eid == d.get("escola_id"):
+                    continue
+                extras[eid] = extras.get(eid, 0) + 1
+        if not extras:
+            return
+        infos = db.table("escolas").select("id, municipio_id, nome, latitude, longitude").in_("id", list(extras)).execute().data or []
+        muns = {m["id"]: m for m in resultado.get("municipios", [])}
+        for e in infos:
+            if e["id"] in por_id:
+                por_id[e["id"]]["documentos"] += extras[e["id"]]
+                continue
+            if e["municipio_id"] in muns:
+                muns[e["municipio_id"]]["escolas_participantes"] = muns[e["municipio_id"]].get("escolas_participantes", 0) + 1
+            lista.append({
+                "id": e["id"], "nome": e["nome"], "municipio_id": e["municipio_id"],
+                "municipio_nome": (muns.get(e["municipio_id"]) or {}).get("nome"),
+                "programas": ["Documentos"],
+                "latitude": float(e["latitude"]) if e.get("latitude") is not None else None,
+                "longitude": float(e["longitude"]) if e.get("longitude") is not None else None,
+                "documentos": extras[e["id"]],
+            })
+        resultado["escolas_participantes_lista"] = lista
+        if isinstance(resultado.get("indicadores"), dict):
+            resultado["indicadores"]["escolas_participantes"] = len(lista)
+    except Exception as e:  # noqa: BLE001 - o painel funciona mesmo sem esse ajuste
+        print(f"[resumo] não consegui contar escolas de envios múltiplos: {e}")
+
 
 
 def _montar_resumo(dados):
@@ -528,7 +635,7 @@ def _separar_documentos(resultado, ano, mes, ciclo_id):
                 return False
             return not mes or data[5:7] == f"{mes:02d}"
 
-        previstos = [t for g in grupos for t in (g.get("subtipos") or [])]
+        previstos = [d["nome"] for d in _documentos_projeto()]
         contagem = {t: {"nome": t, "total": 0, "aprovados": 0} for t in previstos}
         for d in docs:
             if not no_periodo(d):
@@ -669,15 +776,28 @@ def salvar_responsavel():
     nome = (body.get("responsavel_nome") or "").strip()
     email = (body.get("responsavel_email") or "").strip().lower()
     senha = body.get("senha") or ""
+    cpf = _so_digitos(body.get("cpf"))
+    rg = _texto(body.get("rg"), 30)
+    telefone1 = _texto(body.get("telefone1"), 20)
+    telefone2 = _texto(body.get("telefone2"), 20)
+    foto = body.get("foto") or ""
+    substituir = body.get("substituir") is True  # admin: troca o coordenador de uma vez (desativa o atual e cadastra o novo)
     if not municipio_id:
         return jsonify({"error": "municipio_id é obrigatório."}), 400
     if not nome or not email:
         return jsonify({"error": "Nome e e-mail são obrigatórios."}), 400
+    if cpf and not _cpf_valido(cpf):
+        return jsonify({"error": "CPF inválido. Confira os números."}), 400
+    if telefone1 and len(_so_digitos(telefone1)) < 10:
+        return jsonify({"error": "Informe o contato (telefone) com DDD."}), 400
+    if foto and not _foto_valida(foto):
+        return jsonify({"error": "Foto inválida. Escolha outra imagem."}), 400
     if email and ("@" not in email or email.startswith("@") or email.endswith("@")):
         return jsonify({"error": "Informe um e-mail válido."}), 400
     if senha and len(senha) < 6:
         return jsonify({"error": "A senha deve ter pelo menos 6 caracteres."}), 400
 
+    novo_usuario = False
     try:
         db = get_client()
         extra_response = (
@@ -690,6 +810,13 @@ def salvar_responsavel():
         extra_rows = extra_response.data if extra_response else []
         extra = extra_rows[0] if extra_rows else None
         responsavel_id = extra.get("responsavel_id") if extra else None
+        # Coordenador DESATIVADO (troca de coordenador): o cadastro dele fica guardado como está e este
+        # município passa a ter um novo coordenador, com novo login (e-mail diferente) e novo termo de compromisso.
+        troca_de_coordenador = bool(responsavel_id) and (substituir or not _usuario_ativo_fresco(responsavel_id))
+        antigo_id = responsavel_id if troca_de_coordenador else None
+        adesao_nao_passou = False
+        if troca_de_coordenador:
+            responsavel_id = None
 
         # primeiro as escolas, depois o responsável: só municípios com escolas no programa
         if not responsavel_id and int(municipio_id) not in _municipios_contemplados(db):
@@ -703,19 +830,66 @@ def salvar_responsavel():
         else:
             if len(senha) < 6:
                 return jsonify({"error": "Informe uma senha com pelo menos 6 caracteres para o novo usuário."}), 400
-            created_user = db.auth.admin.create_user({
-                "email": email,
-                "password": senha,
-                "email_confirm": True,
-                "user_metadata": {"nome": nome},
-            })
+            if not cpf or not telefone1:
+                return jsonify({"error": "Para um coordenador novo, informe o CPF e o contato (telefone)."}), 400
+            if (db.table("coordenadores_cadastro").select("user_id").eq("cpf", cpf).limit(1).execute().data or []):
+                return jsonify({"error": "Já existe um coordenador cadastrado com este CPF."}), 409
+            try:
+                created_user = db.auth.admin.create_user({
+                    "email": email,
+                    "password": senha,
+                    "email_confirm": True,
+                    "user_metadata": {"nome": nome},
+                })
+            except Exception as e_novo:  # noqa: BLE001
+                t = str(e_novo).lower()
+                if "already" in t or "registered" in t or "exists" in t:
+                    return jsonify({"error": "Este e-mail já tem cadastro" + (" (pode ser o do coordenador anterior). Use outro e-mail para o novo coordenador." if troca_de_coordenador else ".")}), 409
+                raise
             responsavel_id = created_user.user.id
+            novo_usuario = True
+            # o novo foi criado: agora sim desativa o coordenador anterior (cadastro e documentos dele ficam guardados)
+            if antigo_id and str(antigo_id) != str(responsavel_id) and str(antigo_id) != str(getattr(user, "id", "")):
+                try:
+                    db.table("perfis").update({"ativo": False}).eq("id", antigo_id).execute()
+                except Exception as e_ant:  # noqa: BLE001
+                    print(f"[substituir] não consegui marcar o coordenador anterior como inativo: {e_ant}")
+                try:
+                    db.auth.admin.update_user_by_id(antigo_id, {"ban_duration": "876000h"})
+                except Exception as e_ban2:  # noqa: BLE001
+                    print(f"[substituir] não consegui bloquear o login do coordenador anterior: {e_ban2}")
+                # o novo coordenador continua o trabalho: a ficha de adesão (qualquer situação) passa para ele, com escolas e dados
+                try:
+                    db.table("adesoes").update({"coordenador_id": responsavel_id}).eq("coordenador_id", antigo_id).execute()
+                except Exception as e_ades:  # noqa: BLE001
+                    print(f"[substituir] não consegui passar a adesão para o novo coordenador: {e_ades}")
+                    adesao_nao_passou = True
 
         limpar_caches_perfil()
         db.table("perfis").upsert(
             {"id": responsavel_id, "nome": nome, "role": "municipio", "municipio_id": municipio_id},
             on_conflict="id",
         ).execute()
+        # dados do coordenador: e-mail, CPF, RG e contato (o CPF é usado no termo de compromisso)
+        cadastro = {"user_id": responsavel_id, "nome": nome, "email": email, "municipio_id": int(municipio_id)}
+        if cpf:
+            cadastro["cpf"] = cpf
+        if rg or novo_usuario:
+            cadastro["rg"] = rg
+        if telefone1:
+            cadastro["telefone1"] = telefone1
+        if telefone2 or novo_usuario:
+            cadastro["telefone2"] = telefone2
+        existe_cad = db.table("coordenadores_cadastro").select("user_id").eq("user_id", responsavel_id).limit(1).execute().data or []
+        if existe_cad:
+            db.table("coordenadores_cadastro").update({k: v for k, v in cadastro.items() if k != "user_id"}).eq("user_id", responsavel_id).execute()
+        elif cpf:
+            db.table("coordenadores_cadastro").insert(cadastro).execute()
+        if foto:
+            try:
+                _salvar_foto_coordenador(responsavel_id, foto)
+            except Exception as e_foto:  # noqa: BLE001
+                print(f"[foto] não consegui guardar a foto de {responsavel_id}: {e_foto}")
         saved = (
             db.table("municipios_extra")
             .upsert(
@@ -741,7 +915,18 @@ def salvar_responsavel():
         _municipios_cache.clear()
 
         _CACHE_RESUMO.clear()
-        return jsonify(saved)
+        # coordenador novo (inclusive a troca): manda o convite para assinar o Termo de Compromisso
+        aviso_email = None
+        if novo_usuario:
+            try:
+                nome_mun = (db.table("municipios").select("nome").eq("id", municipio_id).limit(1).execute().data or [{}])[0].get("nome") or ""
+                assunto, texto, html = montar_convite_compromisso(
+                    nome, nome_mun, email, f"{_link_base()}/compromisso", getattr(user, "email", None) or "A administração do projeto")
+                enviar_email(email, assunto, texto, html)
+                aviso_email = "enviado"
+            except Exception as e_mail:  # noqa: BLE001
+                aviso_email = "Salvo, mas o e-mail com o convite não saiu: " + _motivo_falha_email(e_mail)
+        return jsonify({"dados": saved, "novo_usuario": novo_usuario, "convite_compromisso": aviso_email, "adesao_nao_passou": adesao_nao_passou})
     except Exception as e:
         return jsonify({"error": str(e)}), 500
 
@@ -801,6 +986,209 @@ def listar_tipos_documento():
 
 
 # ------------------------------------------------------------
+# DOCUMENTOS DO PROJETO (PDF): relatórios e listas de presença das formações, e o portfólio final.
+# "abre" = a partir de quando o item aparece para o coordenador; "prazo" = data limite (None = sem prazo).
+# Para mudar datas ou nomes, é só editar esta lista.
+# ------------------------------------------------------------
+def _d(ano, mes, dia):
+    from datetime import date
+    return date(ano, mes, dia)
+
+
+_FORMACOES_PROJETO = [
+    ("1ª Formação", _d(2026, 10, 1), _d(2026, 11, 30)),
+    ("2ª Formação", _d(2026, 11, 1), _d(2026, 12, 31)),
+    ("3ª Formação", _d(2027, 3, 1), _d(2027, 4, 30)),
+    ("4ª Formação", _d(2027, 4, 1), _d(2027, 5, 31)),
+]
+DOCUMENTOS_PROJETO = (
+    # por formação: o relatório e a lista de presença são envios separados
+    [{"nome": f"Relatório de Formação - {n}", "abre": a, "prazo": p} for n, a, p in _FORMACOES_PROJETO]
+    + [{"nome": f"Lista de Presença - {n}", "abre": a, "prazo": p} for n, a, p in _FORMACOES_PROJETO]
+    + [{"nome": "Portfólio", "abre": _d(2027, 4, 1), "prazo": None}]  # documento final do projeto
+)
+
+
+def _hoje_br():
+    return datetime.now(timezone(timedelta(hours=-3))).date()
+
+
+def _documentos_projeto():
+    """Lista de documentos do projeto com as datas padrão, trocadas pelas que o administrador salvou (tabela prazos_documentos)."""
+    from datetime import date
+    salvos = {}
+    try:
+        for r in get_client().table("prazos_documentos").select("nome, abre_em, prazo").execute().data or []:
+            salvos[r["nome"]] = r
+    except Exception:  # noqa: BLE001 - tabela ainda não criada: vale o padrão
+        salvos = {}
+    saida = []
+    for d in DOCUMENTOS_PROJETO:
+        r = salvos.get(d["nome"])
+        if r:
+            abre = date.fromisoformat(str(r["abre_em"])[:10])
+            prazo = date.fromisoformat(str(r["prazo"])[:10]) if r.get("prazo") else None
+            saida.append({"nome": d["nome"], "abre": abre, "prazo": prazo})
+        else:
+            saida.append(dict(d))
+    return saida
+
+
+def _documentos_projeto_abertos():
+    hoje = _hoje_br()
+    return [
+        {"nome": d["nome"], "prazo": d["prazo"].isoformat() if d["prazo"] else None, "atrasado": bool(d["prazo"] and hoje > d["prazo"])}
+        for d in _documentos_projeto() if d["abre"] <= hoje
+    ]
+
+
+@app.get("/api/admin/prazos-documentos")
+def prazos_documentos_listar():
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    return jsonify([{"nome": d["nome"], "abre_em": d["abre"].isoformat(), "prazo": d["prazo"].isoformat() if d["prazo"] else None} for d in _documentos_projeto()])
+
+
+@app.get("/api/entregas-escolas")
+def entregas_escolas_do_tipo():
+    """?municipio_id=&subtipo= -> ids das escolas que já tiveram esse documento enviado (para marcar no formulário)."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    try:
+        db = get_client()
+        municipio_id = request.args.get("municipio_id")
+        subtipo = request.args.get("subtipo")
+        if not municipio_id or not subtipo:
+            return jsonify({"escola_ids": []})
+        ciclo_id = _ciclo_ativo_id(db)
+        q = db.table("documentos").select("escola_id, escolas_ids, ciclo_id").eq("municipio_id", municipio_id).eq("subtipo", subtipo)
+        ids = set()
+        for d in q.execute().data or []:
+            if ciclo_id and d.get("ciclo_id") and d["ciclo_id"] != ciclo_id:
+                continue
+            if d.get("escola_id"):
+                ids.add(str(d["escola_id"]))
+            ids.update(str(x) for x in (d.get("escolas_ids") or []))
+        return jsonify({"escola_ids": sorted(ids)})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/admin/entregas")
+def entregas_por_municipio():
+    """Grade de entregas: cada município liberado x cada documento do projeto (relatório e lista de cada formação, portfólio)."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    try:
+        db = get_client()
+        hoje = _hoje_br()
+        docs_projeto = _documentos_projeto()
+        colunas = [{
+            "nome": d["nome"], "abre": d["abre"].isoformat(), "prazo": d["prazo"].isoformat() if d["prazo"] else None,
+            "aberto": d["abre"] <= hoje, "atrasado": bool(d["prazo"] and hoje > d["prazo"]),
+        } for d in docs_projeto]
+
+        extras = db.table("municipios_extra").select("municipio_id, responsavel_id, responsavel_nome").execute().data or []
+        liberados = {e["municipio_id"]: e for e in extras if e.get("responsavel_id")}
+        nomes = {m["id"]: m["nome"] for m in (db.table("municipios").select("id, nome").execute().data or [])}
+
+        grupos = db.table("acoes_pedagogicas").select("id").eq("exige_pdf", True).execute().data or []
+        ids_grupos = [g["id"] for g in grupos]
+        ciclo_id = _ciclo_ativo_id(db)
+        entregas = {}
+        if ids_grupos:
+            def consulta():
+                q = db.table("documentos").select("id, municipio_id, subtipo, created_at, drive_file_link, link_externo, escola_id, escolas_ids, ciclo_id").in_("acao_pedagogica_id", ids_grupos)
+                return q.order("id")
+            for d in fetch_all(consulta):
+                if ciclo_id and d.get("ciclo_id") and d["ciclo_id"] != ciclo_id:
+                    continue
+                if not d.get("subtipo"):
+                    continue
+                itens = entregas.setdefault((d["municipio_id"], d["subtipo"]), [])
+                itens.append(d)
+
+        # escolas esperadas de cada município = as da adesão aprovada (ou, sem adesão, as do programa)
+        esperadas = {}
+        adesoes_aprov = db.table("adesoes").select("id, municipio_id").eq("status", "aprovada").execute().data or []
+        if ciclo_id:
+            adesoes_aprov = [a for a in db.table("adesoes").select("id, municipio_id, ciclo_id").eq("status", "aprovada").eq("ciclo_id", ciclo_id).execute().data or []]
+        mapa_adesao = {a["id"]: a["municipio_id"] for a in adesoes_aprov}
+        if mapa_adesao:
+            for r in fetch_all(lambda: db.table("adesao_escolas").select("adesao_id, escola_id").in_("adesao_id", list(mapa_adesao)).order("adesao_id")):
+                esperadas.setdefault(mapa_adesao[r["adesao_id"]], set()).add(str(r["escola_id"]))
+        todas_ids = {i for v in esperadas.values() for i in v}
+        nomes_escolas = {}
+        for i in range(0, len(todas_ids), 100):
+            for r in db.table("escolas").select("id, nome").in_("id", list(todas_ids)[i:i + 100]).execute().data or []:
+                nomes_escolas[str(r["id"])] = r["nome"]
+
+        municipios = []
+        for mid, e in sorted(liberados.items(), key=lambda kv: (nomes.get(kv[0]) or "")):
+            esp = sorted(esperadas.get(mid, set()), key=lambda i: nomes_escolas.get(i, ""))
+            cel = {}
+            for c in colunas:
+                itens = entregas.get((mid, c["nome"])) or []
+                if itens:
+                    ult = max(itens, key=lambda x: str(x.get("created_at")))
+                    por_escola = {}
+                    for d in itens:
+                        for i in ([str(d["escola_id"])] if d.get("escola_id") else []) + [str(x) for x in (d.get("escolas_ids") or [])]:
+                            por_escola[i] = {"enviado_em": d.get("created_at"), "link": d.get("drive_file_link") or d.get("link_externo")}
+                    cel[c["nome"]] = {
+                        "total": len(itens), "enviado_em": ult.get("created_at"),
+                        "link": ult.get("drive_file_link") or ult.get("link_externo"),
+                        "escolas": por_escola,
+                    }
+            municipios.append({
+                "id": mid, "nome": nomes.get(mid), "coordenador": e.get("responsavel_nome"), "entregas": cel,
+                "escolas": [{"id": i, "nome": nomes_escolas.get(i, "Escola")} for i in esp],
+            })
+        return jsonify({"colunas": colunas, "municipios": municipios})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/admin/prazos-documentos")
+def prazos_documentos_salvar():
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    from datetime import date
+    itens = (request.get_json(silent=True) or {}).get("itens") or []
+    nomes = {d["nome"] for d in DOCUMENTOS_PROJETO}
+    linhas = []
+    try:
+        for i in itens:
+            if i.get("nome") not in nomes:
+                continue
+            abre = date.fromisoformat(str(i.get("abre_em"))[:10])
+            prazo = date.fromisoformat(str(i["prazo"])[:10]) if i.get("prazo") else None
+            if prazo and prazo < abre:
+                return jsonify({"error": f"{i['nome']}: o prazo não pode ser antes de abrir."}), 400
+            linhas.append({"nome": i["nome"], "abre_em": abre.isoformat(), "prazo": prazo.isoformat() if prazo else None})
+    except ValueError:
+        return jsonify({"error": "Data inválida."}), 400
+    try:
+        get_client().table("prazos_documentos").upsert(linhas, on_conflict="nome").execute()
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": "Não consegui salvar. Rode no Supabase o arquivo migration_prazos_documentos.sql. (" + str(e) + ")"}), 500
+    return jsonify({"ok": True})
+
+
+# ------------------------------------------------------------
 # AÇÕES PEDAGÓGICAS (Acolhimento, Meditação, Hora do Conto, Relatório...)
 # ------------------------------------------------------------
 @app.get("/api/acoes-pedagogicas")
@@ -816,6 +1204,12 @@ def listar_acoes_pedagogicas():
             db.table("acoes_pedagogicas").select("*").eq("ativo", True)
             .order("ordem", nullsfirst=False).order("nome").execute().data
         )
+        # "Documentos" (PDF): só aparecem os tipos cuja época já chegou, cada um com o seu prazo
+        abertos = _documentos_projeto_abertos()
+        for a in acoes:
+            if a.get("exige_pdf"):
+                a["subtipos"] = [x["nome"] for x in abertos]
+                a["subtipos_info"] = abertos
         return jsonify(acoes)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1190,6 +1584,15 @@ def listar_escolas():
             if not ciclo_id:
                 return jsonify([])
             ids = _ids_escolas_no_ciclo(db, ciclo_id, municipio_id)
+            # coordenador: só as escolas da adesão aprovada do município (as que o administrador liberou)
+            if municipio_id and _eh_coordenador(user):
+                try:
+                    ades = get_client().table("adesoes").select("id").eq("ciclo_id", ciclo_id).eq("municipio_id", municipio_id).eq("status", "aprovada").execute().data or []
+                    if ades:
+                        liberadas = {str(r["escola_id"]) for r in (get_client().table("adesao_escolas").select("escola_id").in_("adesao_id", [a["id"] for a in ades]).execute().data or [])}
+                        ids = [i for i in ids if str(i) in liberadas]
+                except Exception as erro_adesao:  # noqa: BLE001
+                    print(f"[escolas] não consegui filtrar pela adesão: {erro_adesao}")
             escolas = _escolas_por_ids(db, ids)
             escolas.sort(key=lambda e: ((e.get("nome") or "").lower(), str(e["id"])))
             return jsonify(escolas)
@@ -1464,6 +1867,16 @@ def listar_documentos():
             for d in docs:
                 d["validado_por_nome"] = nomes.get(d.get("validado_por"))
                 d["analise_por_nome"] = nomes.get(d.get("analise_por"))
+        # documento valendo para várias escolas: devolve os nomes delas
+        ids_multi = list({str(i) for d in docs for i in (d.get("escolas_ids") or [])})
+        if ids_multi:
+            nomes_esc = {}
+            for i in range(0, len(ids_multi), 100):
+                for r in get_client().table("escolas").select("id, nome").in_("id", ids_multi[i:i + 100]).execute().data or []:
+                    nomes_esc[str(r["id"])] = r["nome"]
+            for d in docs:
+                if d.get("escolas_ids"):
+                    d["escolas_nomes"] = [nomes_esc.get(str(i), "Escola") for i in d["escolas_ids"]]
         return jsonify(docs)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -1523,7 +1936,11 @@ def criar_documento():
                 return jsonify({"error": "Documentos (relatórios, ficha de frequência e portfólio) são enviados em PDF."}), 400
             if not acao.get("exige_pdf") and tipo_nome == "pdf":
                 return jsonify({"error": f"A ação {acao['nome']} aceita só vídeo ou imagem. PDF é só para Documentos."}), 400
-            if acao.get("subtipos"):
+            if acao.get("exige_pdf"):
+                validos = [x["nome"] for x in _documentos_projeto_abertos()]
+                if subtipo not in validos:
+                    return jsonify({"error": "Escolha o tipo de documento na lista (só aparecem os que já estão no período de envio)."}), 400
+            elif acao.get("subtipos"):
                 if subtipo not in acao["subtipos"]:
                     return jsonify({"error": f"Escolha o tipo de documento: {', '.join(acao['subtipos'])}."}), 400
             else:
@@ -1539,6 +1956,16 @@ def criar_documento():
                 participa = db.table("escolas_ciclos").select("escola_id").eq("escola_id", body["escola_id"]).eq("ciclo_id", ciclo_do_envio).limit(1).execute().data
                 if not participa:
                     return jsonify({"error": "Esta escola não faz parte do programa nesta edição. Peça ao administrador para incluí-la."}), 400
+        # relatório/lista de presença das formações: um envio só, valendo para várias escolas
+        escolas_ids = [str(i) for i in (body.get("escolas_ids") or []) if i]
+        if escolas_ids:
+            if str(body.get("escola_id")) not in escolas_ids:
+                escolas_ids.insert(0, str(body.get("escola_id")))
+            ciclo_do_envio = body.get("ciclo_id") or _ciclo_ativo_id(db)
+            if ciclo_do_envio:
+                ok = {str(r["escola_id"]) for r in (db.table("escolas_ciclos").select("escola_id").eq("ciclo_id", ciclo_do_envio).in_("escola_id", escolas_ids).execute().data or [])}
+                if any(i not in ok for i in escolas_ids):
+                    return jsonify({"error": "Uma das escolas marcadas não faz parte do programa nesta edição."}), 400
         perfil = db.table("perfis").select("nome").eq("id", user.id).single().execute().data or {}
         responsavel_nome = perfil.get("nome") or (getattr(user, "user_metadata", {}) or {}).get("nome") or user.email
         payload = {
@@ -1562,18 +1989,10 @@ def criar_documento():
         }
         if body.get("ciclo_id"):  # sem ciclo informado, o banco usa o ciclo ativo
             payload["ciclo_id"] = body["ciclo_id"]
+        if len(escolas_ids) > 1:
+            payload["escolas_ids"] = escolas_ids
         created = db.table("documentos").insert(payload).execute().data
-        if eh_documento and created:
-            # Documento não precisa de aprovação do administrador: já entra como recebido (aprovado)
-            try:
-                atualizado = (
-                    get_client().table("documentos")
-                    .update({"status": "aprovado", "validado_em": datetime.now(timezone.utc).isoformat()})
-                    .eq("id", created[0]["id"]).execute().data
-                )
-                created = atualizado or created
-            except Exception as erro_status:  # noqa: BLE001 - se falhar, fica pendente e o admin ainda enxerga
-                print(f"[documentos] não consegui marcar o documento como recebido: {erro_status}")
+        # Documento (PDF) fica pendente: só vale como validado depois que o administrador valida
         _municipios_cache.clear()
         _CACHE_RESUMO.clear()
         return jsonify(created), 201
@@ -1608,12 +2027,7 @@ def excluir_documento():
             return jsonify({"error": "Documento não encontrado ou sem permissão para excluir."}), 404
         # Ação pedagógica só pode ser excluída enquanto está pendente; Documentos (sem aprovação) a qualquer momento
         if documento[0].get("status") != "pendente":
-            grupo = (
-                db.table("acoes_pedagogicas").select("exige_pdf").eq("id", documento[0].get("acao_pedagogica_id")).limit(1).execute().data
-                if documento[0].get("acao_pedagogica_id") else []
-            )
-            if not (grupo and grupo[0].get("exige_pdf")):
-                return jsonify({"error": "Documento não encontrado ou sem permissão para excluir."}), 404
+            return jsonify({"error": "Documento já validado: não pode mais ser excluído."}), 404
 
         drive_file_id = documento[0].get("drive_file_id")
         if drive_file_id:
@@ -1790,19 +2204,17 @@ def contar_para_analisar():
         return jsonify({"error": "Sem permissão."}), 403
     try:
         db = get_client()
-        total = (
+        # o apoio só conta o que é dos municípios em que atua (admin: todos)
+        permitidos = perfil.get("municipios_ids")
+        if permitidos is not None and not permitidos:
+            return jsonify({"para_analisar": 0})
+        consulta = (
             db.table("documentos").select("id", count="exact")
             .eq("status", "pendente").eq("arquivado", False).is_("analise_status", "null")
-            .limit(1).execute().count or 0
         )
-        ids_docs = _ids_grupos_documentos(db)
-        if ids_docs:  # Documentos (PDF) também são analisados, mesmo entrando já como "recebidos"
-            total += (
-                db.table("documentos").select("id", count="exact")
-                .in_("acao_pedagogica_id", ids_docs).neq("status", "pendente")
-                .eq("arquivado", False).is_("analise_status", "null")
-                .limit(1).execute().count or 0
-            )
+        if permitidos is not None:
+            consulta = consulta.in_("municipio_id", list(permitidos))
+        total = consulta.limit(1).execute().count or 0
         return jsonify({"para_analisar": total})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500
@@ -1869,8 +2281,8 @@ def analisar_documento():
     analise_status = body.get("analise_status")
     observacao = (body.get("analise_obs") or "").strip()
 
-    if not documento_id or analise_status not in ("recomendado", "ajustes"):
-        return jsonify({"error": "documento_id e analise_status ('recomendado'|'ajustes') são obrigatórios."}), 400
+    if not documento_id or analise_status not in ("recomendado", "ajustes", "analisado"):
+        return jsonify({"error": "documento_id e analise_status ('recomendado'|'ajustes'|'analisado') são obrigatórios."}), 400
     if analise_status == "ajustes" and not observacao:
         return jsonify({"error": "Explique o que precisa ser ajustado."}), 400
 
@@ -2730,6 +3142,119 @@ def cadastro_municipios():
         return jsonify({"error": str(e)}), 500
 
 
+# ------------------------------------------------------------
+# Foto do coordenador: fica SÓ no Google Drive (pasta "Fotos dos Coordenadores", arquivo <id do usuário>.jpg).
+# Nada é guardado no banco: para achar a foto, procuramos o arquivo pelo nome.
+# ------------------------------------------------------------
+PASTA_FOTOS_COORDENADORES = "Fotos dos Coordenadores"
+_CACHE_FOTOS_IDS = {"mapa": None, "expira": 0.0}   # user_id -> id do arquivo no Drive
+_CACHE_FOTOS_BYTES = {}                            # user_id -> (bytes, expira_em)
+
+
+def _pasta_fotos_coordenadores(service):
+    raiz = os.environ.get("DRIVE_ROOT_FOLDER_ID")
+    if not raiz:
+        raise RuntimeError("DRIVE_ROOT_FOLDER_ID não está configurado no .env.")
+    return get_or_create_subfolder(service, raiz, PASTA_FOTOS_COORDENADORES)
+
+
+def _mapa_fotos_coordenadores(forcar=False):
+    """{user_id: id do arquivo no Drive}. Uma consulta ao Drive a cada 5 minutos."""
+    agora = time.time()
+    if not forcar and _CACHE_FOTOS_IDS["mapa"] is not None and _CACHE_FOTOS_IDS["expira"] > agora:
+        return _CACHE_FOTOS_IDS["mapa"]
+    service = get_drive_service()
+    pasta = _pasta_fotos_coordenadores(service)
+    mapa, pagina = {}, None
+    while True:
+        r = service.files().list(
+            q=f"'{pasta}' in parents and trashed = false", fields="nextPageToken, files(id, name)", pageSize=1000,
+            pageToken=pagina, supportsAllDrives=True, includeItemsFromAllDrives=True,
+        ).execute()
+        for f in r.get("files", []):
+            nome = f["name"]
+            if nome.lower().endswith(".jpg"):
+                mapa[nome[:-4]] = f["id"]
+        pagina = r.get("nextPageToken")
+        if not pagina:
+            break
+    _CACHE_FOTOS_IDS["mapa"], _CACHE_FOTOS_IDS["expira"] = mapa, agora + 300
+    return mapa
+
+
+def _salvar_foto_coordenador(user_id, data_url):
+    """Grava (ou troca) a foto do coordenador no Drive. `data_url` = 'data:image/jpeg;base64,...'."""
+    import base64
+    conteudo = base64.b64decode(data_url.split(",", 1)[1])
+    service = get_drive_service()
+    pasta = _pasta_fotos_coordenadores(service)
+    antigo = _mapa_fotos_coordenadores(forcar=True).get(str(user_id))
+    novo_id = upload_arquivo_privado(service, pasta, f"{user_id}.jpg", conteudo, "image/jpeg")
+    if antigo:
+        try:
+            apagar_arquivo(service, antigo)
+        except Exception as e:  # noqa: BLE001
+            print(f"[foto] não consegui apagar a foto anterior {antigo}: {e}")
+    if _CACHE_FOTOS_IDS["mapa"] is not None:
+        _CACHE_FOTOS_IDS["mapa"][str(user_id)] = novo_id
+    _CACHE_FOTOS_BYTES.pop(str(user_id), None)
+
+
+def _foto_valida(valor):
+    return isinstance(valor, str) and valor.startswith("data:image/jpeg;base64,") and len(valor) <= 200_000
+
+
+@app.get("/api/coordenador-foto")
+def coordenador_foto():
+    """Foto do coordenador (para <img>): o administrador vê de qualquer um; o coordenador, só a própria."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    alvo = (request.args.get("user_id") or "").strip() or getattr(user, "id", None)
+    if not alvo or len(str(alvo)) > 64:
+        return Response(status=404)
+    if str(alvo) != str(getattr(user, "id", "")) and not require_admin(jwt, user):
+        return jsonify({"error": "Sem permissão."}), 403
+    alvo = str(alvo)
+    agora = time.time()
+    em_cache = _CACHE_FOTOS_BYTES.get(alvo)
+    if em_cache and em_cache[1] > agora:
+        return Response(em_cache[0], mimetype="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+    try:
+        file_id = _mapa_fotos_coordenadores().get(alvo)
+        if not file_id:
+            return Response(status=404, headers={"Cache-Control": "private, max-age=60"})
+        conteudo = baixar_arquivo(get_drive_service(), file_id)
+    except Exception as e:  # noqa: BLE001
+        print(f"[foto] {alvo}: {e}")
+        return Response(status=404)
+    if len(_CACHE_FOTOS_BYTES) > 300:
+        _CACHE_FOTOS_BYTES.clear()
+    _CACHE_FOTOS_BYTES[alvo] = (conteudo, agora + 3600)
+    return Response(conteudo, mimetype="image/jpeg", headers={"Cache-Control": "private, max-age=3600"})
+
+
+@app.post("/api/coordenador-foto")
+def trocar_coordenador_foto():
+    """O próprio coordenador (ou o administrador, passando user_id) coloca/troca a foto."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    body = request.get_json(force=True, silent=True) or {}
+    alvo = str(body.get("user_id") or getattr(user, "id", "") or "")
+    if alvo != str(getattr(user, "id", "")) and not require_admin(jwt, user):
+        return jsonify({"error": "Sem permissão."}), 403
+    if not alvo or not _foto_valida(body.get("foto")):
+        return jsonify({"error": "Envie uma foto (JPG ou PNG)."}), 400
+    try:
+        _salvar_foto_coordenador(alvo, body["foto"])
+        return jsonify({"ok": True})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": f"Não consegui guardar a foto no Drive: {e}"}), 500
+
+
 @app.post("/api/cadastro-coordenador")
 def cadastrar_coordenador():
     """Cadastro PÚBLICO do coordenador (link enviado às pessoas). Cria o login e o perfil
@@ -2747,6 +3272,9 @@ def cadastrar_coordenador():
     rg = _texto(body.get("rg"), 30)
     telefone1 = _texto(body.get("telefone1"), 20)
     telefone2 = _texto(body.get("telefone2"), 20)
+    foto = body.get("foto") or ""
+    if not _foto_valida(foto):
+        return jsonify({"error": "Envie a sua foto (JPG ou PNG, rosto bem visível)."}), 400
     try:
         municipio_id = int(body.get("municipio_id"))
     except (TypeError, ValueError):
@@ -2794,6 +3322,7 @@ def cadastrar_coordenador():
              "telefone2": telefone2, "email": email, "municipio_id": municipio_id},
             on_conflict="user_id",
         ).execute()
+        _salvar_foto_coordenador(uid, foto)  # a foto fica só no Google Drive (nada no banco)
         limpar_caches_perfil()
         return jsonify({"ok": True}), 201
     except Exception as e:  # noqa: BLE001
@@ -3112,7 +3641,16 @@ def baixar_termo_assinado():
             ) if ciclo_id else []
         if not linhas or not linhas[0].get("termo_assinado_drive_id"):
             return jsonify({"error": "Nenhum termo assinado foi anexado."}), 404
-        conteudo = baixar_arquivo(get_drive_service(), linhas[0]["termo_assinado_drive_id"])
+        drive_id = linhas[0]["termo_assinado_drive_id"]
+        if str(drive_id).startswith("teste:"):  # dados de teste (seed_dados_teste.py): o PDF é montado na hora, sem Google Drive
+            pedido_id = str(drive_id).split(":", 1)[1]
+            ped = (db.table("assinatura_pedidos").select("*").eq("id", pedido_id).limit(1).execute().data or [None])[0]
+            if not ped:
+                return jsonify({"error": "Pedido de assinatura de teste não encontrado."}), 404
+            sigs_t = db.table("assinatura_signatarios").select("*").eq("pedido_id", pedido_id).execute().data or []
+            conteudo = gerar_pdf_termo(ped["snapshot"], sigs_t, ped["hash_termo"], ped["id"])
+        else:
+            conteudo = baixar_arquivo(get_drive_service(), drive_id)
         disposicao = "attachment" if request.args.get("baixar") else "inline"
         return Response(conteudo, mimetype="application/pdf", headers={
             "Content-Disposition": f'{disposicao}; filename="termo-de-adesao-assinado.pdf"',
@@ -3268,6 +3806,14 @@ def salvar_adesao():
                 return jsonify({"error": "Anexe o termo assinado (PDF) antes de enviar a adesão."}), 400
             if _hash_conteudo_adesao(campos, municipio_id, itens) != existente.get("termo_assinado_hash"):
                 return jsonify({"error": "Os dados da ficha mudaram depois do termo assinado. Gere o termo de novo, assine e anexe o novo PDF."}), 400
+            # o termo de compromisso do coordenador também precisa estar assinado (aba "Termo de compromisso")
+            try:
+                comp = db.table("compromissos").select("assinado_em").eq("ciclo_id", ciclo_id).eq("coordenador_id", user.id).limit(1).execute().data or []
+            except Exception as e_comp:  # noqa: BLE001
+                print(f"[compromisso] tabela indisponível: {e_comp}")
+                return jsonify({"error": "O termo de compromisso ainda não foi configurado no banco. Avise o administrador (migration_termo_compromisso.sql)."}), 500
+            if not (comp and comp[0].get("assinado_em")):
+                return jsonify({"error": "Assine o termo de compromisso (aba Termo de compromisso) antes de enviar a adesão."}), 400
 
         agora = datetime.now(timezone.utc).isoformat()
         dados = {
@@ -3425,9 +3971,17 @@ def _motivo_falha_email(erro):
     return f"Erro do servidor de e-mail: {str(erro)[:200]}"
 
 
+def _modo_teste() -> bool:
+    """MODO_TESTE=1 no .env (só no seu computador): o código aparece na tela e o link de assinatura no terminal, sem enviar e-mail."""
+    return os.environ.get("MODO_TESTE", "").strip() == "1"
+
+
 def _enviar_convite(sig, token, pedido, quem_enviou):
     snap = pedido["snapshot"]
     link = f"{_link_base()}/assinar?t={token}"
+    if _modo_teste():
+        print(f"\n[TESTE] Link de assinatura de {sig['nome']} ({PAPEIS_ASSINATURA[sig['papel']]}): {link}\n", flush=True)
+        return
     assunto, texto, html = montar_convite(
         sig["nome"], PAPEIS_ASSINATURA[sig["papel"]], snap.get("municipio_nome") or "", snap.get("ciclo_nome") or "", link, quem_enviou,
     )
@@ -3759,6 +4313,9 @@ def assinar_pedir_codigo():
             "codigo_enviado_em": agora.isoformat(),
         }).eq("id", sig["id"]).execute()
         contexto = f"{(pedido.get('snapshot') or {}).get('municipio_nome') or ''} - {PAPEIS_ASSINATURA.get(sig['papel'], '')}".strip(" -")
+        if _modo_teste():
+            print(f"\n[TESTE] Código de {sig['nome']}: {codigo}\n", flush=True)
+            return jsonify({"ok": True, "email_mascarado": _mascarar_email(sig["email"]), "validade_minutos": CODIGO_VALIDADE_MIN, "codigo_teste": codigo})
         assunto, texto, html = montar_codigo(sig["nome"], codigo, contexto)
         try:
             enviar_email(sig["email"], assunto, texto, html)
@@ -3931,7 +4488,14 @@ def listar_adesoes_admin():
         if ids_coord:
             coords = {c["user_id"]: c for c in db.table("coordenadores_cadastro").select("user_id, nome, telefone1, email").in_("user_id", ids_coord).execute().data or []}
         assinaturas = _resumo_assinaturas_por_adesao(db, [a["id"] for a in adesoes])
+        compromissos = {}
+        try:
+            if ids_coord and ciclo_id:
+                compromissos = {c["coordenador_id"]: c.get("assinado_em") for c in db.table("compromissos").select("coordenador_id, assinado_em").eq("ciclo_id", ciclo_id).in_("coordenador_id", ids_coord).execute().data or []}
+        except Exception as e_comp:  # noqa: BLE001 - tabela ainda não criada: a lista continua funcionando
+            print(f"[compromisso] não consegui ler os compromissos: {e_comp}")
         for a in adesoes:
+            a["compromisso_assinado_em"] = compromissos.get(a["coordenador_id"])
             a["assinatura"] = assinaturas.get(a["id"])
             a["municipio_nome"] = nomes_mun.get(a.get("municipio_id"))
             c = coords.get(a["coordenador_id"]) or {}
@@ -3939,6 +4503,513 @@ def listar_adesoes_admin():
             a["coordenador_telefone"] = c.get("telefone1")
             a["coordenador_email"] = c.get("email")
         return jsonify(adesoes)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+# ------------------------------------------------------------
+# TERMO DE COMPROMISSO DO COORDENADOR (assinatura eletrônica com código por e-mail)
+# + ATIVAR / DESATIVAR coordenador (troca de coordenador)
+# Tabela: compromissos (sql/migration_termo_compromisso.sql). O texto fica em lib/termo_compromisso.py.
+# ------------------------------------------------------------
+def _contexto_compromisso(db, user):
+    """Dados de quem vai assinar + texto do termo. None se não houver edição ativa."""
+    ciclo_id = _ciclo_ativo_id(db)
+    if not ciclo_id:
+        return None
+    perfil = carregar_perfil(user)
+    cad = (db.table("coordenadores_cadastro").select("nome, cpf, email, municipio_id").eq("user_id", user.id).limit(1).execute().data or [{}])[0]
+    municipio_id = perfil.get("municipio_id") or cad.get("municipio_id")
+    municipio_nome = None
+    if municipio_id:
+        municipio_nome = (db.table("municipios").select("nome").eq("id", municipio_id).limit(1).execute().data or [{}])[0].get("nome")
+    ciclo_nome = (db.table("ciclos").select("nome").eq("id", ciclo_id).limit(1).execute().data or [{}])[0].get("nome")
+    # escolas que ele coordena: as marcadas na ficha de adesão dele (edição ativa)
+    escolas = []
+    try:
+        ades = (db.table("adesoes").select("id").eq("ciclo_id", ciclo_id).eq("coordenador_id", user.id).limit(1).execute().data or [])
+        if not ades and municipio_id:  # sem ficha própria: usa a do município (ex.: ficha deixada por quem saiu)
+            ades = (db.table("adesoes").select("id").eq("ciclo_id", ciclo_id).eq("municipio_id", municipio_id).limit(1).execute().data or [])
+        if not ades:
+            print(f"[compromisso] {user.id}: nenhuma ficha de adesão encontrada na edição ativa (município {municipio_id})", flush=True)
+        if ades:
+            itens = db.table("adesao_escolas").select("escola_id").eq("adesao_id", ades[0]["id"]).execute().data or []
+            nomes = _escolas_por_ids(db, [i["escola_id"] for i in itens], "id, nome")
+            escolas = sorted({(n.get("nome") or "").strip() for n in nomes if n.get("nome")}, key=str.lower)
+            print(f"[compromisso] {user.id}: {len(itens)} escola(s) na ficha, {len(escolas)} com nome", flush=True)
+    except Exception as e_esc:  # noqa: BLE001
+        print(f"[compromisso] não consegui ler as escolas: {e_esc}")
+    return {
+        "escolas": escolas,
+        "ciclo_id": ciclo_id, "municipio_id": municipio_id, "municipio_nome": municipio_nome, "ciclo_nome": ciclo_nome,
+        "nome": cad.get("nome") or perfil.get("nome") or "", "cpf": _so_digitos(cad.get("cpf")),
+        "email": (cad.get("email") or getattr(user, "email", None) or "").strip().lower(),
+    }
+
+
+def _linha_compromisso(db, ciclo_id, user_id):
+    linhas = db.table("compromissos").select("*").eq("ciclo_id", ciclo_id).eq("coordenador_id", user_id).limit(1).execute().data or []
+    return linhas[0] if linhas else None
+
+
+@app.get("/api/compromisso")
+def compromisso_status():
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, _ = auth
+    if not _eh_coordenador(user):
+        return jsonify({"error": "Apenas coordenadores assinam o termo de compromisso."}), 403
+    try:
+        db = get_client()
+        ctx = _contexto_compromisso(db, user)
+        if not ctx:
+            return jsonify({"sem_edicao": True})
+        linha = _linha_compromisso(db, ctx["ciclo_id"], user.id)
+        if linha and linha.get("assinado_em"):
+            texto = linha.get("snapshot") or montar_texto_compromisso(ctx)
+        else:
+            texto = montar_texto_compromisso(ctx)
+        return jsonify({
+            "sem_edicao": False,
+            "texto": texto,
+            "precisa_cpf": not _cpf_valido(ctx["cpf"]),
+            "email_mascarado": _mascarar_email(ctx["email"]),
+            "assinado": bool(linha and linha.get("assinado_em")),
+            "assinado_em": linha.get("assinado_em") if linha else None,
+            "nome": ctx["nome"],
+        })
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/compromisso/codigo")
+def compromisso_pedir_codigo():
+    """Envia o código de 6 dígitos para o e-mail do coordenador."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, _ = auth
+    if not _eh_coordenador(user):
+        return jsonify({"error": "Apenas coordenadores."}), 403
+    try:
+        db = get_client()
+        ctx = _contexto_compromisso(db, user)
+        if not ctx:
+            return jsonify({"error": "Não há edição ativa no momento."}), 400
+        if not _email_valido(ctx["email"]):
+            return jsonify({"error": "Seu cadastro está sem e-mail válido. Fale com o administrador."}), 400
+        linha = _linha_compromisso(db, ctx["ciclo_id"], user.id)
+        if linha and linha.get("assinado_em"):
+            return jsonify({"error": "Você já assinou este termo."}), 409
+        ultimo = _dt(linha.get("codigo_enviado_em")) if linha else None
+        if ultimo and (_agora() - ultimo).total_seconds() < CODIGO_INTERVALO_S:
+            return jsonify({"error": "Aguarde um minuto antes de pedir outro código."}), 429
+        codigo = f"{secrets.randbelow(10 ** 6):06d}"
+        agora = _agora()
+        db.table("compromissos").upsert({
+            "ciclo_id": ctx["ciclo_id"], "coordenador_id": user.id, "municipio_id": ctx["municipio_id"],
+            "nome": ctx["nome"], "email": ctx["email"],
+            "codigo_hash": _sha(f"{user.id}:{codigo}"),
+            "codigo_expira_em": (agora + timedelta(minutes=CODIGO_VALIDADE_MIN)).isoformat(),
+            "codigo_tentativas": 0, "codigo_enviado_em": agora.isoformat(),
+        }, on_conflict="ciclo_id,coordenador_id").execute()
+        if _modo_teste():
+            print(f"\n[TESTE] Código do termo de compromisso de {ctx['nome']}: {codigo}\n", flush=True)
+            return jsonify({"ok": True, "email_mascarado": _mascarar_email(ctx["email"]), "validade_minutos": CODIGO_VALIDADE_MIN, "codigo_teste": codigo})
+        assunto, texto, html = montar_codigo(ctx["nome"] or "coordenador(a)", codigo, f"Termo de Compromisso - {ctx['municipio_nome'] or ''}".strip(" -"))
+        try:
+            enviar_email(ctx["email"], assunto, texto, html)
+        except Exception as erro:  # noqa: BLE001
+            print(f"[compromisso] falha ao enviar código para {ctx['email']}: {erro!r}")
+            return jsonify({"error": "Não consegui enviar o código agora. " + _motivo_falha_email(erro)}), 502
+        return jsonify({"ok": True, "email_mascarado": _mascarar_email(ctx["email"]), "validade_minutos": CODIGO_VALIDADE_MIN})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/compromisso/assinar")
+def compromisso_assinar():
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, _ = auth
+    if not _eh_coordenador(user):
+        return jsonify({"error": "Apenas coordenadores."}), 403
+    body = request.get_json(force=True, silent=True) or {}
+    codigo = _so_digitos(body.get("codigo"))
+    try:
+        db = get_client()
+        ctx = _contexto_compromisso(db, user)
+        if not ctx:
+            return jsonify({"error": "Não há edição ativa no momento."}), 400
+        linha = _linha_compromisso(db, ctx["ciclo_id"], user.id)
+        if not linha or not linha.get("codigo_hash"):
+            return jsonify({"error": "Peça o código de confirmação primeiro."}), 400
+        if linha.get("assinado_em"):
+            return jsonify({"error": "Você já assinou este termo."}), 409
+        if body.get("aceito") is not True:
+            return jsonify({"error": "Marque a declaração de que leu e concorda com o termo."}), 400
+        if not _cpf_valido(ctx["cpf"]):
+            cpf_digitado = _so_digitos(body.get("cpf"))
+            if not _cpf_valido(cpf_digitado):
+                return jsonify({"error": "Informe o seu CPF (número válido) para assinar."}), 400
+            ctx["cpf"] = cpf_digitado
+        if int(linha.get("codigo_tentativas") or 0) >= CODIGO_MAX_TENTATIVAS:
+            return jsonify({"error": "Muitas tentativas erradas. Peça um novo código."}), 429
+        expira = _dt(linha.get("codigo_expira_em"))
+        if not expira or _agora() > expira:
+            return jsonify({"error": "O código expirou. Peça um novo código."}), 400
+        if not hmac.compare_digest(_sha(f"{user.id}:{codigo}"), linha["codigo_hash"]):
+            tentativas = int(linha.get("codigo_tentativas") or 0) + 1
+            db.table("compromissos").update({"codigo_tentativas": tentativas}).eq("id", linha["id"]).execute()
+            restantes = CODIGO_MAX_TENTATIVAS - tentativas
+            return jsonify({"error": "Código incorreto." + (f" Restam {restantes} tentativa(s)." if restantes > 0 else " Peça um novo código.")}), 400
+
+        # CPF informado agora vira parte do cadastro (identifica quem assinou)
+        if ctx["cpf"] and not _cpf_valido(_so_digitos((db.table("coordenadores_cadastro").select("cpf").eq("user_id", user.id).limit(1).execute().data or [{}])[0].get("cpf"))):
+            try:
+                db.table("coordenadores_cadastro").upsert(
+                    {"user_id": user.id, "nome": ctx["nome"] or "(sem nome)", "cpf": ctx["cpf"], "email": ctx["email"], "municipio_id": ctx["municipio_id"]},
+                    on_conflict="user_id").execute()
+            except Exception as e_cpf:  # noqa: BLE001
+                if "duplicate" in str(e_cpf).lower() or "unique" in str(e_cpf).lower():
+                    return jsonify({"error": "Já existe um cadastro com este CPF. Confira o número."}), 409
+                raise
+
+        texto = montar_texto_compromisso(ctx)
+        agora = _agora()
+        dados = {
+            "assinado_em": agora.isoformat(), "ip": _ip_da_requisicao(), "user_agent": (request.headers.get("User-Agent") or "")[:300],
+            "texto_hash": hash_texto_compromisso(texto), "snapshot": texto, "cpf": ctx["cpf"], "nome": ctx["nome"],
+            "codigo_hash": None, "codigo_expira_em": None,
+        }
+        gravado = db.table("compromissos").update(dados).eq("id", linha["id"]).is_("assinado_em", "null").execute().data
+        if not gravado:
+            return jsonify({"error": "Você já assinou este termo."}), 409
+        linha = gravado[0]
+
+        # PDF no Drive (município > Termo de Compromisso). Se o Drive falhar, a assinatura vale e o PDF é refeito na hora de abrir.
+        pdf = gerar_pdf_compromisso(texto, {**linha, "email": ctx["email"]})
+        aviso = None
+        try:
+            nome_arquivo = f"Termo de Compromisso - {ctx['nome']} - {ctx['municipio_nome'] or ''} - {agora.astimezone().strftime('%Y-%m-%d %H-%M')}.pdf".replace("  ", " ")
+            if ctx["municipio_id"]:
+                service = get_drive_service()
+                pasta_mun = garantir_pasta_municipio(db, ctx["municipio_id"], service)
+                pasta = get_or_create_subfolder(service, pasta_mun, "Termo de Compromisso")
+                drive_id = upload_arquivo_privado(service, pasta, nome_arquivo, pdf, "application/pdf")
+                db.table("compromissos").update({"pdf_drive_id": drive_id, "pdf_nome": nome_arquivo}).eq("id", linha["id"]).execute()
+        except Exception as e_drive:  # noqa: BLE001
+            print(f"[compromisso] PDF não foi para o Drive: {e_drive}")
+            aviso = "Assinado. O PDF não foi guardado no Drive agora, mas pode ser aberto normalmente."
+        try:
+            assunto, txt, html = montar_compromisso_assinado(ctx["nome"] or "coordenador(a)", ctx["municipio_nome"] or "seu município")
+            enviar_email(ctx["email"], assunto, txt, html, anexos=[("termo-de-compromisso.pdf", pdf, "application/pdf")])
+        except Exception as e_mail:  # noqa: BLE001
+            print(f"[compromisso] aviso final não enviado: {e_mail}")
+        _CACHE_RESUMO.clear()
+        return jsonify({"ok": True, "aviso": aviso})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/compromisso/arquivo")
+def compromisso_arquivo():
+    """PDF do termo assinado: o próprio coordenador ou o admin (?user_id=)."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    try:
+        db = get_client()
+        alvo = request.args.get("user_id") or user.id
+        if str(alvo) != str(user.id) and not require_admin(jwt, user):
+            return jsonify({"error": "Apenas administradores."}), 403
+        ciclo_id = _ciclo_ativo_id(db)
+        linha = _linha_compromisso(db, ciclo_id, alvo) if ciclo_id else None
+        if not linha or not linha.get("assinado_em"):
+            if str(alvo) == str(user.id) or not require_admin(jwt, user):
+                return jsonify({"error": "Este termo de compromisso ainda não foi assinado."}), 404
+            # administrador vendo o termo de quem ainda não assinou: prévia com o texto que a pessoa vai assinar
+            from types import SimpleNamespace
+            cad = (db.table("coordenadores_cadastro").select("email").eq("user_id", alvo).limit(1).execute().data or [{}])[0]
+            ctx = _contexto_compromisso(db, SimpleNamespace(id=alvo, email=cad.get("email")))
+            if not ctx:
+                return jsonify({"error": "Não há edição ativa no momento."}), 400
+            pdf = gerar_pdf_compromisso(montar_texto_compromisso(ctx), {**ctx, "previa": True})
+            return Response(pdf, mimetype="application/pdf", headers={
+                "Content-Disposition": 'inline; filename="termo-de-compromisso-previa.pdf"', "Cache-Control": "private, no-store"})
+        if linha.get("pdf_drive_id"):
+            pdf = baixar_arquivo(get_drive_service(), linha["pdf_drive_id"])
+        else:
+            pdf = gerar_pdf_compromisso(linha.get("snapshot") or {}, linha)
+        disposicao = "attachment" if request.args.get("baixar") else "inline"
+        return Response(pdf, mimetype="application/pdf", headers={
+            "Content-Disposition": f'{disposicao}; filename="termo-de-compromisso.pdf"', "Cache-Control": "private, no-store"})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/admin/coordenadores-situacao")
+def coordenadores_situacao():
+    """Por coordenador: ativo ou desativado, e se já assinou o termo de compromisso da edição ativa."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    try:
+        db = get_client()
+        saida = {}
+        try:
+            perfis = fetch_all(lambda: db.table("perfis").select("id, ativo").eq("role", "municipio").order("id"))
+        except Exception:  # noqa: BLE001 - coluna ativo ainda não criada
+            perfis = fetch_all(lambda: db.table("perfis").select("id").eq("role", "municipio").order("id"))
+        for p in perfis:
+            saida[p["id"]] = {"ativo": p.get("ativo") is not False, "compromisso_em": None}
+        try:
+            for c in fetch_all(lambda: db.table("coordenadores_cadastro").select("user_id, nome, email, cpf, rg, telefone1, telefone2").order("user_id")):
+                if c["user_id"] in saida:
+                    saida[c["user_id"]].update({k: c.get(k) for k in ("email", "cpf", "rg", "telefone1", "telefone2")})
+        except Exception as e_cad:  # noqa: BLE001
+            print(f"[coordenadores] não consegui ler os cadastros: {e_cad}")
+        ciclo_id = _ciclo_ativo_id(db)
+        if ciclo_id:
+            try:
+                for c in fetch_all(lambda: db.table("compromissos").select("coordenador_id, assinado_em").eq("ciclo_id", ciclo_id).order("coordenador_id")):
+                    if c["coordenador_id"] in saida:
+                        saida[c["coordenador_id"]]["compromisso_em"] = c.get("assinado_em")
+            except Exception as e_comp:  # noqa: BLE001
+                print(f"[compromisso] não consegui ler os compromissos: {e_comp}")
+        return jsonify(saida)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/admin/coordenadores-historico")
+def coordenadores_historico():
+    """Todos os coordenadores que já passaram por um município (o atual e os desativados), do mais novo para o mais antigo."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    try:
+        municipio_id = int(request.args.get("municipio_id") or 0)
+        if not municipio_id:
+            return jsonify({"error": "municipio_id é obrigatório."}), 400
+        db = get_client()
+        atual = ((db.table("municipios_extra").select("responsavel_id").eq("municipio_id", municipio_id).limit(1).execute().data or [{}])[0]).get("responsavel_id")
+        cads = db.table("coordenadores_cadastro").select("user_id, nome, email, cpf, telefone1, created_at").eq("municipio_id", municipio_id).order("created_at", desc=False).execute().data or []
+        ids = [c["user_id"] for c in cads]
+        ativos, assinados = {}, {}
+        if ids:
+            try:
+                ativos = {p["id"]: p.get("ativo") is not False for p in db.table("perfis").select("id, ativo").in_("id", ids).execute().data or []}
+            except Exception:  # noqa: BLE001 - coluna ativo ainda não criada
+                ativos = {}
+            try:
+                for c in db.table("compromissos").select("coordenador_id, assinado_em").in_("coordenador_id", ids).execute().data or []:
+                    if c.get("assinado_em"):
+                        assinados[c["coordenador_id"]] = c["assinado_em"]
+            except Exception:  # noqa: BLE001
+                pass
+        saida = []
+        for i, c in enumerate(cads):
+            proximo = cads[i + 1] if i + 1 < len(cads) else None
+            e_atual = str(c["user_id"]) == str(atual)
+            saida.append({
+                "user_id": c["user_id"], "nome": c.get("nome"), "email": c.get("email"), "cpf": c.get("cpf"), "telefone1": c.get("telefone1"),
+                "desde": c.get("created_at"),
+                # o dia da troca é o dia em que o coordenador seguinte foi cadastrado
+                "ate": None if e_atual else (proximo or {}).get("created_at"),
+                "atual": e_atual, "ativo": ativos.get(c["user_id"], True),
+                "compromisso_em": assinados.get(c["user_id"]),
+            })
+        saida.reverse()
+        return jsonify(saida)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/admin/relatorio-participantes")
+def relatorio_participantes():
+    """Relatório: municípios e as escolas que participam (as do termo de adesão aprovado), com o que cada uma já enviou."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    try:
+        db = get_client()
+        ciclo_id = _ciclo_ativo_id(db)
+        consulta = db.table("adesoes").select("id, municipio_id, status, coordenador_id, aprovada_em, ciclo_id")
+        if ciclo_id:
+            consulta = consulta.eq("ciclo_id", ciclo_id)
+        ades = consulta.execute().data or []
+        # um município pode ter mais de uma ficha: vale a mais avançada
+        ordem = {"aprovada": 3, "enviada": 2, "rascunho": 1}
+        por_mun = {}
+        for a in ades:
+            atual = por_mun.get(a["municipio_id"])
+            if not atual or ordem.get(a["status"], 0) > ordem.get(atual["status"], 0):
+                por_mun[a["municipio_id"]] = a
+        vinc = {}
+        ids_ades = [a["id"] for a in por_mun.values()]
+        if ids_ades:
+            for v in fetch_all(lambda: db.table("adesao_escolas").select("adesao_id, escola_id").in_("adesao_id", ids_ades).order("escola_id")):
+                vinc.setdefault(v["adesao_id"], []).append(v["escola_id"])
+        todas_escolas = {eid for lst in vinc.values() for eid in lst}
+        escolas = {e["id"]: e for e in _escolas_por_ids(db, todas_escolas, "id, nome")} if todas_escolas else {}
+        # documentos enviados por escola (um envio pode valer para várias escolas)
+        docs_por_escola = {}
+        docs = fetch_all(lambda: db.table("documentos").select("escola_id, escolas_ids, ciclo_id").order("id"))
+        for d in docs:
+            if ciclo_id and d.get("ciclo_id") not in (ciclo_id, None):
+                continue
+            ids = set(d.get("escolas_ids") or [])
+            if d.get("escola_id"):
+                ids.add(d["escola_id"])
+            for eid in ids:
+                docs_por_escola[eid] = docs_por_escola.get(eid, 0) + 1
+        municipios = db.table("municipios").select("id, nome").order("nome").execute().data or []
+        coord = {}
+        try:
+            for c in db.table("municipios_extra").select("municipio_id, responsavel_nome").execute().data or []:
+                coord[c["municipio_id"]] = c.get("responsavel_nome")
+        except Exception:  # noqa: BLE001
+            pass
+        saida = []
+        for m in municipios:
+            a = por_mun.get(m["id"])
+            if not a:
+                continue
+            lista = sorted(
+                ({"id": eid, "nome": (escolas.get(eid) or {}).get("nome") or "—", "documentos": docs_por_escola.get(eid, 0)} for eid in vinc.get(a["id"], [])),
+                key=lambda x: x["nome"],
+            )
+            saida.append({
+                "municipio_id": m["id"], "municipio": m["nome"], "coordenador": coord.get(m["id"]),
+                "adesao_status": a["status"], "aprovada_em": a.get("aprovada_em"), "escolas": lista,
+            })
+        return jsonify({"municipios": saida})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.get("/api/admin/coordenadores-desativados")
+def coordenadores_desativados():
+    """Coordenadores que perderam o acesso: desativados ou substituídos por outro no município."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    try:
+        db = get_client()
+        cads = db.table("coordenadores_cadastro").select("user_id, nome, email, cpf, telefone1, municipio_id, created_at").not_.is_("municipio_id", "null").execute().data or []
+        atuais = {r["municipio_id"]: r.get("responsavel_id") for r in (db.table("municipios_extra").select("municipio_id, responsavel_id").execute().data or [])}
+        ids = [c["user_id"] for c in cads]
+        ativos = {}
+        if ids:
+            try:
+                ativos = {p["id"]: p.get("ativo") is not False for p in db.table("perfis").select("id, ativo").in_("id", ids).execute().data or []}
+            except Exception:  # noqa: BLE001
+                ativos = {}
+        nomes = {m["id"]: m["nome"] for m in (db.table("municipios").select("id, nome").execute().data or [])}
+        saida = []
+        for c in cads:
+            ativo = ativos.get(c["user_id"], True)
+            substituido = bool(atuais.get(c["municipio_id"])) and str(atuais.get(c["municipio_id"])) != str(c["user_id"])
+            if ativo and not substituido:
+                continue
+            # data da troca = dia em que o coordenador seguinte do município foi cadastrado
+            seguintes = sorted((x["created_at"] for x in cads if x["municipio_id"] == c["municipio_id"] and str(x["created_at"]) > str(c["created_at"])), key=str)
+            saida.append({**c, "municipio_nome": nomes.get(c["municipio_id"]), "ativo": ativo, "substituido": substituido, "desativado_em": seguintes[0] if (substituido and seguintes) else None})
+        saida.sort(key=lambda x: (x.get("municipio_nome") or ""))
+        return jsonify(saida)
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/admin/compromisso/enviar")
+def enviar_termo_compromisso():
+    """O administrador manda (de novo) o e-mail para o coordenador entrar e assinar o Termo de Compromisso."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    body = request.get_json(force=True, silent=True) or {}
+    alvo = str(body.get("user_id") or "")
+    if not alvo:
+        return jsonify({"error": "Escolha um coordenador."}), 400
+    try:
+        db = get_client()
+        cad = (db.table("coordenadores_cadastro").select("nome, email, municipio_id").eq("user_id", alvo).limit(1).execute().data or [None])[0]
+        if not cad:
+            return jsonify({"error": "Coordenador não encontrado."}), 404
+        if not _email_valido(cad.get("email")):
+            return jsonify({"error": "Este coordenador está sem e-mail válido. Corrija em Editar dados."}), 400
+        ciclo_id = _ciclo_ativo_id(db)
+        if ciclo_id:
+            linha = _linha_compromisso(db, ciclo_id, alvo)
+            if linha and linha.get("assinado_em"):
+                return jsonify({"error": "Este coordenador já assinou o termo de compromisso."}), 409
+        nome_mun = ""
+        if cad.get("municipio_id"):
+            nome_mun = (db.table("municipios").select("nome").eq("id", cad["municipio_id"]).limit(1).execute().data or [{}])[0].get("nome") or ""
+        assunto, texto, html = montar_convite_compromisso(
+            cad.get("nome") or "coordenador(a)", nome_mun, cad["email"], f"{_link_base()}/compromisso",
+            getattr(user, "email", None) or "A administração do projeto")
+        try:
+            enviar_email(cad["email"], assunto, texto, html)
+        except Exception as e_mail:  # noqa: BLE001
+            print(f"[compromisso] falha ao enviar o termo para {cad['email']}: {e_mail!r}", flush=True)
+            return jsonify({"error": "Não consegui enviar o e-mail. " + _motivo_falha_email(e_mail)}), 502
+        return jsonify({"ok": True, "email": cad["email"]})
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
+
+
+@app.post("/api/admin/coordenadores/ativo")
+def coordenador_ativar_desativar():
+    """Liga ou desliga o acesso de um coordenador (nada é apagado: cadastro, termos e documentos continuam guardados)."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    body = request.get_json(force=True, silent=True) or {}
+    alvo = str(body.get("user_id") or "")
+    ativo = body.get("ativo") is True
+    if not alvo or alvo == str(getattr(user, "id", "")):
+        return jsonify({"error": "Escolha um coordenador (você não pode desativar o seu próprio acesso)."}), 400
+    try:
+        db = get_client()
+        perfil = (db.table("perfis").select("id, role").eq("id", alvo).limit(1).execute().data or [None])[0]
+        if not perfil or perfil.get("role") != "municipio":
+            return jsonify({"error": "Só é possível ativar ou desativar coordenadores."}), 400
+        try:
+            db.table("perfis").update({"ativo": ativo}).eq("id", alvo).execute()
+        except Exception as e_col:  # noqa: BLE001
+            if "ativo" in str(e_col).lower():
+                return jsonify({"error": "Falta rodar sql/migration_termo_compromisso.sql no Supabase (coluna ativo)."}), 500
+            raise
+        try:  # bloqueia/libera também o login no Supabase
+            db.auth.admin.update_user_by_id(alvo, {"ban_duration": "none" if ativo else "876000h"})
+        except Exception as e_ban:  # noqa: BLE001
+            print(f"[ativo] não consegui {'liberar' if ativo else 'bloquear'} o login de {alvo}: {e_ban}")
+        limpar_caches_perfil()
+        _municipios_cache.clear()
+        return jsonify({"ok": True, "ativo": ativo})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500
 
@@ -3966,6 +5037,12 @@ def listar_coordenadores_cadastrados():
             if r.get("responsavel_id")
         }
         cadastros = [c for c in cadastros if c["user_id"] not in liberados]
+        # quem está desativado não espera liberação: aparece na aba "Desativados"
+        try:
+            inativos = {p["id"] for p in (db.table("perfis").select("id").eq("ativo", False).execute().data or [])}
+            cadastros = [c for c in cadastros if c["user_id"] not in inativos]
+        except Exception:  # noqa: BLE001 - coluna ativo ainda não criada
+            pass
 
         ids_mun = list({c["municipio_id"] for c in cadastros if c.get("municipio_id")})
         nomes_mun = {}

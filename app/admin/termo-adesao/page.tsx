@@ -23,8 +23,8 @@ const PAPEL_ASSINATURA: Record<string, string> = {
 type Filtro = Status | "todas" | "assinando";
 type Linha = {
   id: string; status: Status; municipio_nome?: string | null; coordenador_nome?: string | null;
-  coordenador_telefone?: string | null; coordenador_email?: string | null;
-  termo_assinado_nome?: string | null; assinatura?: ResumoAssinatura | null; observacao_admin?: string | null; total_escolas_informado?: number | null; total_professores_informado?: number | null; enviada_em?: string | null;
+  coordenador_id?: string | null; coordenador_telefone?: string | null; coordenador_email?: string | null;
+  termo_assinado_nome?: string | null; compromisso_assinado_em?: string | null; assinatura?: ResumoAssinatura | null; observacao_admin?: string | null; total_escolas_informado?: number | null; total_professores_informado?: number | null; enviada_em?: string | null;
 };
 type EscolaDetalhe = {
   escola_id: string; nome: string; tipo?: string | null; quantidade_professores: number;
@@ -252,16 +252,51 @@ function TermoAdesao() {
                     style={a.status === "rascunho" && a.observacao_admin ? { background: "#FFE8D9", color: "#8A2A00" } : { background: r.fundo, color: r.cor }}>
                     {a.status === "rascunho" && a.observacao_admin ? "Devolvida para correção" : r.texto}
                   </span>
+                  {a.status !== "rascunho" && (
+                    a.compromisso_assinado_em && a.coordenador_id ? (
+                      <button type="button"
+                        onClick={() => apiAbrirArquivo(`/api/compromisso/arquivo?user_id=${a.coordenador_id}`).catch((e) => setErro(e.message))}
+                        className={`${SELO} min-w-[7rem] cursor-pointer underline-offset-2 hover:underline`}
+                        title={`Abrir o termo de compromisso assinado em ${new Date(a.compromisso_assinado_em).toLocaleDateString("pt-BR")} (PDF)`}
+                        style={{ background: "#E3F4EA", color: "#17613B" }}>
+                        ✓ Compromisso · PDF
+                      </button>
+                    ) : (
+                      <span className={`${SELO} min-w-[7rem]`} title="O coordenador ainda não assinou o termo de compromisso"
+                        style={{ background: "#FFF3CC", color: "#6E4B00" }}>
+                        Sem compromisso
+                      </span>
+                    )
+                  )}
                   {a.assinatura?.status === "pendente" && (
                     <span className={`${SELO} w-28`} style={{ background: "#FFF3CC", color: "#6E4B00" }} title="Termo enviado por e-mail; aguardando assinaturas">
                       Assinando {a.assinatura.assinados}/{a.assinatura.total}
                     </span>
                   )}
                   {a.status !== "rascunho" && !(a.assinatura?.status === "pendente" && !a.termo_assinado_nome) && (
-                    <span className={`${SELO} min-w-[7rem]`}
-                      title={a.termo_assinado_nome && a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0 ? `Parcial: assinaram por e-mail (${(a.assinatura.signatarios ?? []).map((sg) => PAPEL_ASSINATURA[sg.papel] ?? sg.papel).join(", ")}). Faltam: ${faltamPorEmail(a).map((p) => PAPEL_ASSINATURA[p]).join(", ")}.` : undefined}
-                      style={a.termo_assinado_nome ? { background: "#E3F4EA", color: "#17613B" } : { background: "#EFEDE4", color: "#4A453A" }}>
-                      {a.termo_assinado_nome ? (a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0 ? "✓ Parcial" : "✓ Assinado") : "Sem assinatura"}
+                    <span className="group relative">
+                      <span className={`${SELO} min-w-[7rem] cursor-help`}
+                        style={a.termo_assinado_nome ? { background: "#E3F4EA", color: "#17613B" } : { background: "#EFEDE4", color: "#4A453A" }}>
+                        {a.termo_assinado_nome
+                          ? (a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0
+                              ? `✓ Parcial · ${PAPEIS_DO_TERMO.length - faltamPorEmail(a).length} de ${PAPEIS_DO_TERMO.length}`
+                              : "✓ Assinado")
+                          : "Sem assinatura"}
+                      </span>
+                      {a.termo_assinado_nome && a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0 && (
+                        <span className="pointer-events-none absolute right-0 top-full z-30 mt-1 hidden w-72 rounded-xl border border-black/10 bg-white p-3 text-left text-xs leading-relaxed text-brand-dark shadow-xl group-hover:block">
+                          <strong className="block text-sm">Assinaturas do termo de adesão</strong>
+                          {PAPEIS_DO_TERMO.map((papel) => {
+                            const ok = (a.assinatura?.signatarios ?? []).some((sg) => sg.papel === papel);
+                            return (
+                              <span key={papel} className="mt-1 flex items-center gap-1.5">
+                                <span className={ok ? "text-green-700" : "text-amber-700"}>{ok ? "✓" : "○"}</span>
+                                <span>{PAPEL_ASSINATURA[papel] ?? papel}: <strong>{ok ? "assinou pelo sistema" : "assina fora do sistema"}</strong></span>
+                              </span>
+                            );
+                          })}
+                        </span>
+                      )}
                     </span>
                   )}
                   {/* mesmo botão nos dois casos: abre o termo assinado (PDF) se houver; senão, o termo gerado pelo sistema */}
@@ -270,8 +305,8 @@ function TermoAdesao() {
                       type="button"
                       onClick={() => apiAbrirArquivo(`/api/adesao/termo-assinado?id=${a.id}`).catch((e) => setErro(e.message))}
                       className={BOTAO_TERMO}
-                      title="Ver termo assinado (PDF)"
-                      aria-label="Ver termo assinado (PDF)"
+                      title="Ver termo de adesão assinado (PDF)"
+                      aria-label="Ver termo de adesão assinado (PDF)"
                     >
                       <PdfIcon className="h-5 w-5" />
                     </button>
@@ -320,9 +355,9 @@ function TermoAdesao() {
                               ))}
                             </ul>
                             {faltamPorEmail(a).length > 0 && (
-                              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-900">
-                                Assinaram por e-mail: {a.assinatura.signatarios.map((sg) => PAPEL_ASSINATURA[sg.papel] ?? sg.papel).join(", ")}.
-                                {" "}Ficam fora do sistema: {faltamPorEmail(a).map((p) => PAPEL_ASSINATURA[p]).join(", ")}.
+                              <p className="mt-2 rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-900">
+                                <strong>Parcial:</strong> assinou pelo sistema só {a.assinatura.signatarios.map((sg) => PAPEL_ASSINATURA[sg.papel] ?? sg.papel).join(", ")}.
+                                {" "}Os demais ({faltamPorEmail(a).map((p) => PAPEL_ASSINATURA[p]).join(", ")}) assinam fora do sistema (gov.br ou certificado digital).
                               </p>
                             )}
                             <p className="mt-2 text-xs text-brand-dark/60">Enviado para assinatura em {dataBr(a.assinatura.criado_em)}{a.assinatura.concluido_em ? ` · concluído em ${dataBr(a.assinatura.concluido_em)}` : ""}.</p>
