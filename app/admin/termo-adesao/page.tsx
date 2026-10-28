@@ -68,15 +68,12 @@ function faltamPorEmail(a: Linha) {
   return PAPEIS_DO_TERMO.filter((p) => !(a.assinatura?.signatarios ?? []).some((s) => s.papel === p));
 }
 
-// O município só vale (fica "Válido") quando o termo de adesão está assinado por todos E o coordenador assinou o termo de compromisso.
+// O município só vale (fica "Válido") quando o termo de adesão tem ao menos uma assinatura (as demais podem vir depois) E o coordenador assinou o termo de compromisso.
 // Enquanto faltar algo, aparece como "Pendente", mesmo que a adesão já tenha sido aprovada.
 function faltaParaValer(a: Linha): string[] {
   if (a.status !== "aprovada") return [];
   const falta: string[] = [];
-  if (!a.termo_assinado_nome) falta.push("termo de adesão assinado");
-  else if (a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0) {
-    falta.push(`assinaturas do termo de adesão (${PAPEIS_DO_TERMO.length - faltamPorEmail(a).length} de ${PAPEIS_DO_TERMO.length})`);
-  }
+  if (!a.termo_assinado_nome) falta.push("termo de adesão assinado (basta uma assinatura)");
   if (!a.compromisso_assinado_em) falta.push("termo de compromisso do coordenador");
   return falta;
 }
