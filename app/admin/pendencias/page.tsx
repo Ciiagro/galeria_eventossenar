@@ -56,6 +56,7 @@ function PainelAprovacao() {
   const [filtroTipo, setFiltroTipo] = useState("");
   const [grupo, setGrupo] = useState<"acao" | "documento">("documento"); // Documentos (PDF) primeiro, depois Ações (imagens/vídeos)
   const [busca, setBusca] = useState("");
+  const [filtroApoio, setFiltroApoio] = useState<"" | "nao" | "sim">(""); // só relatórios (PDF): já validados pelo Apoiador de Relatórios?
 
   // Interação
   const [selecionado, setSelecionado] = useState(0);
@@ -160,11 +161,12 @@ function PainelAprovacao() {
       (doc) =>
         ehDocumentoPdf(doc) === (grupo === "documento") &&
         noCicloEMes(doc, filtroCiclo, ciclos, filtroMes) &&
+        (grupo !== "documento" || !filtroApoio || (filtroApoio === "sim") === Boolean(doc.analise_status)) &&
         (!termo ||
           [doc.descricao, doc.acao_evento, doc.acoes_pedagogicas?.nome, doc.subtipo, doc.tipos_documento?.nome, doc.escolas?.nome, doc.responsavel_nome, nomeMunicipio(doc.municipio_id)]
             .some((v) => normalizar(v).includes(termo)))
     );
-  }, [documentos, grupo, filtroCiclo, ciclos, filtroMes, busca, nomeMunicipio]);
+  }, [documentos, grupo, filtroCiclo, ciclos, filtroMes, busca, nomeMunicipio, filtroApoio]);
 
   const contagem = useMemo(
     () => ({
@@ -201,7 +203,7 @@ function PainelAprovacao() {
   const pendentesForaDoPeriodo = (documentos ?? []).filter(
     (d) => d.status === "pendente" && !noCicloEMes(d, filtroCiclo, ciclos, filtroMes)
   ).length;
-  const temFiltro = Boolean(!cicloPadrao || filtroMes || filtroMunicipio || filtroTipo || busca.trim());
+  const temFiltro = Boolean(!cicloPadrao || filtroMes || filtroMunicipio || filtroTipo || filtroApoio || busca.trim());
 
   useEffect(() => {
     setSelecionado((i) => Math.min(i, Math.max(0, itensDaPagina.length - 1)));
@@ -359,9 +361,9 @@ function PainelAprovacao() {
 
         {/* Filtros */}
         <BarraFiltros
-          colunas={grupo === "documento" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr]" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.3fr]"}
+          colunas={grupo === "documento" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.5fr]" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.3fr]"}
           mostrarLimpar={temFiltro}
-          onLimpar={() => { setFiltroCiclo(null); setFiltroMes(""); setFiltroMunicipio(""); setFiltroTipo(""); setBusca(""); }}
+          onLimpar={() => { setFiltroCiclo(null); setFiltroMes(""); setFiltroMunicipio(""); setFiltroTipo(""); setFiltroApoio(""); setBusca(""); }}
         >
           <CampoBusca value={busca} onChange={setBusca} placeholder="Buscar escola, ação pedagógica, município..." />
           <select value={filtroMes} onChange={(e) => setFiltroMes(e.target.value)} className={CLASSE_SELECT}>
@@ -372,6 +374,13 @@ function PainelAprovacao() {
             <option value="">Todos os municípios</option>
             {municipiosPrograma.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </select>
+          {grupo === "documento" && (
+            <select value={filtroApoio} onChange={(e) => setFiltroApoio(e.target.value as "" | "nao" | "sim")} className={CLASSE_SELECT}>
+              <option value="">Todos (apoiador)</option>
+              <option value="nao">Ainda não validados pelo apoiador</option>
+              <option value="sim">Validados pelo apoiador</option>
+            </select>
+          )}
           {grupo === "acao" && (
             <select value={filtroTipo} onChange={(e) => setFiltroTipo(e.target.value)} className={CLASSE_SELECT}>
               <option value="">Todos os tipos</option>
