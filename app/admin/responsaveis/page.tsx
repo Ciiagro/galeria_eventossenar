@@ -620,7 +620,11 @@ ${tabelaEscolas}
                       {cadastrosFiltrados.slice((pagina - 1) * porPagina, pagina * porPagina).map((c) => {
                         const st = SITUACAO[c.adesao_status];
                         return (
-                          <tr key={c.user_id} onClick={() => setDetalheCad(c)} className="cursor-pointer hover:bg-[#F3FAF6]" title="Clique para ver todos os dados">
+                          <tr key={c.user_id} onClick={() => {
+                            // quem já foi liberado (é o coordenador de um município) abre a ficha completa
+                            const liberado = municipios.find((m) => m.responsavel_id === c.user_id);
+                            if (liberado) setDetalheId(liberado.id); else setDetalheCad(c);
+                          }} className="cursor-pointer hover:bg-[#F3FAF6]" title="Clique para ver todos os dados">
                             <td className="px-3 py-3">
                               <div className="flex items-center gap-3">
                                 <FotoCoordenador userId={c.user_id} nome={c.nome} />
