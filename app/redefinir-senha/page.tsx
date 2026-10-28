@@ -33,7 +33,9 @@ export default function RedefinirSenhaPage() {
     setSalvando(true);
     const { error } = await supabaseBrowser.auth.updateUser({ password: senha });
     setSalvando(false);
-    if (error) { setErro(error.message); return; }
+    // o Supabase recusa quando a senha nova é igual à atual; nesse caso está tudo certo, é só seguir
+    const igualAtual = error && ((error as { code?: string }).code === "same_password" || /different from the old password/i.test(error.message));
+    if (error && !igualAtual) { setErro(error.message); return; }
     setOk(true);
     esquecerPerfilSalvo();
     // já está conectado(a): segue para o sistema (quem ainda não assinou cai no termo de compromisso)
