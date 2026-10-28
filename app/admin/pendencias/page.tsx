@@ -617,7 +617,7 @@ function CartaoDocumento(p: CartaoProps) {
           <div className={`flex ${compacto ? "flex-row items-start justify-between gap-2" : "flex-col lg:flex-row lg:items-start lg:justify-between gap-3"}`}>
             <div className="min-w-0">
               <h2 className={`${compacto ? "text-[15px]" : "text-lg"} font-bold text-brand-dark leading-snug`}>
-                {ehDocumentoPdf(doc) && doc.subtipo ? doc.subtipo.replace("Relatório de Formação", "Relatório") : ehDocumentoPdf(doc) ? "Relatório" : doc.tipos_documento?.nome ?? "Documento"}
+                {ehDocumentoPdf(doc) && doc.subtipo ? doc.subtipo.replace("Relatório de Formação", "Relatório") : ehDocumentoPdf(doc) ? "Relatório da Visita - PDF" : doc.tipos_documento?.nome ?? "Documento"}
                 {doc.acao_evento && <span className="font-semibold text-brand-dark/85"> — {doc.acao_evento}</span>}
               </h2>
               <div className={`${compacto ? "mt-0.5 text-xs" : "mt-1.5 text-[13px]"} flex flex-wrap items-center gap-x-3 gap-y-1 text-brand-dark/80`}>

@@ -457,7 +457,7 @@ function CartaoDocumento({
           <div className="flex flex-col lg:flex-row lg:items-start lg:justify-between gap-3">
             <div className="min-w-0">
               <h2 className="text-lg font-bold text-brand-dark leading-snug">
-                {ehDoc && doc.subtipo ? doc.subtipo.replace("Relatório de Formação", "Relatório") : doc.tipos_documento?.nome ?? "Documento"}
+                {ehDoc && doc.subtipo ? doc.subtipo.replace("Relatório de Formação", "Relatório") : ehDoc ? "Relatório da Visita - PDF" : doc.tipos_documento?.nome ?? "Documento"}
                 {doc.acao_evento && <span className="font-semibold text-brand-dark/85"> — {doc.acao_evento}</span>}
               </h2>
               <div className="mt-1.5 flex flex-wrap gap-x-3 gap-y-1 text-[13px] text-brand-dark/80">
