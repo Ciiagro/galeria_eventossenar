@@ -301,7 +301,7 @@ function PainelAprovacao() {
         {/* Ações (imagens e vídeos) × Documentos (PDF) */}
         <div className="mt-5 flex flex-wrap items-center justify-between gap-3">
         <div className="inline-flex rounded-xl bg-black/[0.05] p-1" role="tablist" aria-label="Tipo de envio">
-          {([["documento", "Documentos"], ["acao", "Ações pedagógicas"]] as ["acao" | "documento", string][]).map(([valor, rotulo]) => (
+          {([["documento", "Relatórios"], ["acao", "Ações pedagógicas"]] as ["acao" | "documento", string][]).map(([valor, rotulo]) => (
             <button
               key={valor}
               type="button"
