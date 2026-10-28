@@ -11,7 +11,7 @@ type Pedido = {
 };
 type Estado = {
   configurado: boolean; papeis_ativos?: string[]; pedido: Pedido | null;
-  sugestoes: Record<string, { nome?: string; email?: string; cpf?: string | null; sindicato_nome?: string | null; fixo?: boolean }>;
+  sugestoes: Record<string, { nome?: string; email?: string; cpf?: string | null; sindicato_nome?: string | null; fixo?: boolean; cpf_fixo?: boolean }>;
 };
 
 const ROTULO: Record<string, string> = {
@@ -48,6 +48,7 @@ export function AssinaturaEmail({
   const [emailPrefeito, setEmailPrefeito] = useState(prefeitoEmail);
   const [emailSecretario, setEmailSecretario] = useState(secretarioEmail);
   const sindFixo = Boolean(estado?.sugestoes?.sindicato?.fixo); // nome e e-mail vêm do cadastro do sindicato (definidos pela administração)
+  const sindCpfFixo = Boolean(estado?.sugestoes?.sindicato?.cpf_fixo);
   const [sindNome, setSindNome] = useState("");
   const [sindEmail, setSindEmail] = useState("");
   const [sindCpf, setSindCpf] = useState("");
@@ -83,7 +84,7 @@ export function AssinaturaEmail({
     setSindNome((atual) => (s.sindicato?.fixo ? s.sindicato.nome : atual) || s.sindicato?.nome || "");
     setEmailSecretario((atual) => atual || s.secretario?.email || secretarioEmail || "");
     setSindEmail((atual) => (s.sindicato?.fixo ? s.sindicato.email : atual) || s.sindicato?.email || "");
-    setSindCpf((atual) => atual || (s.sindicato?.cpf ? mascaraCpf(s.sindicato.cpf) : ""));
+    setSindCpf((atual) => (s.sindicato?.cpf_fixo ? (s.sindicato.cpf ? mascaraCpf(s.sindicato.cpf) : "") : atual) || (s.sindicato?.cpf ? mascaraCpf(s.sindicato.cpf) : ""));
   }, [estado, prefeitoEmail, secretarioEmail]);
 
   const pedido = estado?.pedido ?? null;
@@ -354,7 +355,7 @@ export function AssinaturaEmail({
                   <>
                     {estado.sugestoes?.sindicato?.sindicato_nome && (
                       <p className="text-sm text-brand-dark/80 sm:col-span-2">
-                        Sindicato Rural de <strong>{estado.sugestoes.sindicato.sindicato_nome}</strong>. {sindFixo ? "Nome e e-mail do(a) presidente já vêm do cadastro. Informe só o CPF." : "Informe nome, e-mail e CPF do(a) presidente."}
+                        Sindicato Rural de <strong>{estado.sugestoes.sindicato.sindicato_nome}</strong>. {sindFixo ? (sindCpfFixo ? "Nome, e-mail e CPF do(a) presidente já vêm do cadastro." : "Nome e e-mail do(a) presidente já vêm do cadastro. Informe só o CPF.") : "Informe nome, e-mail e CPF do(a) presidente."}
                       </p>
                     )}
                     <label>
@@ -367,7 +368,7 @@ export function AssinaturaEmail({
                     </label>
                     <label>
                       <span className={ROTULO_CAMPO}>CPF do(a) presidente do sindicato</span>
-                      <input inputMode="numeric" value={sindCpf} onChange={(e) => setSindCpf(mascaraCpf(e.target.value))} className={CAMPO} placeholder="000.000.000-00" />
+                      <input inputMode="numeric" value={sindCpf} onChange={(e) => setSindCpf(mascaraCpf(e.target.value))} readOnly={sindCpfFixo} className={`${CAMPO} ${sindCpfFixo ? "bg-black/[0.03]" : ""}`} placeholder="000.000.000-00" />
                     </label>
                   </>
                 )}

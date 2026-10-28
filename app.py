@@ -3470,12 +3470,13 @@ def _adesao_com_escolas(db, adesao, coord=None, ciclo_nome=None):
     por esperar uma ida ao banco por vez)."""
     municipio_id = adesao.get("municipio_id")
     ciclo_id = adesao.get("ciclo_id")
-    itens, m, c, ci, sind = _em_paralelo(
+    itens, m, c, ci, sind, escolha_sind = _em_paralelo(
         lambda: db.table("adesao_escolas").select("*").eq("adesao_id", adesao["id"]).execute().data or [],
-        lambda: (db.table("municipios").select("id, nome, presidente_nome").eq("id", municipio_id).limit(1).execute().data or []) if municipio_id else [],
+        lambda: (db.table("municipios").select("id, nome, presidente_nome, email1").eq("id", municipio_id).limit(1).execute().data or []) if municipio_id else [],
         lambda: [] if coord is not None else (db.table("coordenadores_cadastro").select("*").eq("user_id", adesao["coordenador_id"]).limit(1).execute().data or []),
         lambda: [] if (ciclo_nome is not None or not ciclo_id) else (db.table("ciclos").select("nome").eq("id", ciclo_id).limit(1).execute().data or []),
         lambda: _sindicato_do_municipio(db, municipio_id),
+        lambda: _escolha_termo_sindicato(db, municipio_id) if municipio_id else {},
     )
     nomes = {e["id"]: e for e in _escolas_por_ids(db, [i["escola_id"] for i in itens], "id, nome, tipo, endereco")}
     adesao["termo_assinado"] = _info_termo_assinado(adesao, itens)
@@ -3491,6 +3492,8 @@ def _adesao_com_escolas(db, adesao, coord=None, ciclo_nome=None):
         adesao["municipio_nome"] = m[0]["nome"] if m else None
         adesao["sindicato_presidente_nome"] = (m[0].get("presidente_nome") if m else None) or None
         adesao["sindicato_nome"] = sind or None
+        adesao["sindicato_presidente_cpf"] = (escolha_sind or {}).get("cpf")
+        adesao["sindicato_presidente_email"] = (escolha_sind or {}).get("email") or (m[0].get("email1") if m else None)
     if coord is not None:
         adesao["coordenador"] = coord  # o chamador já tinha buscado: poupa uma ida ao banco
     else:
@@ -4139,13 +4142,14 @@ def assinatura_status():
                 print(f"[sindicato] não consegui ler o nome do sindicato: {e_sind}")
             if mun.get("presidente_nome") or sind_nome:
                 atual = resposta["sugestoes"].get("sindicato") or {}
-                p_nome, p_email = _presidente_sindicato(db, adesao["municipio_id"])
+                p_nome, p_email, p_cpf = _presidente_sindicato(db, adesao["municipio_id"])
                 resposta["sugestoes"]["sindicato"] = {
                     "nome": p_nome or atual.get("nome"),
                     "email": p_email or atual.get("email"),
-                    "cpf": atual.get("cpf"),
+                    "cpf": p_cpf or atual.get("cpf"),
                     "sindicato_nome": sind_nome,
-                    "fixo": bool(p_nome and p_email),  # definido pelo administrador: o coordenador só informa o CPF
+                    "fixo": bool(p_nome and p_email),  # nome e e-mail definidos pelo administrador
+                    "cpf_fixo": bool(p_nome and p_email and p_cpf),  # CPF também definido pelo administrador
                 }
         except Exception as e_mun:  # noqa: BLE001
             print(f"[sindicato] não consegui ler o presidente do município: {e_mun}")
@@ -4189,9 +4193,9 @@ def assinatura_enviar():
         coord_nome = (cad[0].get("nome") if cad else None) or carregar_perfil(user).get("nome") or "Coordenador(a)"
         coord_email = ((cad[0].get("email") if cad else None) or getattr(user, "email", "") or "").strip().lower()
 
-        _pres_nome, _pres_email = _presidente_sindicato(db, adesao["municipio_id"])
+        _pres_nome, _pres_email, _pres_cpf = _presidente_sindicato(db, adesao["municipio_id"])
         if not (_pres_nome and _pres_email):
-            _pres_nome = _pres_email = None  # sem cadastro completo do presidente: vale o que o coordenador digitou
+            _pres_nome = _pres_email = _pres_cpf = None  # sem cadastro completo do presidente: vale o que o coordenador digitou
         candidatos = {
             "prefeito": ("prefeito", adesao.get("prefeito_nome"), _texto(body.get("prefeito_email"), 120),
                          _so_digitos(adesao.get("prefeito_cpf"))),
@@ -4199,7 +4203,7 @@ def assinatura_enviar():
                            _texto(body.get("secretario_email"), 120) or adesao.get("secretaria_email"),
                            _so_digitos(adesao.get("secretario_cpf"))),
             "sindicato": ("sindicato", _pres_nome or _texto(body.get("sindicato_nome"), 150), _pres_email or _texto(body.get("sindicato_email"), 120),
-                          _so_digitos(body.get("sindicato_cpf"))),
+                          _so_digitos(_pres_cpf) or _so_digitos(body.get("sindicato_cpf"))),
             "coordenador": ("coordenador", coord_nome, coord_email, _so_digitos(cad[0].get("cpf") if cad else "")),
         }
         onde_corrigir = {
@@ -4967,34 +4971,39 @@ def municipio_sindicato():
         except Exception as e_sind:  # noqa: BLE001
             print(f"[sindicato] {e_sind}")
             mun["sindicato_nome"] = None
-        mun["email_termo"] = _email_termo_sindicato(db, municipio_id)
+        escolha = _escolha_termo_sindicato(db, municipio_id)
+        mun["email_termo"] = escolha.get("email")
+        mun["cpf_termo"] = escolha.get("cpf")
         return jsonify(mun)
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500
 
 
 def _presidente_sindicato(db, municipio_id):
-    """(nome, e-mail) do presidente do sindicato para o termo: quem decide é o administrador
-    (e-mail escolhido; senão o primeiro cadastrado). (None, None) se o município não tem presidente cadastrado."""
+    """(nome, e-mail, cpf) do presidente do sindicato para o termo: quem decide é o administrador
+    (e-mail e CPF escolhidos; sem escolha, o primeiro e-mail cadastrado). Valores None quando não há."""
     try:
         mun = (db.table("municipios").select("presidente_nome, email1, email2, email3, email4").eq("id", municipio_id).limit(1).execute().data or [{}])[0]
     except Exception as e:  # noqa: BLE001
         print(f"[sindicato] {e}")
-        return None, None
+        return None, None, None
     nome = (mun.get("presidente_nome") or "").strip() or None
-    escolhido = _email_termo_sindicato(db, municipio_id)
+    escolha = _escolha_termo_sindicato(db, municipio_id)
     primeiro = next((mun.get(k).strip() for k in ("email1", "email2", "email3", "email4") if (mun.get(k) or "").strip()), None)
-    return nome, (escolhido or primeiro)
+    return nome, (escolha.get("email") or primeiro), (escolha.get("cpf") or None)
+
+
+def _escolha_termo_sindicato(db, municipio_id):
+    try:
+        r = db.table("sindicato_email_termo").select("email, cpf").eq("municipio_id", municipio_id).limit(1).execute().data or []
+        return r[0] if r else {}
+    except Exception as e:  # noqa: BLE001
+        print(f"[sindicato] não consegui ler a escolha do administrador: {e}")
+        return {}
 
 
 def _email_termo_sindicato(db, municipio_id):
-    """E-mail do presidente do sindicato que o administrador escolheu para o termo (None se não escolheu)."""
-    try:
-        r = db.table("sindicato_email_termo").select("email").eq("municipio_id", municipio_id).limit(1).execute().data or []
-        return r[0]["email"] if r else None
-    except Exception as e:  # noqa: BLE001
-        print(f"[sindicato] não consegui ler o e-mail escolhido: {e}")
-        return None
+    return _escolha_termo_sindicato(db, municipio_id).get("email")
 
 
 @app.post("/api/admin/municipio-sindicato")
@@ -5012,8 +5021,11 @@ def escolher_email_sindicato():
     except (TypeError, ValueError):
         municipio_id = 0
     email = (body.get("email") or "").strip().lower()
+    cpf = _so_digitos(body.get("cpf"))
     if not municipio_id or not email:
         return jsonify({"error": "Escolha um e-mail."}), 400
+    if cpf and not _cpf_valido(cpf):
+        return jsonify({"error": "O CPF do presidente é inválido."}), 400
     try:
         db = get_client()
         mun = (db.table("municipios").select("email1, email2, email3, email4").eq("id", municipio_id).limit(1).execute().data or [None])[0]
@@ -5022,8 +5034,8 @@ def escolher_email_sindicato():
         validos = {(mun.get(k) or "").strip().lower() for k in ("email1", "email2", "email3", "email4")} - {""}
         if email not in validos:
             return jsonify({"error": "Esse e-mail não é um dos cadastrados para o presidente."}), 400
-        db.table("sindicato_email_termo").upsert({"municipio_id": municipio_id, "email": email}, on_conflict="municipio_id").execute()
-        return jsonify({"ok": True, "email": email})
+        db.table("sindicato_email_termo").upsert({"municipio_id": municipio_id, "email": email, "cpf": cpf or None}, on_conflict="municipio_id").execute()
+        return jsonify({"ok": True, "email": email, "cpf": cpf or None})
     except Exception as e:  # noqa: BLE001
         return jsonify({"error": str(e)}), 500
 

@@ -32,12 +32,13 @@ function Secao({ n, titulo }: { n: number; titulo: string }) {
   );
 }
 
-function Assinatura({ nome, cargo, assinadoEm }: { nome?: string | null; cargo: string; assinadoEm?: string | null }) {
+function Assinatura({ nome, cargo, assinadoEm, extra }: { nome?: string | null; cargo: string; assinadoEm?: string | null; extra?: string | null }) {
   return (
     <div className="break-inside-avoid pt-9">
       <div className="border-t border-[#2A2620] pt-1">
         {nome ? <div className="text-[12px] font-bold">{nome}</div> : <div className="h-[14px]" />}
         <div className="text-[10px] text-[#6E6555]">{cargo}</div>
+        {extra && <div className="text-[10px] text-[#6E6555]">{extra}</div>}
         {assinadoEm && (
           <div className="mt-0.5 text-[10px] font-semibold" style={{ color: VERDE }}>
             ✓ Assinado eletronicamente em {new Date(assinadoEm).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}
@@ -200,11 +201,18 @@ export function TermoConteudo({ a, assinaturas }: { a: Adesao; assinaturas?: Ass
         <div className="grid grid-cols-2 gap-x-6">
           <Assinatura nome={a.prefeito_nome} cargo={`Prefeito(a) Municipal${a.prefeito_cpf ? ` — CPF ${mascaraCpf(a.prefeito_cpf)}` : ""}`} assinadoEm={quando("prefeito")} />
           <Assinatura nome={a.secretario_nome} cargo={`Secretário(a) de Educação${a.secretario_cpf ? ` — CPF ${mascaraCpf(a.secretario_cpf)}` : ""}`} assinadoEm={quando("secretario")} />
-          <Assinatura
-            nome={assinaturas?.find((x) => x.papel === "sindicato")?.nome ?? a.sindicato_presidente_nome}
-            cargo={`Presidente do Sindicato Rural${a.sindicato_nome ? ` de ${a.sindicato_nome}` : ""}${assinaturas?.find((x) => x.papel === "sindicato")?.cpf ? ` — CPF ${mascaraCpf(assinaturas!.find((x) => x.papel === "sindicato")!.cpf!)}` : ""}`}
-            assinadoEm={quando("sindicato")}
-          />
+          {(() => {
+            const sg = assinaturas?.find((x) => x.papel === "sindicato");
+            const cpfSind = sg?.cpf ?? a.sindicato_presidente_cpf;
+            return (
+              <Assinatura
+                nome={sg?.nome ?? a.sindicato_presidente_nome}
+                cargo={`Presidente do Sindicato Rural${a.sindicato_nome ? ` de ${a.sindicato_nome}` : ""}${cpfSind ? ` — CPF ${mascaraCpf(cpfSind)}` : ""}`}
+                extra={(sg as { email?: string } | undefined)?.email ?? a.sindicato_presidente_email}
+                assinadoEm={quando("sindicato")}
+              />
+            );
+          })()}
           <Assinatura nome={c?.nome} cargo={`Coordenador(a) do Projeto${c?.cpf ? ` — CPF ${mascaraCpf(c.cpf)}` : ""}`} assinadoEm={quando("coordenador")} />
         </div>
         </div>

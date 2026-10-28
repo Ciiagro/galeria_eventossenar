@@ -226,21 +226,29 @@ function ResponsaveisPage() {
 
   type DadosSindicato = Record<string, string | null> & { nome: string };
   const [sindicatoVista, setSindicatoVista] = useState<DadosSindicato | null>(null);
-  async function escolherEmailSindicato(email: string) {
+  const [emailSel, setEmailSel] = useState("");
+  const [cpfSel, setCpfSel] = useState("");
+  const [sindSalvo, setSindSalvo] = useState(false);
+  async function salvarDadosSindicato(email: string) {
     if (!sindicatoVista) return;
     setErro(null);
+    setSindSalvo(false);
     try {
-      const id = Number(sindicatoVista.id);
-      await apiPost("/api/admin/municipio-sindicato", { municipio_id: id, email });
-      setSindicatoVista({ ...sindicatoVista, email_termo: email.toLowerCase() });
+      await apiPost("/api/admin/municipio-sindicato", { municipio_id: Number(sindicatoVista.id), email, cpf: cpfSel });
+      setSindicatoVista({ ...sindicatoVista, email_termo: email.toLowerCase(), cpf_termo: cpfSel.replace(/\D/g, "") });
+      setSindSalvo(true);
     } catch (e) {
-      setErro(e instanceof Error ? e.message : "Não foi possível salvar o e-mail.");
+      setErro(e instanceof Error ? e.message : "Não foi possível salvar.");
     }
   }
   async function verSindicato(municipioId: number) {
     setErro(null);
     try {
-      setSindicatoVista({ ...(await apiGet(`/api/admin/municipio-sindicato?municipio_id=${municipioId}`)), id: String(municipioId) });
+      const d = await apiGet(`/api/admin/municipio-sindicato?municipio_id=${municipioId}`);
+      setEmailSel(d.email_termo ?? "");
+      setCpfSel(d.cpf_termo ? mascaraCpf(d.cpf_termo) : "");
+      setSindSalvo(false);
+      setSindicatoVista({ ...d, id: String(municipioId) });
     } catch (e) {
       setErro(e instanceof Error ? e.message : "Não foi possível abrir os dados do sindicato.");
     }
@@ -449,18 +457,25 @@ ${tabelaEscolas}
             {(() => {
               const emails = [sindicatoVista.email1, sindicatoVista.email2, sindicatoVista.email3, sindicatoVista.email4].filter((x): x is string => Boolean(x));
               if (emails.length === 0) return null;
-              const escolhido = (sindicatoVista.email_termo || emails[0]).toLowerCase();
+              const escolhido = (emailSel || sindicatoVista.email_termo || emails[0]).toLowerCase();
               return (
                 <div className="border-b border-black/5 py-2">
-                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-dark/60">E-mail do presidente no termo</p>
-                  {emails.length > 1 && <p className="mb-1 text-xs text-brand-dark/65">Há mais de um e-mail. Escolha o que será usado para assinar.</p>}
+                  <p className="text-xs font-semibold uppercase tracking-wide text-brand-dark/60">Dados do presidente no termo</p>
+                  <p className="mb-1 text-xs text-brand-dark/65">{emails.length > 1 ? "Há mais de um e-mail. Escolha o que será usado para assinar e informe o CPF." : "Informe o CPF para constar no termo."}</p>
                   <div className="mt-1 space-y-1">
                     {emails.map((em) => (
                       <label key={em} className={`flex cursor-pointer items-center gap-2 rounded-lg px-2 py-1.5 text-sm [overflow-wrap:anywhere] ${em.toLowerCase() === escolhido ? "bg-[#E2EFFB] font-semibold text-[#0F4C85]" : "hover:bg-black/[0.04]"}`}>
-                        <input type="radio" name="email-termo" checked={em.toLowerCase() === escolhido} onChange={() => escolherEmailSindicato(em)} className="h-4 w-4 accent-[#2678C4]" />
+                        <input type="radio" name="email-termo" checked={em.toLowerCase() === escolhido} onChange={() => setEmailSel(em)} className="h-4 w-4 accent-[#2678C4]" />
                         {em}
                       </label>
                     ))}
+                  </div>
+                  <label className="mt-2 block text-sm font-semibold text-brand-dark">CPF do presidente
+                    <input inputMode="numeric" value={cpfSel} onChange={(e) => setCpfSel(mascaraCpf(e.target.value))} placeholder="000.000.000-00" className={`${CAMPO} mt-1 font-normal`} />
+                  </label>
+                  <div className="mt-2 flex items-center gap-3">
+                    <button type="button" onClick={() => salvarDadosSindicato(escolhido)} className="rounded-lg bg-brand-light px-4 py-2 text-sm font-semibold text-white hover:bg-brand-accent">Salvar para o termo</button>
+                    {sindSalvo && <span className="text-sm font-semibold text-[#17613B]">✓ Salvo</span>}
                   </div>
                 </div>
               );
