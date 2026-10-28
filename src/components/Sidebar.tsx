@@ -96,7 +96,7 @@ export function Sidebar() {
   const papel = perfil?.role ? ROTULO_PAPEL[perfil.role] : "Responsável municipal";
 
   return (
-    <aside className="sticky top-0 h-screen w-60 shrink-0 self-start overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-[#E9F5EC] border-r border-black/10 shadow-[4px_0_24px_-6px_rgba(18,46,32,0.18)] z-10 flex flex-col">
+    <aside className="sticky top-0 h-screen w-60 shrink-0 self-start overflow-y-auto overflow-x-hidden [scrollbar-width:none] [&::-webkit-scrollbar]:hidden bg-[#F4FAF6] border-r border-black/10 shadow-[4px_0_24px_-6px_rgba(18,46,32,0.18)] z-10 flex flex-col">
       <div className="relative flex min-h-full flex-col px-4 pt-5">
         {/* logo */}
         <div className="relative">
