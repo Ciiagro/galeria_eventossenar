@@ -4882,6 +4882,12 @@ def coordenadores_situacao():
                     saida[c["user_id"]].update({k: c.get(k) for k in ("email", "cpf", "rg", "telefone1", "telefone2")})
         except Exception as e_cad:  # noqa: BLE001
             print(f"[coordenadores] não consegui ler os cadastros: {e_cad}")
+        try:  # ficha/termo de adesão de cada coordenador (para o menu "Ver termo de adesão")
+            for a in fetch_all(lambda: db.table("adesoes").select("id, coordenador_id, status").order("id")):
+                if a.get("coordenador_id") in saida and a.get("status") != "rascunho":
+                    saida[a["coordenador_id"]].update({"adesao_id": a["id"], "adesao_status": a.get("status")})
+        except Exception as e_ades:  # noqa: BLE001
+            print(f"[coordenadores] não consegui ler as adesões: {e_ades}")
         ciclo_id = _ciclo_ativo_id(db)
         if ciclo_id:
             try:

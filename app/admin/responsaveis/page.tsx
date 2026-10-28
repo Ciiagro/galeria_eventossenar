@@ -37,7 +37,7 @@ const SITUACAO: Record<CadastroRecebido["adesao_status"], { texto: string; cor: 
   enviada: { texto: "Aguardando aprovação", cor: "#0F4C85", fundo: "#E2EFFB" },
   aprovada: { texto: "Aprovada", cor: "#17613B", fundo: "#E3F4EA" },
 };
-type Situacao = { ativo: boolean; compromisso_em: string | null; email?: string | null; cpf?: string | null; rg?: string | null; telefone1?: string | null; telefone2?: string | null };
+type Situacao = { ativo: boolean; compromisso_em: string | null; email?: string | null; cpf?: string | null; rg?: string | null; telefone1?: string | null; telefone2?: string | null; adesao_id?: string | null; adesao_status?: string | null };
 // "Parado há N dias": só para quem ainda não enviou a adesão (sem ficha ou preenchendo)
 const diasParado = (iso?: string | null, status?: string | null) => {
   if (status && status !== "rascunho" && status !== "sem_ficha") return "";
@@ -396,6 +396,7 @@ ${tabelaEscolas}
       { rotulo: "Substituir coordenador", oculto: !idResp, onClick: () => { setDetalheId(null); substituirCoordenador(municipio.id); } },
       { rotulo: ativo ? "Desativar acesso" : "Ativar acesso", oculto: !idResp, onClick: () => alternarAtivo(idResp, municipio.responsavel_nome ?? "este coordenador", !ativo) },
       { rotulo: x?.compromisso_em ? "Ver termo de compromisso" : "Ver termo de compromisso (prévia)", oculto: !idResp, onClick: () => verCompromisso(idResp) },
+      { rotulo: "Ver termo de adesão", oculto: !x?.adesao_id, onClick: () => window.open(`/admin/termo-adesao/${x?.adesao_id}`, "_blank") },
       { rotulo: "Enviar termo de compromisso por e-mail", oculto: !idResp || Boolean(x?.compromisso_em), onClick: () => enviarTermo(idResp, municipio.responsavel_nome ?? "este coordenador") },
       { rotulo: "Excluir", perigo: true, onClick: () => { setDetalheId(null); excluir(municipio.id); } },
     ];
