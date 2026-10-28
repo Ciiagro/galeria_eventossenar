@@ -106,12 +106,11 @@ function EquipePage() {
   }, [carregar]);
 
   const nomes = useMemo(() => new Map(municipios.map((m) => [m.id, m.nome])), [municipios]);
-  // município que já tem Apoiador de Relatórios (outra pessoa) não fica disponível para um novo
+  // município que já tem outro apoiador da mesma função (visitas ou relatórios) não fica disponível para um novo
   const ocupadosRelatorios = useMemo(() => {
     const mapa = new Map<number, string>();
-    if (papel !== "apoiador_relatorios") return mapa;
     for (const m of equipe ?? []) {
-      if (m.role !== "apoiador_relatorios" || m.id === editandoId) continue;
+      if (m.role !== papel || m.id === editandoId) continue;
       for (const id of m.municipio_ids) mapa.set(id, m.nome);
     }
     return mapa;
@@ -121,7 +120,7 @@ function EquipePage() {
     // só os contemplados; os que a pessoa já tem marcados continuam na lista para poderem ser desmarcados
     const visiveis =
       contemplados instanceof Set ? municipios.filter((m) => contemplados.has(m.id) || escolhidos.has(m.id)) : municipios;
-    // os que já são de outro Apoiador de Relatórios não aparecem mais
+    // os que já são de outro apoiador da mesma função não aparecem mais
     const livres = visiveis.filter((m) => !ocupadosRelatorios.has(m.id) || escolhidos.has(m.id));
     return termo ? livres.filter((m) => semAcento(m.nome).includes(termo)) : livres;
   }, [municipios, buscaMunicipio, contemplados, escolhidos, ocupadosRelatorios]);
@@ -299,7 +298,7 @@ function EquipePage() {
                     const dono = ocupadosRelatorios.get(m.id);
                     const bloqueado = Boolean(dono) && !escolhidos.has(m.id);
                     return (
-                    <label key={m.id} title={bloqueado ? `Já é do Apoiador de Relatórios ${dono}` : undefined} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${bloqueado ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${escolhidos.has(m.id) ? "bg-[#E2EFFB] font-semibold text-[#0F4C85]" : bloqueado ? "" : "hover:bg-black/[0.04]"}`}>
+                    <label key={m.id} title={bloqueado ? `Já é do ${ROTULO_PAPEL[papel]} ${dono}` : undefined} className={`flex items-center gap-2 rounded-lg px-2 py-1.5 text-sm ${bloqueado ? "cursor-not-allowed opacity-50" : "cursor-pointer"} ${escolhidos.has(m.id) ? "bg-[#E2EFFB] font-semibold text-[#0F4C85]" : bloqueado ? "" : "hover:bg-black/[0.04]"}`}>
                       <input type="checkbox" checked={escolhidos.has(m.id)} disabled={bloqueado} onChange={() => alternar(m.id)} className="h-4 w-4 accent-[#2678C4]" />
                       {m.nome}
                       {bloqueado && <span className="text-xs font-normal text-brand-dark/70">(já com {dono})</span>}
