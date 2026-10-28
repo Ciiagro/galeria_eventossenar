@@ -39,6 +39,9 @@ const POR_PAGINA_PADRAO = 10;
 type Aba = "pendente" | "aprovado" | "arquivado" | "";
 type Ordem = "recentes" | "antigos" | "data_acao";
 
+// Relatório em PDF que passa pelo Apoiador de Relatórios; o que o Apoiador de Visitas envia vai direto para o administrador validar
+function validaApoio(d: Documento) { return ehDocumentoPdf(d) && d.origem !== "visita"; }
+
 function PainelAprovacao() {
   const [documentos, setDocumentos] = useState<Documento[] | null>(null);
   const [municipios, setMunicipios] = useState<Municipio[]>([]);
@@ -117,8 +120,8 @@ function PainelAprovacao() {
       setAba((atual) => (atual === null ? (lista.some((d) => d.status === "pendente") ? "pendente" : "") : atual));
       // abre no grupo que tem algo para validar (Documentos primeiro)
       setGrupo((atual) => {
-        const pend = (g: boolean) => lista.some((d) => d.status === "pendente" && !d.arquivado && ehDocumentoPdf(d) === g);
-        return pend(false) ? "acao" : atual;
+        const pend = (g: boolean) => lista.some((d) => d.status === "pendente" && !d.arquivado && !validaApoio(d) && ehDocumentoPdf(d) === g);
+        return !pend(true) && pend(false) ? "acao" : atual;
       });
     });
     const intervalo = window.setInterval(() => {
@@ -197,9 +200,9 @@ function PainelAprovacao() {
 
   const pendPorGrupo = useMemo(() => ({
     acao: (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado && !ehDocumentoPdf(d)).length,
-    documento: 0, // relatórios em PDF são validados pelo Apoiador de Relatórios, não pelo administrador
+    documento: (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado && ehDocumentoPdf(d) && !validaApoio(d)).length,
   }), [documentos]);
-  const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado && !ehDocumentoPdf(d)).length;
+  const pendentesTotal = (documentos ?? []).filter((d) => d.status === "pendente" && !d.arquivado && !validaApoio(d)).length;
   const pendentesForaDoPeriodo = (documentos ?? []).filter(
     (d) => d.status === "pendente" && !noCicloEMes(d, filtroCiclo, ciclos, filtroMes)
   ).length;
@@ -276,7 +279,7 @@ function PainelAprovacao() {
       } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
         e.preventDefault();
         setSelecionado((i) => Math.max(i - 1, 0));
-      } else if ((e.key === "a" || e.key === "A") && doc?.status === "pendente" && !ehDocumentoPdf(doc)) {
+      } else if ((e.key === "a" || e.key === "A") && doc?.status === "pendente" && !validaApoio(doc)) {
         e.preventDefault();
         abrirAprovacao(doc);
       }
@@ -635,7 +638,7 @@ function CartaoDocumento(p: CartaoProps) {
               </div>
             </div>
 
-            {doc.status === "pendente" && ehDocumentoPdf(doc) && (
+            {doc.status === "pendente" && validaApoio(doc) && (
               <div className="flex gap-2 shrink-0">
                 <span className={`inline-flex items-center gap-1.5 rounded-full px-3 py-1 text-xs font-bold ${doc.analise_status ? "bg-[#E2EFFB] text-[#0F4C85]" : "bg-black/5 text-brand-dark/70"}`}>
                   {doc.analise_status ? <><CheckIcon className="w-3.5 h-3.5" /> Validado pelo Apoiador de Relatórios</> : "Aguardando o Apoiador de Relatórios"}
@@ -643,7 +646,7 @@ function CartaoDocumento(p: CartaoProps) {
               </div>
             )}
 
-            {doc.status === "pendente" && !ehDocumentoPdf(doc) && (
+            {doc.status === "pendente" && !validaApoio(doc) && (
               <div className="flex gap-2 shrink-0">
                 <button
                   onClick={(e) => { e.stopPropagation(); p.onSelecionar(); p.onAprovar(); }}

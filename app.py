@@ -1857,6 +1857,9 @@ def listar_documentos():
             # a fila do Apoiador de Relatórios inclui também os Documentos (PDF), que entram já "recebidos"
             vistos = {d["id"] for d in docs}
             docs += [d for d in fetch_all(lambda: montar_query(True)) if d["id"] not in vistos]
+        if fila_analise:
+            # o que o Apoiador de Visitas envia não passa pelo Apoiador de Relatórios: vai direto para o administrador
+            docs = [d for d in docs if d.get("origem") != "visita"]
 
         # Nome de quem aprovou ("Aprovado por Geovana"); guardado por 5 min para não consultar a cada abertura
         ids_validadores = list(
@@ -2218,6 +2221,7 @@ def contar_para_analisar():
         consulta = (
             db.table("documentos").select("id", count="exact")
             .eq("status", "pendente").eq("arquivado", False).is_("analise_status", "null")
+            .or_("origem.is.null,origem.neq.visita")
         )
         if permitidos is not None:
             consulta = consulta.in_("municipio_id", list(permitidos))
