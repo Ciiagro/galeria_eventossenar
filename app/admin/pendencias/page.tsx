@@ -161,7 +161,7 @@ function PainelAprovacao() {
       (doc) =>
         ehDocumentoPdf(doc) === (grupo === "documento") &&
         noCicloEMes(doc, filtroCiclo, ciclos, filtroMes) &&
-        (grupo !== "documento" || !filtroApoio || (filtroApoio === "sim") === Boolean(doc.analise_status)) &&
+        (!filtroApoio || (filtroApoio === "sim") === Boolean(doc.analise_status)) &&
         (!termo ||
           [doc.descricao, doc.acao_evento, doc.acoes_pedagogicas?.nome, doc.subtipo, doc.tipos_documento?.nome, doc.escolas?.nome, doc.responsavel_nome, nomeMunicipio(doc.municipio_id)]
             .some((v) => normalizar(v).includes(termo)))
@@ -361,7 +361,7 @@ function PainelAprovacao() {
 
         {/* Filtros */}
         <BarraFiltros
-          colunas={grupo === "documento" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.5fr]" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.3fr]"}
+          colunas={grupo === "documento" ? "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.3fr_1.5fr]" : "grid-cols-1 sm:grid-cols-2 lg:grid-cols-[2fr_1fr_1.2fr_1.2fr_1.5fr]"}
           mostrarLimpar={temFiltro}
           onLimpar={() => { setFiltroCiclo(null); setFiltroMes(""); setFiltroMunicipio(""); setFiltroTipo(""); setFiltroApoio(""); setBusca(""); }}
         >
@@ -374,7 +374,7 @@ function PainelAprovacao() {
             <option value="">Todos os municípios</option>
             {municipiosPrograma.map((m) => <option key={m.id} value={m.id}>{m.nome}</option>)}
           </select>
-          {grupo === "documento" && (
+          {(
             <select value={filtroApoio} onChange={(e) => setFiltroApoio(e.target.value as "" | "nao" | "sim")} className={CLASSE_SELECT}>
               <option value="">Todos (apoiador)</option>
               <option value="nao">Ainda não validados pelo apoiador</option>
@@ -626,7 +626,7 @@ function CartaoDocumento(p: CartaoProps) {
                 <Info icone={CalendarIcon} texto={`Realizado em ${formatarData(doc.data_realizacao)}`} />
                 {doc.responsavel_nome && <Info icone={UserIcon} texto={`Enviado por ${doc.responsavel_nome}`} />}
                 {ehDocumentoPdf(doc) && descricao && <span className="whitespace-normal">{descricao.replace(/\s*\n\s*/g, " · ")}</span>}
-                {compacto && (doc.status === "pendente" || ehDocumentoPdf(doc)) && <AnaliseBadge doc={doc} compacto validado={ehDocumentoPdf(doc)} />}
+                {compacto && (doc.status === "pendente" || ehDocumentoPdf(doc)) && <AnaliseBadge doc={doc} compacto validado />}
                 {compacto && !expandido && doc.analise_obs && (
                   <span className="basis-full whitespace-pre-line rounded-lg bg-[#FFF8E1] px-2.5 py-1 text-xs text-[#6E4B00]">
                     <strong>Observação do analista{doc.analise_por_nome ? ` (${doc.analise_por_nome})` : ""}:</strong> {doc.analise_obs}
@@ -656,7 +656,7 @@ function CartaoDocumento(p: CartaoProps) {
             )}
           </div>
 
-          {(doc.status === "pendente" || ehDocumentoPdf(doc)) && (!compacto || expandido) && <AnaliseBadge doc={doc} validado={ehDocumentoPdf(doc)} />}
+          {(doc.status === "pendente" || ehDocumentoPdf(doc)) && (!compacto || expandido) && <AnaliseBadge doc={doc} validado />}
 
           {descricao && !ehDocumentoPdf(doc) && (
             <p className={`${compacto ? "mt-1 text-[13px]" : "mt-2 text-sm"} text-brand-dark/85 whitespace-pre-line ${!expandido && longa ? (compacto ? "line-clamp-1" : "line-clamp-2") : ""}`}>
