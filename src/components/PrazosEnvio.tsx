@@ -38,8 +38,11 @@ function CartaoDoc({ l, municipioId }: { l: Linha; municipioId: string }) {
           {l.situacao === "enviado" && <CheckIcon className="h-3 w-3" />}{e.texto}
         </span>
       </div>
-      <p className="mt-2 text-2xl font-extrabold leading-none text-brand-dark">{l.prazo && l.situacao !== "fechado" ? br(l.prazo) : l.situacao === "fechado" ? br(l.abre) : "—"}</p>
-      <p className="mt-1 text-xs font-medium text-brand-dark/70">{l.situacao === "fechado" ? "Data em que abre para envio" : "Prazo de envio"} · {contagem}</p>
+      <div className="mt-3 grid grid-cols-2 gap-3 rounded-xl bg-[#F6F9F7] px-3 py-2">
+        <div><p className="text-[11px] font-bold uppercase tracking-wide text-brand-dark/55">Início</p><p className="text-lg font-extrabold leading-tight text-brand-dark">{br(l.abre)}</p></div>
+        <div><p className="text-[11px] font-bold uppercase tracking-wide text-brand-dark/55">Fim (prazo)</p><p className="text-lg font-extrabold leading-tight text-brand-dark">{l.prazo ? br(l.prazo) : "Sem data final"}</p></div>
+      </div>
+      <p className="mt-1.5 text-xs font-medium text-brand-dark/70">{contagem}</p>
       {l.total_escolas > 0 && l.situacao !== "fechado" && (
         <div className="mt-3">
           <div className="h-2 overflow-hidden rounded-full bg-black/[0.07]"><div className={`h-full rounded-full ${e.barra}`} style={{ width: `${pct}%` }} /></div>
@@ -76,12 +79,14 @@ export function PrazosEnvio({ municipioId }: { municipioId: string }) {
     if (!g) { g = { nome: f, docs: [] }; grupos.push(g); }
     g.docs.push(l);
   }
-  const atualIdx = grupos.findIndex((g) => g.docs.some((d) => d.situacao !== "enviado"));
-  const atual = atualIdx >= 0 ? grupos[atualIdx] : null;
-  const concluidas = atualIdx >= 0 ? atualIdx : grupos.length;
-  const proxima = atualIdx >= 0 ? grupos[atualIdx + 1] : null;
+  // só o que já está aberto para envio e ainda não foi todo enviado
+  const abertas = grupos.filter((g) => g.docs.some((d) => d.situacao !== "fechado") && g.docs.some((d) => d.situacao !== "enviado"));
+  const concluidas = grupos.filter((g) => g.docs.every((d) => d.situacao === "enviado")).length;
+  const proxima = grupos.find((g) => g.docs.every((d) => d.situacao === "fechado"));
   const port = portfolio[0];
-  const tudoFeito = !atual && (!port || port.situacao === "enviado");
+  const portAberto = port && port.situacao !== "fechado" && port.situacao !== "enviado";
+  const nadaAberto = abertas.length === 0 && !portAberto;
+  if (nadaAberto && concluidas === 0 && !proxima) return null;
 
   return (
     <section className="mt-5 overflow-hidden rounded-2xl border border-[#CFE6D8] bg-gradient-to-br from-[#F1F9F4] to-white p-4 shadow-sm sm:p-5" aria-label="Prazos de envio">
@@ -89,7 +94,6 @@ export function PrazosEnvio({ municipioId }: { municipioId: string }) {
         <h2 className="flex items-center gap-2 text-base font-bold text-brand-dark">
           <span className="flex h-8 w-8 items-center justify-center rounded-xl bg-[#CDEBDA] text-[#1E6B45]"><CalendarIcon className="h-5 w-5" /></span>
           Prazos de envio
-          {atual && <span className="rounded-full bg-[#1E6B45] px-2.5 py-0.5 text-xs font-bold text-white">{atual.nome}</span>}
         </h2>
         {concluidas > 0 && (
           <span className="inline-flex items-center gap-1 rounded-full bg-[#DDF3E4] px-2.5 py-0.5 text-xs font-bold text-[#17613B]">
@@ -98,23 +102,26 @@ export function PrazosEnvio({ municipioId }: { municipioId: string }) {
         )}
       </div>
 
-      {atual && (
-        <div className="mt-3 flex flex-col gap-3 sm:flex-row">
-          {atual.docs.map((d) => <CartaoDoc key={d.nome} l={d} municipioId={municipioId} />)}
+      {abertas.map((g) => (
+        <div key={g.nome} className="mt-3">
+          <p className="mb-2"><span className="rounded-full bg-[#1E6B45] px-2.5 py-0.5 text-xs font-bold text-white">{g.nome}</span></p>
+          <div className="flex flex-col gap-3 sm:flex-row">
+            {g.docs.map((d) => <CartaoDoc key={d.nome} l={d} municipioId={municipioId} />)}
+          </div>
         </div>
+      ))}
+
+      {portAberto && <div className="mt-3 flex"><CartaoDoc l={port} municipioId={municipioId} /></div>}
+
+      {nadaAberto && (
+        <p className="mt-3 rounded-xl bg-white/70 px-4 py-3 text-sm font-medium text-brand-dark/80">
+          Nenhum envio aberto agora.{proxima ? <> A <strong>{proxima.nome}</strong> abre em <strong>{br(proxima.docs[0].abre)}</strong>.</> : " 🎉 Tudo enviado."}
+        </p>
       )}
 
-      {!atual && port && port.situacao !== "enviado" && (
-        <div className="mt-3 flex"><CartaoDoc l={port} municipioId={municipioId} /></div>
-      )}
-
-      {tudoFeito && (
-        <p className="mt-3 rounded-xl bg-[#DDF3E4] px-4 py-3 text-sm font-semibold text-[#17613B]">🎉 Tudo enviado. Não há prazos pendentes.</p>
-      )}
-
-      {proxima && (
+      {!nadaAberto && proxima && (
         <p className="mt-3 text-xs text-brand-dark/65">
-          Depois vem a <strong>{proxima.nome}</strong>{proxima.docs[0] ? ` (abre em ${br(proxima.docs[0].abre)})` : ""}.
+          Depois vem a <strong>{proxima.nome}</strong> (abre em {br(proxima.docs[0].abre)}).
         </p>
       )}
     </section>
