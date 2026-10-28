@@ -215,7 +215,7 @@ export default function MunicipioDetalhePage() {
                 href={`/municipios/${id}/novo-documento`}
                 className="bg-brand-light text-white text-sm font-semibold px-4 py-2.5 rounded-lg shadow-sm hover:bg-brand-accent transition-colors"
               >
-                + Adicionar documento
+                + Enviar relatório/ação
               </Link>
               <Indicador valor={pendentesTotal} rotulo={pendentesTotal === 1 ? "pendente" : "pendentes"} alerta={pendentesTotal > 0} />
             </div>

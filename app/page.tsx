@@ -154,7 +154,7 @@ export default function HomePage() {
             <UploadCloudIcon className="w-5 h-5" />
           </div>
           <div>
-            <h2 className="font-medium text-brand-dark">Enviar documentos</h2>
+            <h2 className="font-medium text-brand-dark">Enviar Relatórios/Ações pedagógicas</h2>
             <p className="text-xs text-brand-dark/80">Escolha o município e siga para o envio.</p>
           </div>
         </div>
@@ -187,7 +187,7 @@ export default function HomePage() {
             disabled={!municipioId}
             className="flex-1 px-5 py-2.5 rounded-lg bg-brand text-white text-sm font-medium hover:bg-brand-dark transition-colors disabled:opacity-50"
           >
-            Adicionar documentos
+            Enviar Relatórios/Ações
           </button>
           <Link
             href={municipioId ? `/municipios/${municipioId}` : "#"}
@@ -196,7 +196,7 @@ export default function HomePage() {
               !municipioId ? "pointer-events-none opacity-50" : ""
             }`}
           >
-            Ver documentos enviados
+            Ver o que foi enviado
           </Link>
         </div>
       </form>
