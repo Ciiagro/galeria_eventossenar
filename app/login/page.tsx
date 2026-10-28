@@ -57,6 +57,7 @@ export default function LoginPage() {
       if (perfil?.role === "municipio" && !perfil.municipio_id) destino = "/adesao/ficha";
       else if (perfil?.role === "municipio" && perfil.municipio_id) destino = `/municipios/${perfil.municipio_id}`;
       else if (perfil?.role === "apoiador_relatorios") destino = "/analise";
+      else if (perfil?.role === "apoiador_visitas" && perfil.municipio_ids?.length) destino = `/municipios/${perfil.municipio_ids[0]}`;
     } catch {
       // sem perfil agora: o Início resolve
     }

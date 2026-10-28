@@ -92,12 +92,18 @@ export default function HomePage() {
     if (ehApoioRelatorios) router.replace("/analise");
   }, [ehApoioRelatorios, router]);
 
+  // Apoiador de Visitas: a página dele é Relatórios/Ações do município que atende (sem passar pelo Início)
+  const municipioApoioVisitas = !carregandoPerfil && perfil?.role === "apoiador_visitas" ? perfil.municipio_ids?.[0] : undefined;
+  useEffect(() => {
+    if (municipioApoioVisitas) router.replace(`/municipios/${municipioApoioVisitas}`);
+  }, [municipioApoioVisitas, router]);
+
   function irParaEnvio(e: React.FormEvent) {
     e.preventDefault();
     if (municipioId) router.push(`/municipios/${municipioId}/novo-documento`);
   }
 
-  if (carregandoPerfil || aguardandoAdesao || ehApoioRelatorios || ehCoordLiberado) return null;
+  if (carregandoPerfil || aguardandoAdesao || ehApoioRelatorios || ehCoordLiberado || municipioApoioVisitas) return null;
 
   if (perfil?.role === "admin") {
     if (erroResumo) {
