@@ -59,7 +59,7 @@ DEV_SKIP_AUTH = os.environ.get("DEV_SKIP_AUTH", "false").lower() == "true"
 # sozinho depois de MUNICIPIOS_CACHE_TTL segundos, ou some se você
 # reiniciar o servidor (python app.py de novo).
 _municipios_cache: dict[str, tuple[float, list]] = {}
-MUNICIPIOS_CACHE_TTL = 300  # 5 minutos
+MUNICIPIOS_CACHE_TTL = 30  # segundos (na Vercel há várias instâncias, cache longo mostrava lista velha)
 
 # Cache do resumo do painel (admin): a função SQL agrega tudo, mas rodar a cada abertura pesa.
 # Some sozinho em RESUMO_CACHE_TTL segundos e é limpo sempre que algo é gravado (veja os
@@ -407,7 +407,7 @@ def listar_municipios():
 
     cache_key = jwt or "dev"
     cached = _municipios_cache.get(cache_key)
-    if cached and (time.time() - cached[0]) < MUNICIPIOS_CACHE_TTL:
+    if cached and (time.time() - cached[0]) < MUNICIPIOS_CACHE_TTL and not request.args.get("fresh"):
         return jsonify(cached[1])
 
     try:
@@ -930,17 +930,9 @@ def salvar_responsavel():
         _municipios_cache.clear()
 
         _CACHE_RESUMO.clear()
-        # coordenador novo (inclusive a troca): manda o convite para assinar o Termo de Compromisso
+        # O e-mail do Termo de Compromisso NÃO sai sozinho: o administrador envia quando quiser
+        # (menu "⋮" do coordenador > "Enviar termo de compromisso por e-mail").
         aviso_email = None
-        if novo_usuario:
-            try:
-                nome_mun = (db.table("municipios").select("nome").eq("id", municipio_id).limit(1).execute().data or [{}])[0].get("nome") or ""
-                assunto, texto, html = montar_convite_compromisso(
-                    nome, nome_mun, email, f"{_link_base()}/compromisso", getattr(user, "email", None) or "A administração do projeto")
-                enviar_email(email, assunto, texto, html)
-                aviso_email = "enviado"
-            except Exception as e_mail:  # noqa: BLE001
-                aviso_email = "Salvo, mas o e-mail com o convite não saiu: " + _motivo_falha_email(e_mail)
         return jsonify({"dados": saved, "novo_usuario": novo_usuario, "convite_compromisso": aviso_email, "adesao_nao_passou": adesao_nao_passou})
     except Exception as e:
         return jsonify({"error": str(e)}), 500

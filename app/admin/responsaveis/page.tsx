@@ -304,14 +304,12 @@ function ResponsaveisPage() {
       });
       setMensagem(
         r?.novo_usuario
-          ? r.convite_compromisso === "enviado"
-            ? `Coordenador cadastrado${substituindo ? " (o anterior foi desativado e a ficha de adesão passou para o novo)" : ""}. Enviei para ${email} o convite para assinar o termo de compromisso.`
-            : `Coordenador cadastrado. ${r.convite_compromisso ?? ""} Avise-o para entrar e assinar o termo de compromisso.`
+          ? `Coordenador cadastrado${substituindo ? " (o anterior foi desativado e a ficha de adesão passou para o novo)" : ""}. O e-mail do termo de compromisso NÃO foi enviado: quando quiser, clique nos três pontinhos (⋮) dele em Liberados e escolha "Enviar termo de compromisso por e-mail".`
           : "Responsável salvo."
       );
       apiGet("/api/admin/coordenadores-situacao").then(setSituacao).catch(() => {});
       setSenha("");
-      const listaAtualizada = await apiGet("/api/municipios") as Municipio[];
+      const listaAtualizada = await apiGet("/api/municipios?fresh=1") as Municipio[];
       setMunicipios(listaAtualizada);
       setMostrarFormulario(false);
       setSubstituindo(false);
