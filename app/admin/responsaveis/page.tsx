@@ -882,10 +882,10 @@ ${tabelaEscolas}
         if (historico === null) return null; // espera o histórico chegar: a janela abre uma vez só, já completa
         const x = sit(m.responsavel_id);
         const ativo = x?.ativo !== false;
-        const Campo = ({ rotulo, valor, Icone }: { rotulo: string; valor?: string | null; Icone?: (p: { className?: string }) => JSX.Element }) => (
-          <div className="flex items-start gap-3">
-            {Icone && <span className="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-white/70 text-[#1E6B45]"><Icone className="h-4 w-4" /></span>}
-            <div className="min-w-0"><p className="text-[11px] font-bold uppercase tracking-wide text-brand-dark/55">{rotulo}</p><p className="mt-0.5 break-all text-[15px] text-brand-dark">{valor || "—"}</p></div>
+        const Campo = ({ rotulo, valor, Icone, className = "" }: { rotulo: string; valor?: string | null; Icone?: (p: { className?: string }) => JSX.Element; className?: string }) => (
+          <div className={`flex items-center gap-2.5 ${className}`}>
+            {Icone && <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-lg bg-white/70 text-[#1E6B45]"><Icone className="h-4 w-4" /></span>}
+            <div className="min-w-0"><p className="text-[10px] font-bold uppercase leading-tight tracking-wide text-brand-dark/55">{rotulo}</p><p className="text-sm leading-snug text-brand-dark [overflow-wrap:anywhere]">{valor || "—"}</p></div>
           </div>
         );
         const TelefoneIcon = ({ className = "w-4 h-4" }: { className?: string }) => (
@@ -894,9 +894,9 @@ ${tabelaEscolas}
         const DocIcon = ({ className = "w-4 h-4" }: { className?: string }) => <FileTextIcon className={className} />;
         return (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={() => setDetalheId(null)} role="dialog" aria-modal="true">
-            <div className="max-h-[92vh] w-full max-w-2xl overflow-y-auto rounded-3xl bg-white p-6 shadow-2xl sm:p-8" onClick={(e) => e.stopPropagation()}>
+            <div className="max-h-[92vh] w-full max-w-3xl overflow-y-auto rounded-3xl bg-white p-5 shadow-2xl sm:p-6" onClick={(e) => e.stopPropagation()}>
               <div className="flex items-start gap-4">
-                <span className="rounded-full bg-[#DDF3E4] p-1"><FotoCoordenador userId={m.responsavel_id ?? ""} nome={m.responsavel_nome} tamanho={88} /></span>
+                <span className="rounded-full bg-[#DDF3E4] p-1"><FotoCoordenador userId={m.responsavel_id ?? ""} nome={m.responsavel_nome} tamanho={76} /></span>
                 <div className="min-w-0 flex-1">
                   <h2 className="text-xl font-extrabold text-brand-dark">{m.responsavel_nome}</h2>
                   <p className="text-sm text-brand-dark/70">Coordenador(a) municipal · {m.nome}</p>
@@ -907,13 +907,13 @@ ${tabelaEscolas}
                 </div>
                 <button type="button" onClick={() => setDetalheId(null)} className="rounded-lg px-2 py-1 text-2xl leading-none text-brand-dark/60 hover:bg-black/5" aria-label="Fechar">×</button>
               </div>
-              <div className="mt-5 grid gap-x-6 gap-y-4 rounded-2xl bg-[#EAF5EE] p-5 sm:grid-cols-2">
-                <Campo rotulo="E-mail (login)" valor={m.responsavel_email} Icone={MailIcon} />
+              <div className="mt-4 grid gap-x-4 gap-y-2.5 rounded-2xl bg-[#EAF5EE] px-4 py-3 sm:grid-cols-3">
+                <Campo rotulo="E-mail (login)" valor={m.responsavel_email} Icone={MailIcon} className="sm:col-span-2" />
                 <Campo rotulo="CPF" valor={x?.cpf ? mascaraCpf(x.cpf) : null} Icone={DocIcon} />
                 <Campo rotulo="RG" valor={x?.rg} Icone={DocIcon} />
                 <Campo rotulo="Município" valor={m.nome} Icone={MapPinIcon} />
                 <Campo rotulo="Telefone 1" valor={x?.telefone1} Icone={TelefoneIcon} />
-                <Campo rotulo="Telefone 2" valor={x?.telefone2} Icone={TelefoneIcon} />
+                {x?.telefone2 ? <Campo rotulo="Telefone 2" valor={x.telefone2} Icone={TelefoneIcon} /> : null}
               </div>
               {historico && historico.length > 1 && (
                 <div className="mt-5">
