@@ -431,7 +431,7 @@ function PainelAprovacao() {
         {/* Atalhos */}
         {lista.length > 0 && (
           <div className="mt-5 rounded-lg bg-sky-50 border border-sky-100 px-4 py-2.5 text-center text-sm text-sky-900">
-            ⌨️ <strong>A</strong> = Aprovar · <strong>← →</strong> navegar
+            ⌨️ <strong>A</strong> = Validar · <strong>← →</strong> navegar
           </div>
         )}
       </div>
@@ -469,7 +469,7 @@ function PainelAprovacao() {
             className="w-full max-w-2xl max-h-[92vh] overflow-y-auto bg-white rounded-xl shadow-xl p-6"
           >
             <h2 className="text-lg font-semibold text-brand-dark">
-              {documentoParaAprovar.status === "aprovado" ? "Publicação na galeria" : "Aprovar documento"}
+              {documentoParaAprovar.status === "aprovado" ? "Publicação na galeria" : "Validar documento"}
             </h2>
             <p className="text-sm text-brand-dark/80 mt-1">
               {documentoParaAprovar.tipos_documento?.nome} — {documentoParaAprovar.acao_evento ?? "Sem ação/evento"} ·{" "}
@@ -552,10 +552,10 @@ function PainelAprovacao() {
                 {publicarNaGaleria === null
                   ? "Escolha uma opção"
                   : publicarNaGaleria
-                    ? documentoParaAprovar.status === "aprovado" ? "Salvar e publicar" : "Aprovar e publicar na galeria"
+                    ? documentoParaAprovar.status === "aprovado" ? "Salvar e publicar" : "Validar e publicar na galeria"
                     : documentoParaAprovar.status === "aprovado"
                       ? documentoParaAprovar.na_galeria ? "Tirar da galeria" : "Manter fora da galeria"
-                      : "Aprovar sem publicar"}
+                      : "Validar sem publicar"}
               </button>
             </div>
           </form>
@@ -633,7 +633,7 @@ function CartaoDocumento(p: CartaoProps) {
                   disabled={p.processando}
                   className={`inline-flex items-center gap-1.5 rounded-lg bg-status-completo font-semibold text-white shadow-sm hover:brightness-110 disabled:opacity-50 ${compacto ? "px-3 py-1.5 text-sm" : "px-4 py-2 text-sm"}`}
                 >
-                  <CheckIcon className="w-4 h-4" /> Aprovar
+                  <CheckIcon className="w-4 h-4" /> Validar
                 </button>
               </div>
             )}
