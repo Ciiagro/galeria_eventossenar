@@ -400,21 +400,27 @@ function EquipePage() {
 }
 
 
-// Municípios do apoiador em poucas linhas: mostra 2 e um "+N" que abre o resto (são muitos por pessoa).
+// Municípios do apoiador em poucas linhas: mostra 2 e um "+N" que abre uma janelinha com todos (com busca).
 function MunicipiosDoApoiador({ ids, nomes }: { ids: number[]; nomes: Map<number, string> }) {
   const [aberto, setAberto] = useState(false);
+  const [busca, setBusca] = useState("");
   const VISIVEIS = 2;
   if (ids.length === 0) {
     return <span className="min-w-0 flex-1 text-xs font-semibold text-amber-800">Nenhum município definido — clique em editar para escolher</span>;
   }
-  const lista = aberto ? ids : ids.slice(0, VISIVEIS);
   const resto = ids.length - VISIVEIS;
+  const todos = ids
+    .map((id) => ({ id, nome: String(nomes.get(id) ?? id) }))
+    .sort((x, y) => x.nome.localeCompare(y.nome, "pt-BR"));
+  const termo = busca.trim().toLowerCase();
+  const filtrados = termo ? todos.filter((m) => m.nome.toLowerCase().includes(termo)) : todos;
+  const fechar = () => { setAberto(false); setBusca(""); };
   return (
     <div className="flex min-w-0 flex-1 flex-wrap items-center gap-1.5">
       <span className="inline-flex items-center gap-1 text-xs font-semibold text-brand-dark/70" title={`${ids.length} municípios`}>
         <MapPinIcon className="h-3.5 w-3.5" /> {ids.length}
       </span>
-      {lista.map((id) => (
+      {ids.slice(0, VISIVEIS).map((id) => (
         <span key={id} className="rounded-full bg-[#E2EFFB] px-2.5 py-0.5 text-xs font-semibold text-[#0F4C85]">
           {nomes.get(id) ?? id}
         </span>
@@ -422,12 +428,37 @@ function MunicipiosDoApoiador({ ids, nomes }: { ids: number[]; nomes: Map<number
       {resto > 0 && (
         <button
           type="button"
-          onClick={() => setAberto((v) => !v)}
-          title={aberto ? "Mostrar menos" : ids.slice(VISIVEIS).map((id) => nomes.get(id) ?? id).join(", ")}
+          onClick={() => setAberto(true)}
+          title="Ver todos os municípios"
           className="rounded-full border border-black/10 px-2.5 py-0.5 text-xs font-semibold text-brand-dark/80 hover:bg-black/[0.04]"
         >
-          {aberto ? "menos" : `+${resto}`}
+          {`+${resto}`}
         </button>
+      )}
+      {aberto && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" onClick={fechar}>
+          <div className="flex max-h-[80vh] w-full max-w-md flex-col rounded-2xl bg-white p-5 shadow-xl" onClick={(e) => e.stopPropagation()}>
+            <div className="mb-3 flex items-center justify-between">
+              <h3 className="text-base font-bold text-brand-dark">Municípios ({ids.length})</h3>
+              <button type="button" onClick={fechar} className="rounded-lg px-2 py-1 text-lg leading-none text-brand-dark/60 hover:bg-black/5" aria-label="Fechar">×</button>
+            </div>
+            {ids.length > 8 && (
+              <input
+                autoFocus
+                value={busca}
+                onChange={(e) => setBusca(e.target.value)}
+                placeholder="Buscar município..."
+                className="mb-3 w-full rounded-xl border border-black/10 px-3 py-2 text-sm outline-none focus:border-brand-dark/40"
+              />
+            )}
+            <div className="flex flex-wrap gap-1.5 overflow-y-auto pr-1">
+              {filtrados.length === 0 && <span className="text-sm text-brand-dark/60">Nenhum município encontrado.</span>}
+              {filtrados.map((m) => (
+                <span key={m.id} className="rounded-full bg-[#E2EFFB] px-3 py-1 text-xs font-semibold text-[#0F4C85]">{m.nome}</span>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
