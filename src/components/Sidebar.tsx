@@ -14,6 +14,15 @@ import { useCiclos } from "@/lib/ciclos";
 
 // uma cor para cada item do menu (a mesma do ícone; no item selecionado ela vira o destaque)
 
+// "Maria de Jesus" -> "MJ" · "maria@gmail.com" -> "M"
+function iniciais(texto?: string | null) {
+  const base = (texto ?? "").split("@")[0].trim();
+  const partes = base.split(/[\s._-]+/).filter(Boolean);
+  if (partes.length === 0) return "?";
+  const letras = partes.length === 1 ? partes[0].slice(0, 1) : partes[0][0] + partes[partes.length - 1][0];
+  return letras.toLocaleUpperCase("pt-BR");
+}
+
 export function Sidebar() {
   const pathname = usePathname();
   const router = useRouter();
@@ -105,6 +114,12 @@ export function Sidebar() {
 
         {perfil && (
           <div className="mt-3 px-2 text-center" title={perfil.email || undefined}>
+            <div
+              className="mx-auto mb-2 flex h-11 w-11 items-center justify-center rounded-full bg-[#8E5BB5] text-sm font-bold tracking-wide text-white shadow-sm ring-2 ring-white"
+              aria-hidden
+            >
+              {iniciais(perfil.nome || perfil.email)}
+            </div>
             <p className="break-words text-sm font-bold leading-tight text-brand-dark">{perfil.nome || perfil.email}</p>
             <p className="mt-0.5 text-[11px] leading-snug text-slate-500">{papel}</p>
             {perfil.municipio_nome && (
