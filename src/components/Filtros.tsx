@@ -34,13 +34,13 @@ export function Abas<T extends string>({
 }) {
   return (
     <div className={`${className} flex flex-col-reverse sm:flex-row sm:items-end sm:justify-between gap-3 border-b border-black/10`}>
-      <nav className="flex gap-1 overflow-x-auto -mb-px">
+      <nav className="-mb-px flex min-w-0 flex-wrap gap-x-1">
         {abas.map((a) => (
           <button
             key={a.rotulo}
             type="button"
             onClick={() => onChange(a.valor)}
-            className={`whitespace-nowrap px-4 py-2.5 text-sm font-semibold border-b-2 transition-colors ${
+            className={`whitespace-nowrap px-3 py-2.5 text-sm font-semibold border-b-2 sm:px-4 transition-colors ${
               valor === a.valor ? "border-brand-light text-brand-light" : "border-transparent text-brand-dark/75 hover:text-brand-dark"
             }`}
           >

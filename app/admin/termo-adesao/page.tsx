@@ -273,12 +273,12 @@ function TermoAdesao() {
                         className={`${SELO} min-w-[7rem] cursor-pointer underline-offset-2 hover:underline`}
                         title={`Abrir o termo de compromisso assinado em ${new Date(a.compromisso_assinado_em).toLocaleDateString("pt-BR")} (PDF)`}
                         style={{ background: "#E3F4EA", color: "#17613B" }}>
-                        ✓ Compromisso · PDF
+                        ✓ Compromisso assinado
                       </button>
                     ) : (
                       <span className={`${SELO} min-w-[7rem]`} title="O coordenador ainda não assinou o termo de compromisso"
                         style={{ background: "#FFF3CC", color: "#6E4B00" }}>
-                        Sem compromisso
+                        Compromisso: falta assinar
                       </span>
                     )
                   )}
@@ -293,9 +293,9 @@ function TermoAdesao() {
                         style={a.termo_assinado_nome ? { background: "#E3F4EA", color: "#17613B" } : { background: "#EFEDE4", color: "#4A453A" }}>
                         {a.termo_assinado_nome
                           ? (a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0
-                              ? `✓ Parcial · ${PAPEIS_DO_TERMO.length - faltamPorEmail(a).length} de ${PAPEIS_DO_TERMO.length}`
-                              : "✓ Assinado")
-                          : "Sem assinatura"}
+                              ? `✓ Adesão assinada (${PAPEIS_DO_TERMO.length - faltamPorEmail(a).length} de ${PAPEIS_DO_TERMO.length})`
+                              : "✓ Adesão assinada")
+                          : "Adesão sem assinatura"}
                       </span>
                       {a.termo_assinado_nome && a.assinatura?.status === "concluido" && faltamPorEmail(a).length > 0 && (
                         <span className="pointer-events-none absolute right-0 top-full z-30 mt-1 hidden w-72 rounded-xl border border-black/10 bg-white p-3 text-left text-xs leading-relaxed text-brand-dark shadow-xl group-hover:block">
