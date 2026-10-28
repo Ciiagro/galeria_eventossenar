@@ -7,7 +7,7 @@ import { supabaseBrowser } from "@/lib/supabaseBrowserClient";
 import { esquecerPerfilSalvo, usePerfil } from "@/lib/usePerfil";
 import { LogoutIcon, ImageIcon, MapPinIcon } from "@/components/icons";
 import { montarLinks, linkAtivo, CORES_ICONES } from "@/lib/menu";
-import { apiGet, ROTULO_PAPEL } from "@/lib/api";
+import { apiGet, apiGetCache, ROTULO_PAPEL } from "@/lib/api";
 import { FaixaValores, LogoValores } from "@/components/Sol";
 import { Estrela } from "@/components/Desenhos";
 import { useCiclos } from "@/lib/ciclos";
@@ -78,7 +78,7 @@ export function Sidebar() {
     let jaAssinou = false;
     try { jaAssinou = window.sessionStorage.getItem(`compromisso_ok:${perfil.email}`) === "1"; } catch { /* ignora */ }
     if (jaAssinou) { setSemCompromisso(false); return; }
-    apiGet("/api/compromisso")
+    apiGetCache("/api/compromisso", 20_000)
       .then((c) => { if (c?.assinado) { try { window.sessionStorage.setItem(`compromisso_ok:${perfil.email}`, "1"); } catch { /* ignora */ } } if (vivo) setSemCompromisso(Boolean(c) && c.sem_edicao === false && c.assinado === false); })
       .catch(() => { if (vivo) setSemCompromisso(false); });
     return () => { vivo = false; };

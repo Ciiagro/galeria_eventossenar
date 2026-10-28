@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { apiAbrirArquivo, apiGet, apiPost } from "@/lib/api";
+import { apiAbrirArquivo, apiGetCache, apiPost, esquecerCacheApiPor } from "@/lib/api";
 import { mascaraCpf } from "@/lib/mascaras";
 import { FileTextIcon } from "@/components/icons";
 
@@ -23,11 +23,12 @@ export function TermoCompromisso({ onMudou }: { onMudou?: (assinado: boolean) =>
   const [aceito, setAceito] = useState(false);
   const [ocupado, setOcupado] = useState(false);
 
-  async function carregar() {
+  async function carregar(novo = false) {
     setErro(null);
+    if (novo) esquecerCacheApiPor("/api/compromisso");
     try {
       const r: Estado = await Promise.race([
-        apiGet("/api/compromisso"),
+        apiGetCache("/api/compromisso", 20_000),
         new Promise<never>((_, rej) => setTimeout(() => rej(new Error("O termo está demorando para carregar.")), 20000)),
       ]);
       setEstado(r);
@@ -60,7 +61,7 @@ export function TermoCompromisso({ onMudou }: { onMudou?: (assinado: boolean) =>
     try {
       const r = await apiPost("/api/compromisso/assinar", { codigo, aceito: true, ...(estado?.precisa_cpf ? { cpf } : {}) });
       setMsg(r.aviso ?? "Termo assinado. Obrigado!");
-      await carregar();
+      await carregar(true);
     } catch (e: any) {
       setErro(e.message);
     } finally {
@@ -77,7 +78,7 @@ export function TermoCompromisso({ onMudou }: { onMudou?: (assinado: boolean) =>
     return erro ? (
       <div className="space-y-3 text-sm text-brand-dark/80">
         <p>{erro}</p>
-        <button type="button" onClick={carregar} className="rounded-lg bg-brand-light px-4 py-2 font-semibold text-white hover:bg-brand-accent">Tentar de novo</button>
+        <button type="button" onClick={() => carregar(true)} className="rounded-lg bg-brand-light px-4 py-2 font-semibold text-white hover:bg-brand-accent">Tentar de novo</button>
       </div>
     ) : <p className="text-sm text-brand-dark/75">Carregando...</p>;
   }

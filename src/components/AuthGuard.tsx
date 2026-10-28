@@ -54,7 +54,7 @@ export function AuthGuard({ children }: { children: React.ReactNode }) {
         if (jaAssinou) { if (vivo) setVerificado(usuarioId); return; } // assinou antes: não precisa conferir de novo
         const perfil = await apiGetCache("/api/perfil");
         if (perfil?.role === "municipio" && perfil.municipio_id) {
-          const c = await apiGet("/api/compromisso");
+          const c = await apiGetCache("/api/compromisso", 20_000); // mesma chamada da barra lateral e da página: só uma vai ao servidor
           if (c?.assinado) { try { window.sessionStorage.setItem(chave, "1"); } catch { /* ignora */ } }
           if (c && c.sem_edicao === false && c.assinado === false) {
             if (vivo && pathname !== "/compromisso") router.replace("/compromisso");

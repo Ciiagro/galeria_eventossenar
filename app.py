@@ -4556,12 +4556,16 @@ def _contexto_compromisso(db, user):
     if not ciclo_id:
         return None
     perfil = carregar_perfil(user)
-    cad = (db.table("coordenadores_cadastro").select("nome, cpf, email, municipio_id").eq("user_id", user.id).limit(1).execute().data or [{}])[0]
+    cad_r, ciclo_r = _em_paralelo(
+        lambda: db.table("coordenadores_cadastro").select("nome, cpf, email, municipio_id").eq("user_id", user.id).limit(1).execute().data or [{}],
+        lambda: db.table("ciclos").select("nome").eq("id", ciclo_id).limit(1).execute().data or [{}],
+    )
+    cad = cad_r[0]
     municipio_id = perfil.get("municipio_id") or cad.get("municipio_id")
     municipio_nome = None
     if municipio_id:
         municipio_nome = (db.table("municipios").select("nome").eq("id", municipio_id).limit(1).execute().data or [{}])[0].get("nome")
-    ciclo_nome = (db.table("ciclos").select("nome").eq("id", ciclo_id).limit(1).execute().data or [{}])[0].get("nome")
+    ciclo_nome = ciclo_r[0].get("nome")
     # escolas que ele coordena: as marcadas na ficha de adesão dele (edição ativa)
     escolas = []
     try:
