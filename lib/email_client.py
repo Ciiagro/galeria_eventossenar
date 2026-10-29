@@ -83,7 +83,7 @@ def _caixa(titulo: str, corpo_html: str, botao_texto: str | None = None, botao_l
     )
 
 
-def montar_convite(nome: str, papel_rotulo: str, municipio: str, ciclo: str, link: str, quem_enviou: str):
+def montar_convite(nome: str, papel_rotulo: str, municipio: str, ciclo: str, link: str, quem_enviou: str, opcional: bool = False):
     """Retorna (assunto, texto, html) do convite para assinar."""
     ciclo = rotulo_edicao(ciclo)  # "Edição 2026"
     assunto = f"Assinatura do Termo de Adesão — Projeto Valores — {municipio} ({papel_rotulo})"
@@ -96,13 +96,19 @@ def montar_convite(nome: str, papel_rotulo: str, municipio: str, ciclo: str, lin
         f"Para ler o termo e assinar, abra o link abaixo (ele é pessoal, não encaminhe):\n{link}\n\n"
         "Ao abrir, você receberá um código de 6 dígitos neste mesmo e-mail para confirmar a assinatura.\n"
     )
+    aviso_opc = ""
+    if opcional:
+        texto += ("\nSua assinatura é opcional: o seu nome e o seu CPF já constam no termo, e o documento será concluído "
+                  "mesmo que você não assine. Se preferir assinar, use o link acima.\n")
+        aviso_opc = ("<p><strong>Sua assinatura é opcional.</strong> O seu nome e o seu CPF já constam no termo, e o documento "
+                     "será concluído mesmo que você não assine. Se preferir assinar, use o botão abaixo.</p>")
     html = _caixa(
         "Termo de Adesão — Projeto Valores",
         f"<p>Olá, <strong>{nome_h}</strong>.</p>"
         f"<p>{quem_h} enviou o Termo de Adesão ao Projeto Valores{(' (' + ciclo_h + ')') if ciclo else ''} "
         f"do município de <strong>{mun_h}</strong> para a sua assinatura, como <strong>{papel_h}</strong>.</p>"
         "<p>O link é pessoal — não o encaminhe. Ao abrir, você receberá um código de 6 dígitos "
-        "neste mesmo e-mail para confirmar a assinatura.</p>",
+        "neste mesmo e-mail para confirmar a assinatura.</p>" + aviso_opc,
         "Ler e assinar o termo",
         _html.escape(link, quote=True),
     )

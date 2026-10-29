@@ -4,13 +4,13 @@ import { useCallback, useEffect, useState } from "react";
 import { apiGet, apiPost } from "@/lib/api";
 import { mascaraCpf } from "@/lib/mascaras";
 
-type Signatario = { papel: string; nome: string; email: string; assinado_em?: string | null; convite_enviado_em?: string | null };
+type Signatario = { papel: string; nome: string; email: string; assinado_em?: string | null; convite_enviado_em?: string | null; opcional?: boolean };
 type Pedido = {
   id: string; status: "pendente" | "concluido" | "cancelado"; criado_em: string; concluido_em?: string | null;
   atualizado: boolean; todos_assinaram: boolean; signatarios: Signatario[];
 };
 type Estado = {
-  configurado: boolean; papeis_ativos?: string[]; pedido: Pedido | null;
+  configurado: boolean; papeis_ativos?: string[]; papeis_opcionais?: string[]; pedido: Pedido | null;
   sugestoes: Record<string, { nome?: string; email?: string; cpf?: string | null; sindicato_nome?: string | null; fixo?: boolean; cpf_fixo?: boolean }>;
 };
 
@@ -185,10 +185,11 @@ export function AssinaturaEmail({
   const pedePrefeito = ativos.includes("prefeito");
   const pedeSecretario = ativos.includes("secretario");
   const pedeSindicato = ativos.includes("sindicato");
-  const sosCoordenador = !pedePrefeito && !pedeSecretario && !pedeSindicato;
-  const camposOk = (!pedePrefeito || Boolean(emailPrefeito)) && (!pedeSecretario || Boolean(emailSecretario))
+  const prefeitoOpcional = (estado.papeis_opcionais ?? ["prefeito"]).includes("prefeito");
+  const sosCoordenador = !pedeSecretario && !pedeSindicato && (!pedePrefeito || prefeitoOpcional);
+  const camposOk = (!pedePrefeito || prefeitoOpcional || Boolean(emailPrefeito)) && (!pedeSecretario || Boolean(emailSecretario))
     && (!pedeSindicato || Boolean(sindNome && sindEmail && sindCpf.replace(/\D/g, "").length === 11));
-  const outrosRotulos = [pedePrefeito && "prefeito(a)", pedeSecretario && "secretário(a) de educação", pedeSindicato && "presidente do sindicato"].filter(Boolean) as string[];
+  const outrosRotulos = [pedePrefeito && !prefeitoOpcional && "prefeito(a)", pedeSecretario && "secretário(a) de educação", pedeSindicato && "presidente do sindicato"].filter(Boolean) as string[];
 
   const mostrarFormulario = !somenteLeitura && (!pedido || pedido.status === "cancelado" || refazendo || (concluido && !pedido.atualizado));
 
@@ -199,7 +200,10 @@ export function AssinaturaEmail({
         {sosCoordenador ? (
           <>
             Você, coordenador(a), recebe um link no seu e-mail, lê o termo e assina. Quando você assinar, o PDF assinado é guardado automaticamente — não precisa anexar nada.
-            As assinaturas do(a) prefeito(a), do(a) secretário(a) de educação e do(a) presidente do sindicato serão liberadas por e-mail em uma próxima etapa.
+            {pedePrefeito && prefeitoOpcional
+              ? "O nome e o CPF do(a) prefeito(a) já constam no fim do termo. A assinatura dele(a) é opcional: se você informar o e-mail, ele(a) também recebe o link, mas o termo é concluído só com a sua assinatura. "
+              : ""}
+            As assinaturas do(a) secretário(a) de educação e do(a) presidente do sindicato serão liberadas por e-mail em uma próxima etapa.
           </>
         ) : (
           <>
@@ -261,7 +265,7 @@ export function AssinaturaEmail({
             {pedido.signatarios.map((s) => (
               <li key={s.papel} className="flex flex-wrap items-center justify-between gap-2 px-3 py-2.5">
                 <div className="min-w-0">
-                  <p className="text-sm font-semibold text-brand-dark">{s.nome} <span className="font-normal text-brand-dark/60">· {ROTULO[s.papel]}</span></p>
+                  <p className="text-sm font-semibold text-brand-dark">{s.nome} <span className="font-normal text-brand-dark/60">· {ROTULO[s.papel]}{s.opcional ? " (opcional)" : ""}</span></p>
                   <p className="truncate text-xs text-brand-dark/70">{s.email}</p>
                 </div>
                 {s.assinado_em ? (
@@ -341,7 +345,7 @@ export function AssinaturaEmail({
               <div className="grid gap-3 sm:grid-cols-2">
                 {pedePrefeito && (
                   <label className="sm:col-span-2">
-                    <span className={ROTULO_CAMPO}>E-mail de {prefeitoNome ? <strong>{prefeitoNome}</strong> : "Prefeito(a)"} <span className="font-normal text-brand-dark/60">(Prefeito(a))</span></span>
+                    <span className={ROTULO_CAMPO}>E-mail de {prefeitoNome ? <strong>{prefeitoNome}</strong> : "Prefeito(a)"} <span className="font-normal text-brand-dark/60">(Prefeito(a){prefeitoOpcional ? " — assinatura opcional; deixe em branco para não enviar" : ""})</span></span>
                     <input type="email" value={emailPrefeito} onChange={(e) => setEmailPrefeito(e.target.value)} className={CAMPO} placeholder="email do(a) prefeito(a)" />
                   </label>
                 )}

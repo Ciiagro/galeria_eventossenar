@@ -4105,9 +4105,23 @@ ORDEM_PAPEIS = ["prefeito", "secretario", "sindicato", "coordenador"]
 def _papeis_ativos():
     """Quem assina por e-mail neste momento. O coordenador sempre assina; prefeito e sindicato são liberados depois,
     sem mexer no código: ASSINATURA_PAPEIS=coordenador,prefeito,secretario,sindicato (no .env e no Vercel)."""
-    pedidos = [x.strip().lower() for x in (os.environ.get("ASSINATURA_PAPEIS") or "coordenador").split(",")]
+    pedidos = [x.strip().lower() for x in (os.environ.get("ASSINATURA_PAPEIS") or "coordenador,prefeito").split(",")]
     ativos = [p for p in ORDEM_PAPEIS if p in pedidos or p == "coordenador"]
     return ativos
+
+
+def _papeis_opcionais():
+    """Papéis cuja assinatura NÃO é obrigatória: o nome e o CPF aparecem no termo, mas o PDF final não espera por eles.
+    Para tornar o prefeito obrigatório, use ASSINATURA_OPCIONAIS= (vazio) no .env e no Vercel."""
+    bruto = os.environ.get("ASSINATURA_OPCIONAIS")
+    if bruto is None:
+        bruto = "prefeito"
+    return {x.strip().lower() for x in bruto.split(",") if x.strip()}
+
+
+def _so_obrigatorios(sigs):
+    opc = _papeis_opcionais()
+    return [s for s in sigs if s.get("papel") not in opc]
 
 
 CODIGO_VALIDADE_MIN = 15
@@ -4218,8 +4232,8 @@ def _resumo_pedido(db, adesao, pedido):
         "criado_em": pedido["created_at"],
         "concluido_em": pedido.get("concluido_em"),
         "atualizado": _hash_conteudo_adesao(adesao, adesao.get("municipio_id"), itens) == pedido["hash_termo"],
-        "todos_assinaram": bool(sigs) and all(s.get("assinado_em") for s in sigs),
-        "signatarios": sigs,
+        "todos_assinaram": bool(_so_obrigatorios(sigs)) and all(s.get("assinado_em") for s in _so_obrigatorios(sigs)),
+        "signatarios": [dict(s, opcional=s.get("papel") in _papeis_opcionais()) for s in sigs],
     }
 
 
@@ -4257,6 +4271,7 @@ def _enviar_convite(sig, token, pedido, quem_enviou):
         return
     assunto, texto, html = montar_convite(
         sig["nome"], PAPEIS_ASSINATURA[sig["papel"]], snap.get("municipio_nome") or "", snap.get("ciclo_nome") or "", link, quem_enviou,
+        opcional=sig["papel"] in _papeis_opcionais(),
     )
     enviar_email(sig["email"], assunto, texto, html)
 
@@ -4273,7 +4288,7 @@ def assinatura_status():
     try:
         db = get_client()
         adesao = _adesao_do_coordenador(db, user)
-        resposta = {"configurado": email_configurado(), "papeis_ativos": _papeis_ativos(), "pedido": None, "sugestoes": {}}
+        resposta = {"configurado": email_configurado(), "papeis_ativos": _papeis_ativos(), "papeis_opcionais": sorted(_papeis_opcionais()), "pedido": None, "sugestoes": {}}
         if not adesao:
             return jsonify(resposta)
         pedido = _pedido_vigente(db, adesao["id"])
@@ -4364,7 +4379,12 @@ def assinatura_enviar():
             "sindicato": "Informe o CPF do(a) presidente do sindicato.",
             "coordenador": "Corrija o CPF no cadastro do coordenador.",
         }
-        previstos = [candidatos[p] for p in ativos]
+        opcionais = _papeis_opcionais()
+        previstos = []
+        for p in ativos:
+            if p in opcionais and not (candidatos[p][2] or "").strip():
+                continue  # assinatura opcional sem e-mail: o nome e o CPF aparecem no termo, sem convite
+            previstos.append(candidatos[p])
         for papel, nome, email, cpf in previstos:
             rotulo = PAPEIS_ASSINATURA[papel]
             if not nome:
@@ -4504,10 +4524,12 @@ def _concluir_pedido(db, pedido_id):
     pedido = reivindicado[0]
     try:
         sigs = db.table("assinatura_signatarios").select("*").eq("pedido_id", pedido_id).execute().data or []
-        if not sigs or not all(s.get("assinado_em") for s in sigs):
+        obrig = _so_obrigatorios(sigs)
+        if not obrig or not all(s.get("assinado_em") for s in obrig):
             raise RuntimeError("Faltam assinaturas.")
         snap = pedido["snapshot"]
-        pdf = gerar_pdf_termo(snap, sigs, pedido["hash_termo"], pedido["id"])
+        # quem não assinou (assinatura opcional) sai da comprovação: no termo fica só o nome e o CPF, com a linha para assinar
+        pdf = gerar_pdf_termo(snap, [x for x in sigs if x.get("assinado_em")], pedido["hash_termo"], pedido["id"])
         adesao = db.table("adesoes").select("*").eq("id", pedido["adesao_id"]).limit(1).execute().data[0]
         nome_mun = snap.get("municipio_nome") or str(adesao["municipio_id"])
         nome_arquivo = f"Termo de Adesão assinado - {nome_mun} - {agora.strftime('%Y-%m-%d %H-%M')}.pdf"
@@ -4579,6 +4601,7 @@ def assinar_info():
             "papel": sig["papel"], "papel_rotulo": PAPEIS_ASSINATURA[sig["papel"]], "nome": sig["nome"],
             "email_mascarado": _mascarar_email(sig["email"]),
             "assinado_em": sig.get("assinado_em"), "pedido_status": pedido["status"],
+            "opcional": sig["papel"] in _papeis_opcionais(),
             "termo": pedido["snapshot"], "assinaturas": todos,
         })
     except Exception as e:  # noqa: BLE001
@@ -4596,6 +4619,8 @@ def assinar_pedir_codigo():
             return jsonify(_ERRO_LINK[0]), _ERRO_LINK[1]
         if pedido["status"] == "cancelado":
             return jsonify(_ERRO_CANCELADO[0]), _ERRO_CANCELADO[1]
+        if pedido["status"] == "concluido" and not sig.get("assinado_em"):
+            return jsonify({"error": "O termo já foi concluído e o PDF final já foi gerado sem a sua assinatura (que era opcional)."}), 409
         if sig.get("assinado_em"):
             return jsonify({"error": "Você já assinou este termo."}), 409
         ultimo = _dt(sig.get("codigo_enviado_em"))
@@ -4636,6 +4661,8 @@ def assinar_confirmar():
             return jsonify(_ERRO_LINK[0]), _ERRO_LINK[1]
         if pedido["status"] == "cancelado":
             return jsonify(_ERRO_CANCELADO[0]), _ERRO_CANCELADO[1]
+        if pedido["status"] == "concluido" and not sig.get("assinado_em"):
+            return jsonify({"error": "O termo já foi concluído e o PDF final já foi gerado sem a sua assinatura (que era opcional)."}), 409
         if sig.get("assinado_em"):
             return jsonify({"error": "Você já assinou este termo."}), 409
         if body.get("aceito") is not True:
@@ -4663,9 +4690,10 @@ def assinar_confirmar():
         if not gravado:
             return jsonify({"error": "Você já assinou este termo."}), 409
 
-        todos = db.table("assinatura_signatarios").select("assinado_em").eq("pedido_id", pedido["id"]).execute().data or []
         concluido = False
-        if todos and all(s.get("assinado_em") for s in todos):
+        todos = db.table("assinatura_signatarios").select("papel, assinado_em").eq("pedido_id", pedido["id"]).execute().data or []
+        obrig = _so_obrigatorios(todos)
+        if obrig and all(s.get("assinado_em") for s in obrig):
             try:
                 concluido = _concluir_pedido(db, pedido["id"])
             except Exception as erro:  # noqa: BLE001 - a assinatura já foi registrada; o coordenador pode concluir depois

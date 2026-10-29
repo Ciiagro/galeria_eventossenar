@@ -9,7 +9,7 @@ import { TermoConteudo, type AssinaturaTermo } from "@/components/TermoDocumento
 
 type Info = {
   papel: string; papel_rotulo: string; nome: string; email_mascarado: string;
-  assinado_em?: string | null; pedido_status: "pendente" | "concluido" | "cancelado";
+  assinado_em?: string | null; opcional?: boolean; pedido_status: "pendente" | "concluido" | "cancelado";
   termo: Record<string, any>; assinaturas: AssinaturaTermo[];
 };
 
@@ -116,6 +116,11 @@ export default function AssinarPage() {
             <p className="mt-1 text-sm text-[#4A453A]">
               Leia o termo abaixo. Para assinar como <strong>{info.papel_rotulo}</strong>, use a área “Assinar” no final desta página.
             </p>
+            {info.opcional && (
+              <p className="mt-2 rounded-lg bg-[#E2EFFB] px-3 py-2 text-sm text-[#0F4C85]">
+                <strong>Sua assinatura é opcional.</strong> Seu nome e CPF já constam no termo e o documento será concluído mesmo que você não assine.
+              </p>
+            )}
             <ul className="mt-3 flex flex-wrap gap-2 text-xs">
               {info.assinaturas.map((s) => (
                 <li key={s.papel} className={`rounded-full px-3 py-1 font-semibold ${s.assinado_em ? "bg-[#E3F4EA] text-[#17613B]" : "bg-[#EFEDE4] text-[#4A453A]"}`}>
