@@ -2441,6 +2441,13 @@ def listar_usuarios():
             db.table("perfis").select("id, nome, role").in_("role", list(PAPEIS_EQUIPE)).order("nome").execute().data or []
         )
         ids = [p["id"] for p in perfis]
+        # CPF fica numa coluna à parte: se ela ainda não existir no banco, a lista continua funcionando sem CPF
+        cpfs = {}
+        if ids:
+            try:
+                cpfs = {r["id"]: r.get("cpf") for r in (db.table("perfis").select("id, cpf").in_("id", ids).execute().data or [])}
+            except Exception:  # noqa: BLE001
+                cpfs = {}
         atribuicoes = {}
         if ids:
             linhas = db.table("perfil_municipios").select("perfil_id, municipio_id").in_("perfil_id", ids).execute().data or []
@@ -2452,6 +2459,7 @@ def listar_usuarios():
             except Exception:
                 p["email"] = None
             p["municipio_ids"] = sorted(atribuicoes.get(p["id"], []))
+            p["cpf"] = cpfs.get(p["id"])
         return jsonify(perfis)
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -2474,7 +2482,10 @@ def salvar_usuario():
     senha = body.get("senha") or ""
     role = body.get("role")
     municipio_ids = body.get("municipio_ids") or []
+    cpf = _so_digitos(body.get("cpf"))
 
+    if cpf and not _cpf_valido(cpf):
+        return jsonify({"error": "O CPF informado não é válido. Confira os números."}), 400
     if role not in PAPEIS_EQUIPE:
         return jsonify({"error": "Escolha o perfil: Apoiador de Visitas, Apoiador de Relatórios ou Administrador."}), 400
     if usuario_id and str(usuario_id) == str(user.id) and role != "admin":
@@ -2545,13 +2556,65 @@ def salvar_usuario():
             db.table("perfil_municipios").insert(
                 [{"perfil_id": usuario_id, "municipio_id": m} for m in municipio_ids]
             ).execute()
+        aviso = None
+        try:
+            db.table("perfis").update({"cpf": cpf or None}).eq("id", usuario_id).execute()
+        except Exception:  # noqa: BLE001
+            if cpf:
+                aviso = "Os dados foram salvos, mas o CPF não: falta criar a coluna cpf na tabela perfis do Supabase (veja o arquivo LEIA-ME_CPF_EQUIPE.md)."
         limpar_caches_perfil()
-        return jsonify({"id": usuario_id, "nome": nome, "email": email, "role": role, "municipio_ids": municipio_ids})
+        return jsonify({"id": usuario_id, "nome": nome, "email": email, "role": role, "municipio_ids": municipio_ids, "cpf": cpf or None, "aviso": aviso})
     except Exception as e:
         texto = str(e)
         if "already" in texto.lower() or "registered" in texto.lower():
             texto = "Já existe um usuário com este e-mail."
         return jsonify({"error": texto}), 500
+
+
+@app.get("/api/equipe-documento")
+def equipe_documento():
+    """Dados do documento de apresentação do apoiador: foto (outro endpoint), nome, função, CPF e as escolas do programa
+    (ciclo ativo) em cada município em que ele atua. Só administrador."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores podem gerar este documento."}), 403
+    usuario_id = (request.args.get("id") or "").strip()
+    if not usuario_id or len(usuario_id) > 64:
+        return jsonify({"error": "id é obrigatório."}), 400
+    try:
+        db = get_client()
+        perfil = (db.table("perfis").select("id, nome, role").eq("id", usuario_id).limit(1).execute().data or [None])[0]
+        if not perfil or perfil["role"] not in PAPEIS_APOIADOR:
+            return jsonify({"error": "Este documento é só para Apoiador de Visitas ou de Relatórios."}), 404
+        try:
+            cpf = (db.table("perfis").select("cpf").eq("id", usuario_id).limit(1).execute().data or [{}])[0].get("cpf")
+        except Exception:  # noqa: BLE001
+            cpf = None
+        try:
+            email = db.auth.admin.get_user_by_id(usuario_id).user.email
+        except Exception:  # noqa: BLE001
+            email = None
+        ids_mun = sorted({int(l["municipio_id"]) for l in (db.table("perfil_municipios").select("municipio_id").eq("perfil_id", usuario_id).execute().data or [])})
+        ciclo = (db.table("ciclos").select("id, nome").eq("ativo", True).limit(1).execute().data or [None])[0]
+        nomes_mun = {}
+        if ids_mun:
+            nomes_mun = {m["id"]: m["nome"] for m in (db.table("municipios").select("id, nome").in_("id", ids_mun).execute().data or [])}
+        municipios = []
+        for mid in sorted(ids_mun, key=lambda i: str(nomes_mun.get(i, "")).lower()):
+            escolas = []
+            if ciclo:
+                ids_esc = _ids_escolas_no_ciclo(db, ciclo["id"], mid)
+                escolas = sorted((e["nome"] for e in _escolas_por_ids(db, ids_esc, colunas="id, nome")), key=lambda n: str(n).lower())
+            municipios.append({"id": mid, "nome": nomes_mun.get(mid, str(mid)), "escolas": escolas})
+        return jsonify({
+            "id": perfil["id"], "nome": perfil["nome"], "role": perfil["role"], "funcao": ROTULO_PAPEL_APOIADOR[perfil["role"]],
+            "cpf": cpf, "email": email, "ciclo": (ciclo or {}).get("nome"), "municipios": municipios,
+        })
+    except Exception as e:  # noqa: BLE001
+        return jsonify({"error": str(e)}), 500
 
 
 @app.delete("/api/usuarios")

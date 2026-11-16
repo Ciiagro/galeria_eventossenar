@@ -238,6 +238,7 @@ export type MembroEquipe = {
   email: string | null;
   role: "apoiador_visitas" | "apoiador_relatorios" | "admin";
   municipio_ids: number[];
+  cpf?: string | null;
 };
 
 export type TipoDocumento = { id: string; nome: string };

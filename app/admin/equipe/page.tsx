@@ -8,6 +8,8 @@ import { AdminGuard } from "@/components/AdminGuard";
 import { LockIcon, MailIcon, MapPinIcon, SearchIcon, UserIcon, XIcon } from "@/components/icons";
 import { MenuAcoes, Ordem, Pilula, RodapeTabela, Th, ordenar } from "@/components/TabelaCoordenadores";
 import { BarraFiltros, CampoBusca } from "@/components/Filtros";
+import { FotoCoordenador, atualizarFotos } from "@/components/FotoCoordenador";
+import { reduzirFoto } from "@/lib/reduzirFoto";
 
 type PapelApoio = MembroEquipe["role"];
 
@@ -47,6 +49,15 @@ const POR_PAGINA_TABELA = 10;
 const CAMPO =
   "w-full rounded-lg border border-black/10 bg-white px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-light/30";
 
+function soDigitos(v: string) {
+  return v.replace(/\D/g, "");
+}
+
+function mascararCpf(v: string) {
+  const d = soDigitos(v).slice(0, 11);
+  return d.replace(/^(\d{3})(\d)/, "$1.$2").replace(/^(\d{3})\.(\d{3})(\d)/, "$1.$2.$3").replace(/\.(\d{3})(\d)/, ".$1-$2");
+}
+
 function semAcento(texto: string) {
   return texto.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 }
@@ -73,6 +84,10 @@ function EquipePage() {
   const [email, setEmail] = useState("");
   const [senha, setSenha] = useState("");
   const [papel, setPapel] = useState<PapelApoio>("apoiador_visitas");
+  const [cpf, setCpf] = useState("");
+  const [fotoNova, setFotoNova] = useState(""); // foto escolhida, ainda não enviada
+  // filtro da lista pelo perfil: clicar num perfil mostra embaixo só as pessoas dele
+  const [filtroPapel, setFiltroPapel] = useState<PapelApoio | "todos">("todos");
   const [escolhidos, setEscolhidos] = useState<Set<number>>(new Set());
   const [buscaMunicipio, setBuscaMunicipio] = useState("");
   const [buscaEquipe, setBuscaEquipe] = useState(""); // pesquisa na lista da equipe
@@ -128,12 +143,14 @@ function EquipePage() {
   // pesquisa por nome, e-mail, função (visitas/relatórios) ou município
   const equipeFiltrada = useMemo(() => {
     const termo = semAcento(buscaEquipe.trim());
-    if (!equipe || !termo) return equipe;
-    return equipe.filter((m) =>
-      [m.nome, m.email, PAPEIS.find((p) => p.valor === m.role)?.titulo, ...m.municipio_ids.map((id) => nomes.get(id))]
+    if (!equipe) return equipe;
+    const dosPerfil = filtroPapel === "todos" ? equipe : equipe.filter((m) => m.role === filtroPapel);
+    if (!termo) return dosPerfil;
+    return dosPerfil.filter((m) =>
+      [m.nome, m.cpf, m.email, PAPEIS.find((p) => p.valor === m.role)?.titulo, ...m.municipio_ids.map((id) => nomes.get(id))]
         .some((v) => semAcento(String(v ?? "")).includes(termo))
     );
-  }, [equipe, buscaEquipe, nomes]);
+  }, [equipe, buscaEquipe, nomes, filtroPapel]);
 
   function novo() {
     setEditandoId(null);
@@ -141,6 +158,8 @@ function EquipePage() {
     setEmail("");
     setSenha("");
     setPapel("apoiador_visitas");
+    setCpf("");
+    setFotoNova("");
     setEscolhidos(new Set());
     setBuscaMunicipio("");
     setErro(null);
@@ -154,6 +173,8 @@ function EquipePage() {
     setEmail(m.email ?? "");
     setSenha("");
     setPapel(m.role);
+    setCpf(mascararCpf(m.cpf ?? ""));
+    setFotoNova("");
     setEscolhidos(new Set(m.municipio_ids));
     setBuscaMunicipio("");
     setErro(null);
@@ -177,15 +198,25 @@ function EquipePage() {
     setErro(null);
     setMensagem(null);
     try {
-      await apiPost("/api/usuarios", {
+      const salvo = await apiPost("/api/usuarios", {
         id: editandoId,
         nome,
         email,
         senha,
+        cpf: soDigitos(cpf),
         role: papel,
         municipio_ids: papel === "admin" ? [] : Array.from(escolhidos),
       });
-      setMensagem(editandoId ? "Dados salvos." : "Usuário criado. Passe o e-mail e a senha para a pessoa entrar.");
+      let aviso: string | null = salvo?.aviso ?? null;
+      if (fotoNova && salvo?.id) {
+        try {
+          await apiPost("/api/coordenador-foto", { user_id: salvo.id, foto: fotoNova });
+          atualizarFotos();
+        } catch (errFoto) {
+          aviso = `Os dados foram salvos, mas a foto não: ${errFoto instanceof Error ? errFoto.message : "tente de novo."}`;
+        }
+      }
+      setMensagem(aviso ?? (editandoId ? "Dados salvos." : "Usuário criado. Passe o e-mail e a senha para a pessoa entrar."));
       setFormAberto(false);
       await carregar();
     } catch (err) {
@@ -249,7 +280,7 @@ function EquipePage() {
                     className={`cursor-pointer rounded-xl border-2 p-3 transition ${papel === p.valor ? "shadow-sm" : "border-black/10 bg-white hover:bg-black/[0.02]"}`}
                     style={papel === p.valor ? { borderColor: p.cor, background: p.fundo } : undefined}
                   >
-                    <input type="radio" name="papel" value={p.valor} checked={papel === p.valor} onChange={() => setPapel(p.valor)} className="sr-only" />
+                    <input type="radio" name="papel" value={p.valor} checked={papel === p.valor} onChange={() => { setPapel(p.valor); setFiltroPapel(p.valor); }} className="sr-only" />
                     <span className="block text-sm font-bold" style={{ color: p.cor }}>{p.titulo}</span>
                     <span className="mt-0.5 block text-xs text-brand-dark/80">{p.descricao}</span>
                   </label>
@@ -266,6 +297,32 @@ function EquipePage() {
                 <span className="mb-1 flex items-center gap-1.5"><MailIcon className="h-4 w-4" /> E-mail (login)</span>
                 <input type="email" value={email} onChange={(e) => setEmail(e.target.value)} required className={CAMPO} />
               </label>
+              <label className="block text-sm font-medium text-brand-dark">
+                <span className="mb-1 flex items-center gap-1.5"><UserIcon className="h-4 w-4" /> CPF</span>
+                <input value={cpf} onChange={(e) => setCpf(mascararCpf(e.target.value))} inputMode="numeric" maxLength={14} placeholder="000.000.000-00" className={CAMPO} />
+              </label>
+              <div className="flex items-center gap-3 text-sm font-medium text-brand-dark">
+                {fotoNova ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={fotoNova} alt="Foto escolhida" className="h-14 w-14 rounded-full object-cover" />
+                ) : (
+                  <FotoCoordenador userId={editandoId} nome={nome} tamanho={56} />
+                )}
+                <label className="cursor-pointer rounded-lg border border-black/10 bg-white px-3 py-2 text-sm font-semibold hover:bg-black/[0.03]">
+                  {fotoNova ? "Trocar foto" : "Inserir foto"}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    className="sr-only"
+                    onChange={async (e) => {
+                      const arquivo = e.target.files?.[0] ?? null;
+                      e.target.value = "";
+                      if (!arquivo) return;
+                      try { setFotoNova(await reduzirFoto(arquivo)); setErro(null); } catch (err) { setErro(err instanceof Error ? err.message : "Foto inválida."); }
+                    }}
+                  />
+                </label>
+              </div>
               <label className="block text-sm font-medium text-brand-dark sm:col-span-2">
                 <span className="mb-1 flex items-center gap-1.5"><LockIcon className="h-4 w-4" /> Senha {editandoId && <span className="font-normal text-brand-dark/70">(deixe vazio para manter a atual)</span>}</span>
                 <input type="password" value={senha} onChange={(e) => setSenha(e.target.value)} required={!editandoId} minLength={6} autoComplete="new-password" placeholder="Mínimo de 6 caracteres" className={CAMPO} />
@@ -334,8 +391,29 @@ function EquipePage() {
         )}
 
         {equipe && equipe.length > 0 && (
+          <div className="mt-6 flex flex-wrap gap-2" role="group" aria-label="Filtrar por perfil">
+            {([{ valor: "todos", titulo: "Todos", cor: "#1D3B2F", fundo: "#EEF3EF" }, ...PAPEIS] as { valor: PapelApoio | "todos"; titulo: string; cor: string; fundo: string }[]).map((p) => {
+              const qtd = p.valor === "todos" ? equipe.length : equipe.filter((m) => m.role === p.valor).length;
+              const ativo = filtroPapel === p.valor;
+              return (
+                <button
+                  key={p.valor}
+                  type="button"
+                  onClick={() => setFiltroPapel(p.valor)}
+                  aria-pressed={ativo}
+                  className="rounded-full border-2 px-4 py-1.5 text-sm font-bold transition hover:brightness-95"
+                  style={ativo ? { borderColor: p.cor, background: p.fundo, color: p.cor } : { borderColor: "rgba(0,0,0,0.1)", background: "#fff", color: "#3d4a43" }}
+                >
+                  {p.titulo} <span className="ml-1 font-semibold opacity-70">{qtd}</span>
+                </button>
+              );
+            })}
+          </div>
+        )}
+
+        {equipe && equipe.length > 0 && (
           <BarraFiltros
-            className="mt-6"
+            className="mt-3"
             colunas="grid-cols-1 sm:max-w-md"
             mostrarLimpar={Boolean(buscaEquipe.trim())}
             onLimpar={() => setBuscaEquipe("")}
@@ -379,10 +457,11 @@ function EquipePage() {
                           <tr key={m.id} className="hover:bg-[#F3FAF6]">
                             <td className="px-4 py-[18px]">
                               <div className="flex items-center gap-3">
-                                <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-bold" style={{ background: info.fundo, color: info.cor }} aria-hidden="true">
-                                  {iniciais(m.nome)}
+                                <FotoCoordenador userId={m.id} nome={m.nome} tamanho={40} />
+                                <span>
+                                  <span className="block font-bold text-brand-dark">{m.nome}</span>
+                                  {m.cpf && <span className="block text-xs text-brand-dark/70">CPF: {mascararCpf(m.cpf)}</span>}
                                 </span>
-                                <span className="block font-bold text-brand-dark">{m.nome}</span>
                               </div>
                             </td>
                             <td className="whitespace-nowrap px-4 py-[18px] text-brand-dark">{m.email ?? "sem e-mail"}</td>
@@ -397,6 +476,7 @@ function EquipePage() {
                             <td className="px-4 py-[18px] text-right">
                               <MenuAcoes rotulo={m.nome} itens={[
                                 { rotulo: "Editar dados", onClick: () => editar(m) },
+                                ...(m.role !== "admin" ? [{ rotulo: "Gerar documento para as escolas", onClick: () => window.open(`/admin/equipe/documento?id=${m.id}`, "_blank") }] : []),
                                 { rotulo: "Excluir", perigo: true, onClick: () => excluir(m) },
                               ]} />
                             </td>
