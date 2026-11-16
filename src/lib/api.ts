@@ -392,6 +392,7 @@ export type Comunicado = {
   para_coordenadores: boolean;
   para_apoiadores: boolean;
   para_secretarios: boolean;
+  destinatarios_ids?: string[] | null; // pessoas escolhidas (vazio = grupo inteiro)
   fixado: boolean;
   criado_por_nome?: string | null;
   criado_em: string;
@@ -401,6 +402,7 @@ export type Comunicado = {
   lidos?: number; // só para o administrador
   emails?: ResumoEnvio; // só para o administrador: andamento do envio dos e-mails
 };
+export type PessoaComunicado = { id: string; nome: string; grupo: "coordenadores" | "apoiadores"; municipio?: string | null; tem_email: boolean };
 export type LeituraComunicado = { nome: string; role: Papel | null; municipio?: string | null; lido: boolean; lido_em?: string | null };
 export type EnvioEmail = {
   tipo: "coordenador" | "apoiador" | "secretario";

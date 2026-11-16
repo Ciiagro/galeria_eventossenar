@@ -3,7 +3,7 @@
 import { usePerfil } from "@/lib/usePerfil";
 import { useCallback, useEffect, useState } from "react";
 import { TituloPagina, Indicador } from "@/components/TituloPagina";
-import { apiDelete, apiGet, apiPost, apiPut, Comunicado, EnvioEmail, LeituraComunicado, ResumoEnvio, ROTULO_PAPEL } from "@/lib/api";
+import { apiDelete, apiGet, apiPost, apiPut, Comunicado, EnvioEmail, LeituraComunicado, PessoaComunicado, ResumoEnvio, ROTULO_PAPEL } from "@/lib/api";
 import { BotaoEditar, BotaoExcluir } from "@/components/BotoesIcone";
 import { LinkIcon, XIcon } from "@/components/icons";
 
@@ -62,6 +62,10 @@ export default function ComunicadosPage() {
   const [fixado, setFixado] = useState(false);
   const [salvando, setSalvando] = useState(false);
   const [contagem, setContagem] = useState<Contagem | null>(null);
+  const [pessoas, setPessoas] = useState<PessoaComunicado[] | null>(null); // coordenadores e equipe de apoio, para escolher
+  const [escolhidos, setEscolhidos] = useState<Set<string>>(new Set()); // vazio = grupo inteiro
+  const [escolhendo, setEscolhendo] = useState(false);
+  const [buscaPessoa, setBuscaPessoa] = useState("");
 
   // acompanhamento (só o administrador)
   const [leiturasAbertas, setLeiturasAbertas] = useState<string | null>(null);
@@ -97,6 +101,7 @@ export default function ComunicadosPage() {
 
   function buscarContagem() {
     apiGet("/api/comunicados/contagem-email").then(setContagem).catch(() => setContagem(null));
+    if (!pessoas) apiGet("/api/comunicados/pessoas").then((r) => setPessoas(r.pessoas ?? [])).catch(() => setPessoas([]));
   }
 
   function limparFormulario() {
@@ -106,6 +111,9 @@ export default function ComunicadosPage() {
     setDestinos({ para_coordenadores: true, para_apoiadores: false, para_secretarios: false });
     setLink("");
     setFixado(false);
+    setEscolhidos(new Set());
+    setEscolhendo(false);
+    setBuscaPessoa("");
   }
 
   function abrirNovo() {
@@ -123,6 +131,9 @@ export default function ComunicadosPage() {
     setDestinos({ para_coordenadores: c.para_coordenadores, para_apoiadores: c.para_apoiadores, para_secretarios: c.para_secretarios });
     setLink(c.link ?? "");
     setFixado(c.fixado);
+    setEscolhidos(new Set(c.destinatarios_ids ?? []));
+    setEscolhendo(Boolean(c.destinatarios_ids?.length));
+    setBuscaPessoa("");
     setAviso("");
     setErro("");
     setFormAberto(true);
@@ -136,6 +147,19 @@ export default function ComunicadosPage() {
   }
 
   const algumDestino = destinos.para_coordenadores || destinos.para_apoiadores || destinos.para_secretarios;
+
+  // pessoas que aparecem na lista de escolha: dos grupos marcados e que combinam com a busca
+  const semAcento = (t: string) => t.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
+  const pessoasDosGrupos = (pessoas ?? []).filter((p) => (p.grupo === "coordenadores" ? destinos.para_coordenadores : destinos.para_apoiadores));
+  const pessoasVisiveis = pessoasDosGrupos.filter((p) => !buscaPessoa.trim() || semAcento(`${p.nome} ${p.municipio ?? ""}`).includes(semAcento(buscaPessoa.trim())));
+  const escolhidosValidos = pessoasDosGrupos.filter((p) => escolhidos.has(p.id)).map((p) => p.id);
+  const alternarPessoa = (id: string) =>
+    setEscolhidos((antes) => {
+      const novo = new Set(antes);
+      if (novo.has(id)) novo.delete(id);
+      else novo.add(id);
+      return novo;
+    });
 
   // Envia os e-mails em lotes: o servidor tem limite de tempo por chamada, então a tela chama de novo
   // até acabar. Cada pessoa fica registrada, então ninguém recebe duas vezes.
@@ -176,11 +200,15 @@ export default function ComunicadosPage() {
       setErro("Marque para quem o comunicado será enviado.");
       return;
     }
+    if (escolhendo && escolhidosValidos.length === 0) {
+      setErro("Marque pelo menos uma pessoa na lista, ou desligue a opção de escolher pessoas específicas.");
+      return;
+    }
     setSalvando(true);
     setErro("");
     setAviso("");
     try {
-      const corpo = { titulo: titulo.trim(), mensagem: mensagem.trim(), link: link.trim(), fixado, ...destinos };
+      const corpo = { titulo: titulo.trim(), mensagem: mensagem.trim(), link: link.trim(), fixado, ...destinos, destinatarios_ids: escolhendo ? escolhidosValidos : [] };
       const eraEdicao = Boolean(editandoId);
       let criado: Comunicado | null = null;
       if (editandoId) await apiPut("/api/comunicados", { id: editandoId, ...corpo });
@@ -363,6 +391,61 @@ export default function ComunicadosPage() {
                     Secretários de educação não entram no sistema (são contatos da ficha de adesão), então não dá para saber se leram. O sistema só registra se o e-mail foi enviado.
                   </p>
                 )}
+
+                {(destinos.para_coordenadores || destinos.para_apoiadores) && (
+                  <div className="mt-3 rounded-xl border border-black/10 bg-white p-3">
+                    <label className="flex cursor-pointer items-center gap-2 text-sm font-semibold text-brand-dark">
+                      <input type="checkbox" checked={escolhendo} onChange={(e) => setEscolhendo(e.target.checked)} className="h-4 w-4 rounded" />
+                      Enviar só para pessoas específicas
+                      <span className="font-normal text-brand-dark/60">(sem marcar, vai para todos dos grupos acima)</span>
+                    </label>
+                    {escolhendo && (
+                      <div className="mt-3">
+                        <div className="flex flex-wrap items-center gap-2">
+                          <input
+                            value={buscaPessoa}
+                            onChange={(e) => setBuscaPessoa(e.target.value)}
+                            placeholder="Buscar por nome ou município..."
+                            className={`${CAMPO} min-w-[12rem] flex-1`}
+                          />
+                          <button
+                            type="button"
+                            onClick={() => setEscolhidos((antes) => new Set([...antes, ...pessoasVisiveis.map((p) => p.id)]))}
+                            className="rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-brand-dark hover:bg-black/[0.03]"
+                          >
+                            Marcar {buscaPessoa.trim() ? "os encontrados" : "todos"}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setEscolhidos(new Set())}
+                            className="rounded-lg border border-black/10 bg-white px-3 py-2 text-xs font-semibold text-brand-dark hover:bg-black/[0.03]"
+                          >
+                            Limpar
+                          </button>
+                        </div>
+                        <p className="mt-2 text-xs font-semibold text-brand-dark/70">
+                          {escolhidosValidos.length} {escolhidosValidos.length === 1 ? "pessoa marcada" : "pessoas marcadas"} de {pessoasDosGrupos.length}
+                        </p>
+                        <div className="mt-1.5 max-h-64 overflow-y-auto rounded-lg border border-black/10">
+                          {pessoas === null && <p className="px-3 py-3 text-sm text-brand-dark/60">Carregando pessoas...</p>}
+                          {pessoas !== null && pessoasVisiveis.length === 0 && <p className="px-3 py-3 text-sm text-brand-dark/60">Ninguém encontrado.</p>}
+                          {pessoasVisiveis.map((p) => (
+                            <label key={p.id} className="flex cursor-pointer items-center gap-2.5 border-b border-black/5 px-3 py-2 text-sm last:border-b-0 hover:bg-black/[0.02]">
+                              <input type="checkbox" checked={escolhidos.has(p.id)} onChange={() => alternarPessoa(p.id)} className="h-4 w-4 shrink-0 rounded" />
+                              <span className="min-w-0 flex-1">
+                                <span className="font-semibold text-brand-dark">{p.nome}</span>
+                                <span className="text-brand-dark/60">
+                                  {" · "}{p.grupo === "coordenadores" ? p.municipio ?? "Coordenador(a)" : "Equipe de apoio"}
+                                </span>
+                              </span>
+                              {!p.tem_email && <span className="shrink-0 rounded-full bg-red-50 px-2 py-0.5 text-[11px] font-bold text-status-pendente">sem e-mail</span>}
+                            </label>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                )}
               </fieldset>
 
               <label className="block">
@@ -462,6 +545,11 @@ export default function ComunicadosPage() {
                             {d.curto}
                           </span>
                         ))}
+                      {podeEnviar && c.destinatarios_ids && c.destinatarios_ids.length > 0 && (
+                        <span className="rounded-full bg-black/5 px-2 py-0.5 text-[11px] font-bold text-brand-dark/80">
+                          {c.destinatarios_ids.length} {c.destinatarios_ids.length === 1 ? "pessoa escolhida" : "pessoas escolhidas"}
+                        </span>
+                      )}
                       <h2 className="min-w-0 text-base font-bold leading-snug text-brand-dark">
                         <button
                           type="button"

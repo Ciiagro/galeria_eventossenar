@@ -5738,14 +5738,32 @@ def _alcance(role):
     return False, _COLUNA_DO_PAPEL.get(role)
 
 
-def _comunicados_visiveis(db, role, colunas, limite=100):
+def _comunicados_visiveis(db, role, colunas, limite=100, usuario_id=None):
+    """Comunicados que este perfil enxerga. Se o comunicado tem `destinatarios_ids` (pessoas escolhidas),
+    só essas pessoas o veem; sem a lista, vale o grupo inteiro."""
     eh_admin, coluna = _alcance(role)
     if not eh_admin and not coluna:
         return []
-    consulta = db.table("comunicados").select(colunas).eq("arquivado", False)
-    if coluna:
-        consulta = consulta.eq(coluna, True)
-    return consulta.order("fixado", desc=True).order("criado_em", desc=True).limit(limite).execute().data or []
+
+    def _buscar(cols):
+        consulta = db.table("comunicados").select(cols).eq("arquivado", False)
+        if coluna:
+            consulta = consulta.eq(coluna, True)
+        return consulta.order("fixado", desc=True).order("criado_em", desc=True).limit(limite).execute().data or []
+
+    try:
+        itens = _buscar(colunas + ", destinatarios_ids")
+    except Exception:  # coluna ainda não criada no banco (veja sql/migration_comunicados_destinatarios.sql)
+        return _buscar(colunas)
+    if eh_admin:
+        return itens
+    visiveis = []
+    for i in itens:
+        escolhidos = i.pop("destinatarios_ids", None)
+        if escolhidos and str(usuario_id) not in {str(x) for x in escolhidos}:
+            continue
+        visiveis.append(i)
+    return visiveis
 
 
 def _ids_lidos(db, usuario_id, ids):
@@ -5793,10 +5811,20 @@ def _validar_comunicado(body):
         return None, "Escolha para quem o comunicado será enviado (coordenadores, equipe de apoio, secretários ou mais de um)."
     if link and not re.match(r"^https?://\S+$", link):
         return None, "O link precisa começar com http:// ou https:// (ou deixe o campo vazio)."
-    return {
+    escolhidos = []
+    for x in (body.get("destinatarios_ids") or [])[:500]:
+        x = str(x)
+        if _UUID_RE.match(x) and x not in escolhidos:
+            escolhidos.append(x)
+    if escolhidos and not (para_coord or para_apoio):
+        return None, "Para escolher pessoas, marque Coordenadores e/ou Equipe de apoio."
+    campos = {
         "titulo": titulo, "mensagem": mensagem, "link": link, "fixado": bool(body.get("fixado")),
         "para_coordenadores": para_coord, "para_apoiadores": para_apoio, "para_secretarios": para_secr,
-    }, None
+    }
+    if escolhidos:
+        campos["destinatarios_ids"] = escolhidos
+    return campos, None
 
 
 def _emails_dos_usuarios(db, ids):
@@ -5816,9 +5844,11 @@ def _emails_dos_usuarios(db, ids):
     return achados
 
 
-def _perfis_destinatarios(db, roles, tipo):
+def _perfis_destinatarios(db, roles, tipo, so_ids=None):
     """Pessoas com login (coordenadores ou equipe de apoio) com e-mail válido. Devolve (lista, sem_email)."""
     pessoas = db.table("perfis").select("id, nome, role, municipio_id").in_("role", list(roles)).limit(1000).execute().data or []
+    if so_ids:
+        pessoas = [p for p in pessoas if str(p["id"]) in so_ids]
     emails = _emails_dos_usuarios(db, [p["id"] for p in pessoas])
     lista, sem_email = [], 0
     for p in pessoas:
@@ -5859,13 +5889,13 @@ def _secretarios_destinatarios(db):
     return lista, sem_email
 
 
-def _destinatarios_email(db, para_coordenadores, para_apoiadores, para_secretarios):
+def _destinatarios_email(db, para_coordenadores, para_apoiadores, para_secretarios, so_ids=None):
     """Todos que devem receber o e-mail, sem repetir endereço. Devolve (lista, resumo_por_tipo)."""
     grupos = []
     if para_coordenadores:
-        grupos.append(("coordenador",) + _perfis_destinatarios(db, ["municipio"], "coordenador"))
+        grupos.append(("coordenador",) + _perfis_destinatarios(db, ["municipio"], "coordenador", so_ids))
     if para_apoiadores:
-        grupos.append(("apoiador",) + _perfis_destinatarios(db, PAPEIS_APOIADOR, "apoiador"))
+        grupos.append(("apoiador",) + _perfis_destinatarios(db, PAPEIS_APOIADOR, "apoiador", so_ids))
     if para_secretarios:
         grupos.append(("secretario",) + _secretarios_destinatarios(db))
     vistos, lista = set(), []
@@ -5899,7 +5929,7 @@ def listar_comunicados():
         role = carregar_perfil(user).get("role")
         eh_admin, _coluna = _alcance(role)
         db = get_client()
-        itens = _comunicados_visiveis(db, role, _COLUNAS_COMUNICADO)
+        itens = _comunicados_visiveis(db, role, _COLUNAS_COMUNICADO, usuario_id=getattr(user, "id", None))
         ids = [i["id"] for i in itens]
         if eh_admin:
             n_coord = _contar_perfis(db, ["municipio"])
@@ -5911,7 +5941,10 @@ def listar_comunicados():
                 for r in db.table("comunicados_envios_contagem").select("comunicado_id, status, qtd").in_("comunicado_id", ids).execute().data or []:
                     envios.setdefault(r["comunicado_id"], []).extend([{"status": r["status"]}] * int(r["qtd"]))
             for i in itens:
-                i["destinatarios"] = (n_coord if i["para_coordenadores"] else 0) + (n_apoio if i["para_apoiadores"] else 0)
+                if i.get("destinatarios_ids"):
+                    i["destinatarios"] = len(i["destinatarios_ids"])
+                else:
+                    i["destinatarios"] = (n_coord if i["para_coordenadores"] else 0) + (n_apoio if i["para_apoiadores"] else 0)
                 i["lidos"] = lidos.get(i["id"], 0)
                 i["emails"] = _resumo_envios(envios.get(i["id"], []))
             nao_lidos = 0
@@ -5938,7 +5971,7 @@ def contar_comunicados_nao_lidos():
         if eh_admin or not coluna:  # administrador ou perfil sem acesso: nada a ler
             return jsonify({"nao_lidos": 0})
         db = get_client()
-        visiveis = [r["id"] for r in _comunicados_visiveis(db, role, "id")]
+        visiveis = [r["id"] for r in _comunicados_visiveis(db, role, "id", usuario_id=getattr(user, "id", None))]
         ja_lidos = _ids_lidos(db, getattr(user, "id", None), visiveis)
         return jsonify({"nao_lidos": sum(1 for i in visiveis if i not in ja_lidos)})
     except Exception as e:
@@ -5982,9 +6015,15 @@ def editar_comunicado():
         return jsonify({"error": erro}), 400
     try:
         campos["atualizado_em"] = datetime.now(timezone.utc).isoformat()
-        salvo = get_client().table("comunicados").update(campos).eq("id", cid).execute().data or []
+        db = get_client()
+        salvo = db.table("comunicados").update(campos).eq("id", cid).execute().data or []
         if not salvo:
             return jsonify({"error": "Comunicado não encontrado."}), 404
+        if "destinatarios_ids" not in campos:  # voltou a "todos do grupo": apaga a lista antiga (se a coluna existir)
+            try:
+                db.table("comunicados").update({"destinatarios_ids": None}).eq("id", cid).execute()
+            except Exception:
+                pass
         return jsonify(salvo[0])
     except Exception as e:
         return jsonify({"error": str(e)}), 500
@@ -6024,9 +6063,8 @@ def marcar_comunicados_lidos():
             return jsonify({"marcados": 0})
         db = get_client()
         validos = [
-            r["id"] for r in (
-                db.table("comunicados").select("id").in_("id", ids).eq(coluna, True).eq("arquivado", False).execute().data or []
-            )
+            r["id"] for r in _comunicados_visiveis(db, carregar_perfil(user).get("role"), "id", limite=500, usuario_id=usuario_id)
+            if r["id"] in ids
         ]
         if validos:
             db.table("comunicados_leituras").upsert(
@@ -6052,11 +6090,14 @@ def leituras_do_comunicado():
         return jsonify({"error": "Comunicado inválido."}), 400
     try:
         db = get_client()
-        achado = db.table("comunicados").select("id, para_coordenadores, para_apoiadores, para_secretarios").eq("id", cid).limit(1).execute().data or []
+        achado = db.table("comunicados").select("id, para_coordenadores, para_apoiadores, para_secretarios, destinatarios_ids").eq("id", cid).limit(1).execute().data or []
         if not achado:
             return jsonify({"error": "Comunicado não encontrado."}), 404
         roles = _roles_do_comunicado(achado[0])
         pessoas = db.table("perfis").select("id, nome, role, municipio_id").in_("role", roles).limit(1000).execute().data or [] if roles else []
+        escolhidos = {str(x) for x in (achado[0].get("destinatarios_ids") or [])}
+        if escolhidos:
+            pessoas = [p for p in pessoas if str(p["id"]) in escolhidos]
         lidas = {
             r["usuario_id"]: r["lido_em"] for r in (
                 db.table("comunicados_leituras").select("usuario_id, lido_em").eq("comunicado_id", cid).limit(1000).execute().data or []
@@ -6111,6 +6152,37 @@ def contar_destinatarios_email():
         return jsonify({"error": str(e)}), 500
 
 
+@app.get("/api/comunicados/pessoas")
+def pessoas_para_comunicado():
+    """Administrador: coordenadores e equipe de apoio (com login), para escolher quem recebe um comunicado."""
+    auth = require_user()
+    if not auth:
+        return jsonify({"error": "Não autenticado"}), 401
+    user, jwt = auth
+    if not require_admin(jwt, user):
+        return jsonify({"error": "Apenas administradores."}), 403
+    try:
+        db = get_client()
+        pessoas = db.table("perfis").select("id, nome, role, municipio_id").in_("role", ["municipio", *PAPEIS_APOIADOR]).limit(1000).execute().data or []
+        emails = _emails_dos_usuarios(db, [p["id"] for p in pessoas])
+        ids_mun = sorted({p["municipio_id"] for p in pessoas if p.get("municipio_id") is not None})
+        nomes_mun = {}
+        if ids_mun:
+            nomes_mun = {m["id"]: m["nome"] for m in (db.table("municipios").select("id, nome").in_("id", ids_mun).limit(1000).execute().data or [])}
+        lista = [
+            {
+                "id": p["id"], "nome": (p.get("nome") or "").strip() or "(sem nome)",
+                "grupo": "coordenadores" if p.get("role") == "municipio" else "apoiadores",
+                "municipio": nomes_mun.get(p.get("municipio_id")), "tem_email": p["id"] in emails,
+            }
+            for p in pessoas
+        ]
+        lista.sort(key=lambda x: (x["nome"] or "").lower())
+        return jsonify({"pessoas": lista})
+    except Exception as e:
+        return jsonify({"error": str(e)}), 500
+
+
 @app.post("/api/comunicados/enviar-email")
 def enviar_comunicado_email():
     """Envia o comunicado por e-mail a todos os públicos marcados, em lotes pequenos.
@@ -6138,7 +6210,7 @@ def enviar_comunicado_email():
     try:
         db = get_client()
         achado = (
-            db.table("comunicados").select("id, titulo, mensagem, link, para_coordenadores, para_apoiadores, para_secretarios")
+            db.table("comunicados").select("id, titulo, mensagem, link, para_coordenadores, para_apoiadores, para_secretarios, destinatarios_ids")
             .eq("id", cid).limit(1).execute().data or []
         )
         if not achado:
@@ -6146,7 +6218,10 @@ def enviar_comunicado_email():
         com = achado[0]
 
         # 1) garante uma linha "pendente" para cada pessoa (só acrescenta quem ainda não está na lista)
-        destinatarios, _resumo = _destinatarios_email(db, com["para_coordenadores"], com["para_apoiadores"], com["para_secretarios"])
+        destinatarios, _resumo = _destinatarios_email(
+            db, com["para_coordenadores"], com["para_apoiadores"], com["para_secretarios"],
+            {str(x) for x in (com.get("destinatarios_ids") or [])} or None,
+        )
         existentes = {r["email"] for r in (db.table("comunicados_envios").select("email").eq("comunicado_id", cid).limit(1000).execute().data or [])}
         novos = [
             {"comunicado_id": cid, "tipo": d["tipo"], "usuario_id": d["usuario_id"], "municipio_id": d["municipio_id"],
